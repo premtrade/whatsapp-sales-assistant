@@ -1,0 +1,390 @@
+{
+  "name": "Workflow 2 - AI Brain",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "hasMedia",
+              "type": "boolean"
+            },
+            {
+              "name": "timestamp"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -912,
+        64
+      ],
+      "id": "bd789656-a143-4a11-8145-30e58c3b80dd",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('When Executed by Another Workflow').item.json.message }}",
+        "options": {
+          "systemMessage": " You are a professional WhatsApp Sales Assistant.\n\nYour job is to:\n- Answer customer questions accurately.\n- Be concise and friendly.\n- If the customer is greeting you, greet them back.\n- If you don't know the answer, ask for clarification.\n- Never invent product information.\n- Return plain text only."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -560,
+        32
+      ],
+      "id": "b7c5917c-af89-449d-acf4-21172b560269",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        272
+      ],
+      "id": "bf30af68-916e-4ac6-b26d-ad3cd08742c4",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "wXpNdoZt6qFdQVc2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, gen_random_uuid()::text, 'outgoing',\n    'ai', 'text', $2, '{}'::jsonb\n)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}, {{ $('AI Agent').item.json.output }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -272,
+        32
+      ],
+      "id": "8a4090af-91de-4fc9-84e4-691e15bfd13e",
+      "name": "Insert AI Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "waha_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $('When Executed by Another Workflow').first().json.phone }}\",\n  \"text\": \"{{ $('AI Agent').first().json.output }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -96,
+        32
+      ],
+      "id": "df043a19-5f4c-4898-b7b4-dc7747a200ee",
+      "name": "WAHA Send Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        128,
+        16
+      ],
+      "id": "1fb8a56e-30d1-4f3e-8dfe-aa8f2983dc8f",
+      "name": "Update Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, description)\nVALUES ('conversation', $1, 'ai_reply', 'AI replied to customer');",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        112,
+        224
+      ],
+      "id": "956456a6-506d-4efc-9e45-ed2e62ce64a5",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G4Czr2OS7tdMWaa2",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/G4Czr2OS7tdMWaa2",
+          "cachedResultName": "03 - Memory & Context Builder"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ $json.conversation_id.trim() }}\n\n",
+            "contact_id": "={{ $json.contact_id.trim() }}\n",
+            "phone": "={{ $json.phone }}\n",
+            "customer_name": "={{ $json.customer_name }}\n",
+            "message": "={{ $json.message }}",
+            "message_id": "={{ $json.message_id }}\n",
+            "timestamp": "={{ $json.timestamp }}",
+            "hasMedia": true
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "hasMedia",
+              "displayName": "hasMedia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        144
+      ],
+      "id": "807ea6d8-adc8-447d-a243-2348a131b0f8",
+      "name": "Call '03 - Memory & Context Builder'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call '03 - Memory & Context Builder'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Insert AI Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert AI Message": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Send Message": {
+      "main": [
+        [
+          {
+            "node": "Update Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Conversation": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '03 - Memory & Context Builder'": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7b66e577-2697-42a2-9b45-3a77a20b3e9d",
+  "meta": {
+    "instanceId": "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
+  },
+  "nodeGroups": [],
+  "id": "u6LzGPItprCnpd9U",
+  "tags": []
+}

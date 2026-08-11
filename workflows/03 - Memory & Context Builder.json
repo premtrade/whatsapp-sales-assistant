@@ -1,0 +1,288 @@
+{
+  "name": "03 - Memory & Context Builder",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "hasMedia",
+              "type": "boolean"
+            },
+            {
+              "name": "timestamp"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9e509d3b-13ea-4a25-9176-f1f49c4667b9",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, phone, display_name, source, created_at, updated_at\nFROM contacts\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.contact_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        176,
+        0
+      ],
+      "id": "f15793c8-440c-40b5-af11-e84d3a6b4d05",
+      "name": "Get Contact",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, contact_id, channel, status, last_message_at, created_at, updated_at\nFROM conversations\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        320,
+        -16
+      ],
+      "id": "9a416c81-96ad-4aea-8d58-edf9b5de87cf",
+      "name": "Get Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM (\n    SELECT direction, sender_type, text_body, created_at\n    FROM messages\n    WHERE conversation_id = $1\n    ORDER BY created_at DESC\n    LIMIT 10\n) recent\nORDER BY created_at ASC;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        480,
+        48
+      ],
+      "id": "c32359fe-2b00-4fc8-b196-c6f1c6016a13",
+      "name": "Get Recent Messages",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', fact_key,\n      'fact_value', fact_value,\n      'confidence', confidence\n    )\n    ORDER BY confidence DESC, updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts\nWHERE contact_id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.contact_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        656,
+        0
+      ],
+      "id": "c957f613-4641-4849-8142-8e2e53da9efe",
+      "name": "Get Customer Facts",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    COALESCE(summary, '') AS summary,\n    'none' AS summary_type,\n    updated_at\nFROM conversation_summaries\nWHERE conversation_id = $1\n\nUNION ALL\n\nSELECT\n    '' AS summary,\n    'none' AS summary_type,\n    NULL AS updated_at\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM conversation_summaries\n    WHERE conversation_id = $1\n)\n\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        800,
+        32
+      ],
+      "id": "4876feac-dda7-4084-b6d8-53dfd85c347c",
+      "name": "Get Conversation Summary",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'chunk_text', chunk_text,\n      'metadata', metadata\n    )\n  ),\n  '[]'::json\n) AS knowledge\nFROM (\n  SELECT\n    chunk_text,\n    metadata\n  FROM knowledge_chunks\n  ORDER BY created_at DESC\n  LIMIT 20\n) AS chunks;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        960,
+        0
+      ],
+      "id": "96655c46-29d7-4ee9-81b4-e61f9c10df30",
+      "name": "Get Knowledge Chunks",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first().json;\n\nconst contact = $('Get Contact').first().json;\nconst conversation = $('Get Conversation').first().json;\n\nconst messages = $('Get Recent Messages')\n  .all()\n  .map(item => item.json);\n\nconst facts = $('Get Customer Facts')\n  .all()\n  .flatMap(item => item.json.facts || []);\n\nconst summary = $('Get Conversation Summary').first().json;\n\nconst knowledge = $('Get Knowledge Chunks')\n  .first()\n  .json\n  .knowledge || [];\n\nreturn [\n  {\n    json: {\n      contact,\n      conversation,\n      messages,\n      facts,\n      summary,\n      knowledge,\n\n      message: trigger.message,\n      customer_name: trigger.customer_name,\n      phone: trigger.phone,\n      conversation_id: trigger.conversation_id,\n      contact_id: trigger.contact_id\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        80
+      ],
+      "id": "109e5223-aed0-406e-8e4e-54ce7adcce86",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Messages": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Facts": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation Summary": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Chunks": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ae9e872c-a5d7-4307-a503-a14bc05d92f0",
+  "meta": {
+    "instanceId": "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
+  },
+  "nodeGroups": [],
+  "id": "G4Czr2OS7tdMWaa2",
+  "tags": []
+}

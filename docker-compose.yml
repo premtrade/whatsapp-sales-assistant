@@ -1,0 +1,254 @@
+name: whatsapp-sales-assistant
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/00_init-multiple-dbs.sql
+      - ./database/schema/000_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql
+      - ./database/schema/001_functions.sql:/docker-entrypoint-initdb.d/02_functions.sql
+      - ./database/schema/002_contacts.sql:/docker-entrypoint-initdb.d/03_contacts.sql
+      - ./database/schema/003_conversations.sql:/docker-entrypoint-initdb.d/04_conversations.sql
+      - ./database/schema/004_messages.sql:/docker-entrypoint-initdb.d/05_messages.sql
+      - ./database/schema/005_products.sql:/docker-entrypoint-initdb.d/06_products.sql
+      - ./database/schema/006_quotes.sql:/docker-entrypoint-initdb.d/07_quotes.sql
+      - ./database/schema/007_quote_items.sql:/docker-entrypoint-initdb.d/08_quote_items.sql
+      - ./database/schema/008_appointments.sql:/docker-entrypoint-initdb.d/09_appointments.sql
+      - ./database/schema/009_knowledge_documents.sql:/docker-entrypoint-initdb.d/10_knowledge_documents.sql
+      - ./database/schema/010_knowledge_chunks.sql:/docker-entrypoint-initdb.d/11_knowledge_chunks.sql
+      - ./database/schema/011_staff_users.sql:/docker-entrypoint-initdb.d/12_staff_users.sql
+      - ./database/schema/012_handoffs.sql:/docker-entrypoint-initdb.d/13_handoffs.sql
+      - ./database/schema/013_settings.sql:/docker-entrypoint-initdb.d/14_settings.sql
+      - ./database/schema/014_audit_logs.sql:/docker-entrypoint-initdb.d/15_audit_logs.sql
+      - ./database/schema/015b_fix_foreign_keys.sql:/docker-entrypoint-initdb.d/15b_fix_foreign_keys.sql
+      - ./database/schema/016_views.sql:/docker-entrypoint-initdb.d/16_views.sql
+      - ./database/schema/017_seed_data.sql:/docker-entrypoint-initdb.d/17_seed_data.sql
+                        - ./database/schema/018_validation.sql:/docker-entrypoint-initdb.d/99_validation.sql
+      - ./database/schema/019_customer_facts.sql:/docker-entrypoint-initdb.d/19_customer_facts.sql
+      - ./database/schema/020_conversation_summaries.sql:/docker-entrypoint-initdb.d/20_conversation_summaries.sql
+                        - ./database/schema/021_memory_embeddings.sql:/docker-entrypoint-initdb.d/21_memory_embeddings.sql
+      - ./database/migrations/022_sales_state.sql:/docker-entrypoint-initdb.d/22_sales_state.sql
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+
+    # requirepass enforces the password set in REDIS_PASSWORD
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+
+    ports:
+      - "6333:6333"
+
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+    networks:
+      - backend
+
+  flowise:
+    image: flowiseai/flowise:latest
+    container_name: flowise
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      PORT: 3000
+      DATABASE_TYPE: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${FLOWISE_DB}
+      DATABASE_USER: ${POSTGRES_USER}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      FLOWISE_USERNAME: ${FLOWISE_USERNAME}
+      FLOWISE_PASSWORD: ${FLOWISE_PASSWORD}
+      JWT_SECRET: ${FLOWISE_JWT_SECRET}
+      # Pin the encryption secret so credentials survive restarts
+      FLOWISE_SECRETKEY_OVERWRITE: ${FLOWISE_JWT_SECRET}
+
+    volumes:
+      - flowise_data:/root/.flowise
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/v1/ping || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    ports:
+      - "5678:5678"
+
+    environment:
+
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${N8N_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Use the Docker service name so webhook URLs resolve inside the network
+      N8N_HOST: n8n
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      # Webhook URL must be reachable by WAHA (inside Docker network)
+      WEBHOOK_URL: http://n8n:5678/
+
+      # Encryption key — MUST be a stable 32-char secret for credentials to survive restarts
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      # Basic auth protects the n8n editor UI (Commented out because this crashes n8n v1.x+)
+      # N8N_BASIC_AUTH_ACTIVE: "true"
+      # N8N_BASIC_AUTH_USER: ${N8N_USER}
+      # N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD}
+
+      EXECUTIONS_MODE: regular
+
+      GENERIC_TIMEZONE: America/Jamaica
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  waha:
+    image: devlikeapro/waha:chrome
+    container_name: waha
+
+    restart: unless-stopped
+
+    ports:
+      - "3001:3000"
+
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_USERNAME}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_PASSWORD}
+      # Forward all incoming WhatsApp messages to the n8n webhook listener
+       
+    volumes:
+      - waha_data:/app/.sessions
+
+    networks:
+      - backend
+
+  pgadmin:
+
+    image: dpage/pgadmin4:latest
+
+    container_name: pgadmin
+
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+
+    ports:
+      - "5050:80"
+
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+    networks:
+      - backend
+
+networks:
+
+  backend:
+    driver: bridge
+
+volumes:
+
+  postgres_data:
+
+  redis_data:
+
+  qdrant_data:
+
+  flowise_data:
+
+  n8n_data:
+
+  pgadmin_data:
+
+  waha_data:
