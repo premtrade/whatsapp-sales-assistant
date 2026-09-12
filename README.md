@@ -4,13 +4,12 @@ An AI-powered WhatsApp sales assistant that automates customer interactions, lea
 
 ## Overview
 
-This project combines WhatsApp messaging automation with AI-driven conversation management to streamline sales processes. It leverages n8n for workflow orchestration, Flowise for AI agent building, and a vector database (Qdrant) for semantic search and context retrieval.
+This project combines WhatsApp messaging automation with AI-driven conversation management to streamline sales processes. It leverages n8n for workflow orchestration and a vector database (Qdrant) for semantic search and context retrieval.
 
 ## Tech Stack
 
 - **WhatsApp Integration:** WAHA (WhatsApp HTTP API)
 - **Workflow Automation:** n8n
-- **AI Agents:** Flowise
 - **Database:** PostgreSQL
 - **Vector Database:** Qdrant
 - **Cache/Queue:** Redis
@@ -24,7 +23,6 @@ whatsapp-sales-assistant/
 ├── docker/          # Docker configurations for each service
 ├── database/        # Database migrations, seeds, and schemas
 ├── workflows/       # n8n workflow definitions
-├── flowise/         # Flowise chatflows and agent configurations
 ├── frontend/        # Frontend application
 ├── backend/         # Backend API services
 ├── scripts/         # Utility and setup scripts

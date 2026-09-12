@@ -1,288 +1,576 @@
 {
-  "name": "03 - Memory & Context Builder",
-  "nodes": [
-    {
-      "parameters": {
-        "workflowInputs": {
-          "values": [
-            {
-              "name": "conversation_id"
-            },
-            {
-              "name": "contact_id"
-            },
-            {
-              "name": "phone"
-            },
-            {
-              "name": "customer_name"
-            },
-            {
-              "name": "message"
-            },
-            {
-              "name": "message_id"
-            },
-            {
-              "name": "hasMedia",
-              "type": "boolean"
-            },
-            {
-              "name": "timestamp"
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        0,
-        0
-      ],
-      "id": "9e509d3b-13ea-4a25-9176-f1f49c4667b9",
-      "name": "When Executed by Another Workflow"
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT id, phone, display_name, source, created_at, updated_at\nFROM contacts\nWHERE id = $1;",
-        "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.contact_id }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        176,
-        0
-      ],
-      "id": "f15793c8-440c-40b5-af11-e84d3a6b4d05",
-      "name": "Get Contact",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT id, contact_id, channel, status, last_message_at, created_at, updated_at\nFROM conversations\nWHERE id = $1;",
-        "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        320,
-        -16
-      ],
-      "id": "9a416c81-96ad-4aea-8d58-edf9b5de87cf",
-      "name": "Get Conversation",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT * FROM (\n    SELECT direction, sender_type, text_body, created_at\n    FROM messages\n    WHERE conversation_id = $1\n    ORDER BY created_at DESC\n    LIMIT 10\n) recent\nORDER BY created_at ASC;",
-        "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        480,
-        48
-      ],
-      "id": "c32359fe-2b00-4fc8-b196-c6f1c6016a13",
-      "name": "Get Recent Messages",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', fact_key,\n      'fact_value', fact_value,\n      'confidence', confidence\n    )\n    ORDER BY confidence DESC, updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts\nWHERE contact_id = $1;",
-        "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.contact_id }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        656,
-        0
-      ],
-      "id": "c957f613-4641-4849-8142-8e2e53da9efe",
-      "name": "Get Customer Facts",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT\n    COALESCE(summary, '') AS summary,\n    'none' AS summary_type,\n    updated_at\nFROM conversation_summaries\nWHERE conversation_id = $1\n\nUNION ALL\n\nSELECT\n    '' AS summary,\n    'none' AS summary_type,\n    NULL AS updated_at\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM conversation_summaries\n    WHERE conversation_id = $1\n)\n\nLIMIT 1;",
-        "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        800,
-        32
-      ],
-      "id": "4876feac-dda7-4084-b6d8-53dfd85c347c",
-      "name": "Get Conversation Summary",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'chunk_text', chunk_text,\n      'metadata', metadata\n    )\n  ),\n  '[]'::json\n) AS knowledge\nFROM (\n  SELECT\n    chunk_text,\n    metadata\n  FROM knowledge_chunks\n  ORDER BY created_at DESC\n  LIMIT 20\n) AS chunks;",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        960,
-        0
-      ],
-      "id": "96655c46-29d7-4ee9-81b4-e61f9c10df30",
-      "name": "Get Knowledge Chunks",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const trigger = $('When Executed by Another Workflow').first().json;\n\nconst contact = $('Get Contact').first().json;\nconst conversation = $('Get Conversation').first().json;\n\nconst messages = $('Get Recent Messages')\n  .all()\n  .map(item => item.json);\n\nconst facts = $('Get Customer Facts')\n  .all()\n  .flatMap(item => item.json.facts || []);\n\nconst summary = $('Get Conversation Summary').first().json;\n\nconst knowledge = $('Get Knowledge Chunks')\n  .first()\n  .json\n  .knowledge || [];\n\nreturn [\n  {\n    json: {\n      contact,\n      conversation,\n      messages,\n      facts,\n      summary,\n      knowledge,\n\n      message: trigger.message,\n      customer_name: trigger.customer_name,\n      phone: trigger.phone,\n      conversation_id: trigger.conversation_id,\n      contact_id: trigger.contact_id\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1136,
-        80
-      ],
-      "id": "109e5223-aed0-406e-8e4e-54ce7adcce86",
-      "name": "Code in JavaScript"
-    }
-  ],
-  "pinData": {},
-  "connections": {
-    "When Executed by Another Workflow": {
-      "main": [
-        [
-          {
-            "node": "Get Contact",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Contact": {
-      "main": [
-        [
-          {
-            "node": "Get Conversation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Conversation": {
-      "main": [
-        [
-          {
-            "node": "Get Recent Messages",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Recent Messages": {
-      "main": [
-        [
-          {
-            "node": "Get Customer Facts",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Customer Facts": {
-      "main": [
-        [
-          {
-            "node": "Get Conversation Summary",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Conversation Summary": {
-      "main": [
-        [
-          {
-            "node": "Get Knowledge Chunks",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Knowledge Chunks": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": false
-  },
-  "versionId": "ae9e872c-a5d7-4307-a503-a14bc05d92f0",
-  "meta": {
-    "instanceId": "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
-  },
-  "nodeGroups": [],
-  "id": "G4Czr2OS7tdMWaa2",
-  "tags": []
+    "name":  "03 - Memory \u0026 Context Builder",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "workflowInputs":  {
+                                                                "values":  [
+                                                                               {
+                                                                                   "name":  "conversation_id"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "contact_id"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "phone"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "chat_id"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "business_id"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "customer_name"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "message"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "message_id"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "hasMedia",
+                                                                                   "type":  "boolean"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "timestamp"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "request_id"
+                                                                               }
+                                                                           ]
+                                                            }
+                                     },
+                      "type":  "n8n-nodes-base.executeWorkflowTrigger",
+                      "typeVersion":  1.2,
+                      "position":  [
+                                       -416,
+                                       -96
+                                   ],
+                      "id":  "109dbfca-2a58-47d2-9bc5-d7b838251141",
+                      "name":  "When Executed by Another Workflow"
+                  },
+                  {
+                      "alwaysOutputData":  true,
+                      "id":  "get-business-by-phone",
+                      "name":  "Get Business by Phone",
+                      "type":  "n8n-nodes-base.postgres",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "typeVersion":  2.7,
+                      "parameters":  {
+                                         "query":  "SELECT id, name, slug, currency, timezone FROM businesses WHERE id = $1::uuid AND status = \u0027active\u0027 AND deleted_at IS NULL LIMIT 1;",
+                                         "operation":  "executeQuery",
+                                         "options":  {
+                                                         "continueOnFail":  true,
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     }
+                                     },
+                      "position":  [
+                                       -176,
+                                       -200
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT id, business_id, phone, display_name, source, created_at, updated_at FROM contacts WHERE id = $1::uuid AND business_id = $2::uuid;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.contact_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       -176,
+                                       -48
+                                   ],
+                      "id":  "8e63a3fe-e73e-40bd-a63c-02d388ff6892",
+                      "name":  "Get Contact",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT id, business_id, contact_id, channel, status, last_message_at, created_at, updated_at FROM conversations WHERE id = $1::uuid AND business_id = $2::uuid;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       -32,
+                                       -64
+                                   ],
+                      "id":  "35da178e-c1c5-4a83-92be-536ee2634263",
+                      "name":  "Get Conversation",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n    json_agg(\n        json_build_object(\n            \u0027direction\u0027, direction,\n            \u0027sender_type\u0027, sender_type,\n            \u0027text_body\u0027, text_body,\n            \u0027created_at\u0027, created_at\n        )\n        ORDER BY created_at ASC\n    ),\n    \u0027[]\u0027::json\n) AS messages\nFROM (\n    SELECT direction, sender_type, text_body, created_at\n    FROM messages m\n    WHERE m.conversation_id = $1::uuid\n      AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = m.conversation_id AND c.business_id = $2::uuid)\n    ORDER BY created_at DESC\n    LIMIT 10\n) recent;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       128,
+                                       0
+                                   ],
+                      "id":  "3f2bd6b2-8a7d-4136-89f2-3ac2d0f1c21e",
+                      "name":  "Get Recent Messages",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      \u0027fact_key\u0027, cf.fact_key,\n      \u0027fact_value\u0027, cf.fact_value,\n      \u0027confidence\u0027, cf.confidence\n    )\n    ORDER BY cf.confidence DESC, cf.updated_at DESC\n  ),\n  \u0027[]\u0027::json\n) AS facts\nFROM customer_facts cf\nJOIN contacts c ON c.id = cf.contact_id\nWHERE cf.contact_id = $1::uuid AND c.business_id = $2::uuid;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.contact_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       304,
+                                       -48
+                                   ],
+                      "id":  "7816afa7-1175-46a3-a6fb-54bf8be2e5a3",
+                      "name":  "Retrieve Customer Facts",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(summary, \u0027\u0027) AS summary, COALESCE(message_count, 0) AS message_count, COALESCE(created_by, \u0027none\u0027) AS created_by\nFROM conversation_summaries\nWHERE conversation_id = $1::uuid\nLIMIT 1;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       464,
+                                       32
+                                   ],
+                      "id":  "5787d93c-4fa9-4775-b6fb-4f46efbf9e25",
+                      "name":  "Get Conversation Summary",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/distilbert-base-nli-mean-tokens",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "Bearer {{ $env.HF_API_KEY }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={\n  \"inputs\": [\"{{ $(\u0027When Executed by Another Workflow\u0027).item.json.message }}\"],\n  \"options\": {\"wait_for_model\": true}\n}",
+                                         "options":  {
+                                                         "timeout":  15000
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       464,
+                                       160
+                                   ],
+                      "id":  "generate-embedding-node-id",
+                      "name":  "Generate Message Embedding",
+                      "alwaysOutputData":  true,
+                      "continueOnFail":  true
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const embeddingResult = $(\u0027Generate Message Embedding\u0027).first()?.json;\nconst message = $(\u0027When Executed by Another Workflow\u0027).first()?.json?.message || \u0027\u0027;\n\nlet embedding = null;\nif (embeddingResult \u0026\u0026 Array.isArray(embeddingResult) \u0026\u0026 embeddingResult.length \u003e 0) {\n  embedding = embeddingResult[0];\n} else if (embeddingResult \u0026\u0026 embeddingResult[0] \u0026\u0026 Array.isArray(embeddingResult[0])) {\n  embedding = embeddingResult[0];\n}\n\nconst hasValid = Boolean(embedding \u0026\u0026 Array.isArray(embedding) \u0026\u0026 embedding.length === 768);\nconst dummyUnitVector = [1, ...Array(767).fill(0)];\nconst vectorStr = hasValid ? \u0027[\u0027 + embedding.join(\u0027,\u0027) + \u0027]\u0027 : \u0027[\u0027 + dummyUnitVector.join(\u0027,\u0027) + \u0027]\u0027;\n\nreturn [{\n  json: {\n    embedding_vector: vectorStr,\n    message_text: message,\n    has_vector: hasValid\n  }\n}];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       608,
+                                       100
+                                   ],
+                      "id":  "prepare-search-params-id",
+                      "name":  "Prepare Search Params",
+                      "alwaysOutputData":  true
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      \u0027chunk_text\u0027, chunk_text,\n      \u0027metadata\u0027, metadata,\n      \u0027source\u0027, source,\n      \u0027similarity\u0027, similarity\n    )\n    ORDER BY similarity DESC\n  ),\n  \u0027[]\u0027::json\n) AS knowledge\nFROM (\n  SELECT kc.chunk_text, kc.metadata, kd.title AS source, 1 - (kc.embedding \u003c=\u003e $1::vector) AS similarity\n  FROM knowledge_chunks kc\n  JOIN knowledge_documents kd ON kd.id = kc.document_id\n  WHERE kd.status = \u0027indexed\u0027 AND kd.business_id = $4::uuid\n    AND kc.embedding IS NOT NULL AND $3::boolean = true\n    AND 1 - (kc.embedding \u003c=\u003e $1::vector) \u003e 0.5\n  UNION ALL\n  SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity\n  FROM knowledge_chunks kc\n  JOIN knowledge_documents kd ON kd.id = kc.document_id\n  WHERE kd.status = \u0027indexed\u0027 AND kd.business_id = $4::uuid\n    AND similarity(kc.chunk_text, $2) \u003e 0.1\n) combined\nLIMIT 10;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ $(\u0027Prepare Search Params\u0027).first().json.embedding_vector }}, {{ $(\u0027Prepare Search Params\u0027).first().json.message_text }}, {{ $(\u0027Prepare Search Params\u0027).first().json.has_vector }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       608,
+                                       -48
+                                   ],
+                      "id":  "f3a4b5c6-d7e8-4901-9a2b-3c4d5e6f7a8b",
+                      "name":  "Get Knowledge Chunks (semantic)",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const items = $input.all();\nlet knowledge = [];\nconst firstItem = items[0]?.json || {};\n\nif (firstItem.knowledge \u0026\u0026 Array.isArray(firstItem.knowledge)) {\n  knowledge = firstItem.knowledge;\n} else if (firstItem.success \u0026\u0026 Array.isArray(firstItem.data)) {\n  knowledge = firstItem.data.map(hit =\u003e {\n    const chunk_text = hit.chunk_text || \u0027\u0027;\n    const metadata = hit.metadata || {};\n    return {\n      chunk_text,\n      metadata,\n      source: typeof metadata === \u0027string\u0027 ? metadata : (hit.source || metadata.title || metadata.document_title || \u0027\u0027)\n    };\n  }).filter(k =\u003e !!k.chunk_text);\n} else if (firstItem.result \u0026\u0026 Array.isArray(firstItem.result)) {\n  knowledge = firstItem.result.map(hit =\u003e {\n    const payload = hit.payload || {};\n    const chunk_text = payload.chunk_text || payload.pageContent || \u0027\u0027;\n    const metadata = payload.metadata || payload || {};\n    return {\n      chunk_text,\n      metadata,\n      source: typeof metadata === \u0027string\u0027 ? metadata : (metadata.title || metadata.document_title || \u0027\u0027)\n    };\n  }).filter(k =\u003e !!k.chunk_text);\n} else {\n  knowledge = items\n    .map(item =\u003e {\n      const doc = item.json.document || item.json || {};\n      const chunk_text = doc.pageContent || doc.chunk_text || item.json.chunk_text || \u0027\u0027;\n      if (!chunk_text) return null;\n      const metadata = doc.metadata || item.json.metadata || {};\n      return {\n        chunk_text,\n        metadata,\n        source: typeof metadata === \u0027string\u0027 ? metadata : (metadata.title || metadata.document_title || \u0027\u0027),\n        score: item.json.score ?? null\n      };\n    })\n    .filter(Boolean);\n}\n\nreturn [{ json: { knowledge } }];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       608,
+                                       100
+                                   ],
+                      "id":  "b9a4b8d7-f661-48ad-b97e-154cc4577af0",
+                      "name":  "Get Knowledge Chunks"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      \u0027id\u0027, id,\n      \u0027sku\u0027, sku,\n      \u0027name\u0027, name,\n      \u0027description\u0027, description,\n      \u0027price\u0027, price,\n      \u0027currency\u0027, currency,\n      \u0027unit\u0027, unit,\n      \u0027category\u0027, category,\n      \u0027product_type\u0027, product_type\n    )\n    ORDER BY name\n  ),\n  \u0027[]\u0027::json\n) AS products\nFROM products \nWHERE active = true AND business_id = $1::uuid\nLIMIT 50;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       768,
+                                       -48
+                                   ],
+                      "id":  "d8bab17d-bcb1-4d99-95b9-70b9191cab8b",
+                      "name":  "Get Products",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      \u0027id\u0027, id,\n      \u0027quote_number\u0027, quote_number,\n      \u0027status\u0027, status,\n      \u0027total\u0027, total,\n      \u0027currency\u0027, currency,\n      \u0027valid_until\u0027, valid_until\n    )\n    ORDER BY created_at DESC\n  ),\n  \u0027[]\u0027::json\n) AS quotes\nFROM quotes\nWHERE contact_id = $1::uuid AND business_id = $2::uuid\nLIMIT 20;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.contact_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       928,
+                                       -48
+                                   ],
+                      "id":  "get-quotes-node-id",
+                      "name":  "Get Quotes",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      \u0027id\u0027, id,\n      \u0027title\u0027, title,\n      \u0027status\u0027, status,\n      \u0027starts_at\u0027, starts_at,\n      \u0027ends_at\u0027, ends_at\n    )\n    ORDER BY starts_at DESC\n  ),\n  \u0027[]\u0027::json\n) AS appointments\nFROM appointments\nWHERE contact_id = $1::uuid AND business_id = $2::uuid\nLIMIT 20;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.contact_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       1088,
+                                       -48
+                                   ],
+                      "id":  "get-appointments-node-id",
+                      "name":  "Get Appointments",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      \u0027id\u0027, id,\n      \u0027status\u0027, status,\n      \u0027reason\u0027, reason,\n      \u0027assigned_to\u0027, assigned_to,\n      \u0027created_at\u0027, created_at\n    )\n    ORDER BY created_at DESC\n  ),\n  \u0027[]\u0027::json\n) AS handoffs\nFROM handoffs\nWHERE conversation_id = $1::uuid AND business_id = $2::uuid\nLIMIT 10;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}, {{ String($(\u0027When Executed by Another Workflow\u0027).first().json.business_id || \u0027\u0027) }}"
+                                                     },
+                                         "continueOnFail":  true
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       1248,
+                                       -48
+                                   ],
+                      "id":  "get-handoff-node-id",
+                      "name":  "Get Handoff",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const trigger = $(\u0027When Executed by Another Workflow\u0027).first()?.json || {};\nconst contact = $(\u0027Get Contact\u0027).first()?.json || {};\nconst conversation = $(\u0027Get Conversation\u0027).first()?.json || {};\nconst messages = $(\u0027Get Recent Messages\u0027).first()?.json?.messages || [];\nconst facts = $(\u0027Retrieve Customer Facts\u0027).first()?.json?.facts || [];\nconst summary = $(\u0027Get Conversation Summary\u0027).first()?.json || { summary: \u0027\u0027, message_count: 0, created_by: \u0027none\u0027 };\nconst knowledge = $(\u0027Get Knowledge Chunks\u0027).first()?.json?.knowledge || [];\nconst products = $(\u0027Get Products\u0027).first()?.json?.products || [];\nconst quotes = $(\u0027Get Quotes\u0027).first()?.json?.quotes || [];\nconst appointments = $(\u0027Get Appointments\u0027).first()?.json?.appointments || [];\nconst handoffs = $(\u0027Get Handoff\u0027).first()?.json?.handoffs || [];\n\nreturn [{\n  json: {\n    conversation_id: trigger.conversation_id,\n    contact_id: trigger.contact_id,\n    customer: {\n      id: contact.id || trigger.contact_id,\n      phone: contact.phone || trigger.phone,\n      name: contact.display_name || trigger.customer_name\n    },\n    conversation,\n    recent_messages: messages,\n    customer_facts: facts,\n    conversation_summary: summary,\n    knowledge,\n    products,\n    quotes,\n    appointments,\n    handoff: handoffs.length \u003e 0 ? handoffs[0] : {},\n    business_name: business?.name || settings?.setting_value || \u0027our company\u0027,\\n    business_id: business?.id || null,\n    conversationHistory: messages?.map(m =\u003e `${m.direction === \u0027in\u0027 ? \u0027Customer\u0027 : \u0027Assistant\u0027}: ${m.text_body}`).join(\u0027\n\u0027) || \u0027No previous messages.\u0027\n    current_message: {\n      message_id: trigger.message_id,\n      text: trigger.message,\n      hasMedia: trigger.hasMedia,\n      timestamp: trigger.timestamp\n    }\n  }\n}];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1408,
+                                       176
+                                   ],
+                      "id":  "1ee84b40-7de9-477f-9142-e3d66c8824b3",
+                                         "parameters":  { "jsCode":  "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const products = $('Get Products').first()?.json?.products || []; const quotes = $('Get Quotes').first()?.json?.quotes || []; const appointments = $('Get Appointments').first()?.json?.appointments || []; const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const settings = $('Get Business Settings').first()?.json || {}; return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || settings.setting_value || 'our company', business_id: business.id || null, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];" },
+                      "name":  "Build Context Package"
+                  },
+                  {
+                      "alwaysOutputData":  true,
+                      "id":  "get-business-settings-node",
+                      "name":  "Get Business Settings",
+                      "type":  "n8n-nodes-base.postgres",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      },
+                      "typeVersion":  2.7,
+                      "parameters":  {
+                                         "query":  "SELECT setting_value FROM settings WHERE setting_key = \u0027company_name\u0027 AND business_id = $1::uuid LIMIT 1;",
+                                         "operation":  "executeQuery",
+                                         "options":  {
+                                                         "continueOnFail":  true,
+                                                         "queryReplacement":  "={{ String($(\u0027Get Business by Phone\u0027).first().json.id || \u0027\u0027) }}"
+                                                     }
+                                     },
+                      "position":  [
+                                       1248,
+                                       240
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "When Executed by Another Workflow":  {
+                                                                  "main":  [[
+                                                                               {
+                                                                                   "node":  "Get Business by Phone",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]]
+                                                              },
+                        "Generate Message Embedding":  {
+                                                           "main":  [[
+                                                                        {
+                                                                            "node":  "Prepare Search Params",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]]
+                                                       },
+                        "Retrieve Customer Facts":  {
+                                                        "main":  [[
+                                                                     {
+                                                                         "node":  "Get Conversation Summary",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]]
+                                                    },
+                        "Get Quotes":  {
+                                           "main":  [[
+                                                        {
+                                                            "node":  "Get Appointments",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]]
+                                       },
+                        "Get Products":  {
+                                             "main":  [[
+                                                          {
+                                                              "node":  "Get Quotes",
+                                                              "type":  "main",
+                                                              "index":  0
+                                                          }
+                                                      ]]
+                                         },
+                        "Get Recent Messages":  {
+                                                    "main":  [[
+                                                                 {
+                                                                     "node":  "Retrieve Customer Facts",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]]
+                                                },
+                        "Get Contact":  {
+                                            "main":  [[
+                                                         {
+                                                             "node":  "Get Conversation",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]]
+                                        },
+                        "Get Handoff":  {
+                                            "main":  [[
+                                                         {
+                                                             "node":  "Get Business Settings",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]]
+                                        },
+                        "Get Business Settings":  {
+                                                      "main":  [[
+                                                                   {
+                                                                       "node":  "Build Context Package",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]]
+                                                  },
+                        "Get Conversation Summary":  {
+                                                         "main":  [[
+                                                                      {
+                                                                          "node":  "Generate Message Embedding",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]]
+                                                     },
+                        "Get Knowledge Chunks (semantic)":  {
+                                                                "main":  [[
+                                                                             {
+                                                                                 "node":  "Get Knowledge Chunks",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]]
+                                                            },
+                        "Get Conversation":  {
+                                                 "main":  [[
+                                                              {
+                                                                  "node":  "Get Recent Messages",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]]
+                                             },
+                        "Get Knowledge Chunks":  {
+                                                     "main":  [[
+                                                                  {
+                                                                      "node":  "Get Products",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]]
+                                                 },
+                        "Prepare Search Params":  {
+                                                      "main":  [[
+                                                                   {
+                                                                       "node":  "Get Knowledge Chunks (semantic)",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]]
+                                                  },
+                        "Get Appointments":  {
+                                                 "main":  [[
+                                                              {
+                                                                  "node":  "Get Handoff",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]]
+                                             },
+                        "Get Business by Phone":  {
+                                                      "main":  [[
+                                                                   {
+                                                                       "node":  "Get Contact",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]]
+                                                  }
+                    },
+    "active":  true,
+    "settings":  {
+                     "executionOrder":  "v1"
+                 }
 }

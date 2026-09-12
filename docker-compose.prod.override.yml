@@ -1,0 +1,18 @@
+services:
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/conf.d/waflo.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+      - frontend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

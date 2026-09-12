@@ -1,0 +1,134 @@
+{
+  "contacts": [
+    {
+      "phone": "+18765551001",
+      "display_name": "Leroy Brown",
+      "email": "leroy.brown@example.com",
+      "company": "Garco Construction",
+      "source": "whatsapp",
+      "status": "active"
+    },
+    {
+      "phone": "+18765551002",
+      "display_name": "Sarah Miller",
+      "email": "sarah.miller@example.com",
+      "company": "ABC Corp",
+      "source": "whatsapp",
+      "status": "active"
+    },
+    {
+      "phone": "+18765551003",
+      "display_name": "John Doe",
+      "email": "john.doe@example.com",
+      "company": null,
+      "source": "website",
+      "status": "active"
+    }
+  ],
+  "conversations": [
+    {
+      "channel": "whatsapp",
+      "status": "active",
+      "notes": "Initial inquiry about construction services"
+    },
+    {
+      "channel": "whatsapp",
+      "status": "waiting_agent",
+      "notes": "Customer requested human handoff"
+    }
+  ],
+  "messages": [
+    {
+      "direction": "incoming",
+      "sender_type": "customer",
+      "message_type": "text",
+      "text_body": "What services does Garco offer?"
+    },
+    {
+      "direction": "incoming",
+      "sender_type": "customer",
+      "message_type": "text",
+      "text_body": "My budget is JMD 50,000"
+    },
+    {
+      "direction": "incoming",
+      "sender_type": "customer",
+      "message_type": "text",
+      "text_body": "Can I speak to someone?"
+    },
+    {
+      "direction": "incoming",
+      "sender_type": "customer",
+      "message_type": "text",
+      "text_body": "Where is your office located?"
+    }
+  ],
+  "products": [
+    {
+      "sku": "GARCO-001",
+      "name": "General Construction Consultation",
+      "description": "General construction consultation and site assessment",
+      "category": "Construction",
+      "product_type": "service",
+      "unit": "job",
+      "price": 15000,
+      "currency": "JMD",
+      "taxable": true,
+      "tax_rate": 15,
+      "active": true
+    },
+    {
+      "sku": "GARCO-002",
+      "name": "Site Inspection",
+      "description": "Comprehensive site inspection and feasibility report",
+      "category": "Construction",
+      "product_type": "service",
+      "unit": "job",
+      "price": 25000,
+      "currency": "JMD",
+      "taxable": true,
+      "tax_rate": 15,
+      "active": true
+    },
+    {
+      "sku": "GARCO-003",
+      "name": "Project Management",
+      "description": "Full construction project management services",
+      "category": "Management",
+      "product_type": "service",
+      "unit": "job",
+      "price": 75000,
+      "currency": "JMD",
+      "taxable": true,
+      "tax_rate": 15,
+      "active": true
+    }
+  ],
+  "knowledge_chunks": [
+    {
+      "chunk_number": 1,
+      "chunk_text": "Garco Construction Services Limited is a general contractor and construction management company established in 1999.",
+      "metadata": {"section": "Company Identity", "authoritative": true}
+    },
+    {
+      "chunk_number": 2,
+      "chunk_text": "Garco services include: General Construction/Renovation, Project Management, General Roof Works, Dry Wall Partitions & Ceilings, Suspended Ceilings, Trowel-On Works, Textured Spraying, General Painting Works, Electrical Works, Plumbing Works, A/C Works, General Grille & Iron Works.",
+      "metadata": {"section": "Services List", "authoritative": true}
+    },
+    {
+      "chunk_number": 3,
+      "chunk_text": "Garco has two possible office addresses (conflicting on website): Suite 24F, 4 Lismore Avenue, Kingston 5 or Suite 406, Real Equity Professional Suites, 218 Mountain View Avenue, Kingston 6.",
+      "metadata": {"section": "Location", "authoritative": true, "requires_confirmation": true}
+    },
+    {
+      "chunk_number": 4,
+      "chunk_text": "For construction services including general construction, renovation, project management, roofing, electrical, plumbing, painting, and more, customers should contact Garco for a customized quote based on project scope.",
+      "metadata": {"section": "Quotation", "authoritative": true}
+    },
+    {
+      "chunk_number": 5,
+      "chunk_text": "Founder & CEO: Mr. Rohan A. Grant. Contact: Tel 876-908-1970, Fax 876-754-0469, Mobile 876-372-3358, Website https://www.garcoconstruction.com/",
+      "metadata": {"section": "Contact", "authoritative": true}
+    }
+  ]
+}

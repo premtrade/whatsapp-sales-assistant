@@ -1,0 +1,180 @@
+{
+  "name": "07 - Handoff Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            { "name": "conversation_id" },
+            { "name": "contact_id" },
+            { "name": "business_id" },
+            { "name": "reason" },
+            { "name": "assigned_to" },
+            { "name": "request_id" },
+            { "name": "phone" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [-920, 0],
+      "id": "handoff-trigger",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nconst reason = input.reason || 'Customer requested human agent support';\nconst assignedToRaw = input.assigned_to;\nlet assignedTo = null;\nif (assignedToRaw && typeof assignedToRaw === 'string') {\n  const trimmed = assignedToRaw.trim().toLowerCase();\n  const validUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n  if (validUuidPattern.test(assignedToRaw.trim()) && !trimmed.includes('null') && trimmed.length > 30) {\n    assignedTo = assignedToRaw.trim();\n  } else if (['unassigned', 'none', 'n/a', 'null', ''].includes(trimmed)) {\n    assignedTo = null;\n  }\n}\nconst conversationId = input.conversation_id || null;\nif (!conversationId) { return [{ json: { success: false, message: 'Handoff could not be completed: missing conversation reference.', handoff_details: { status: 'failed', reason } } }]; }\nreturn [{ json: { conversation_id: conversationId, contact_id: input.contact_id, reason, assigned_to: assignedTo, request_id: input.request_id, phone: input.phone } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 0],
+      "id": "normalize-handoff-input",
+      "name": "Normalize Input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT h.id, h.status, h.reason, h.assigned_to, h.created_at FROM handoffs h JOIN conversations c ON c.id = h.conversation_id AND c.business_id = h.business_id WHERE h.conversation_id = $1::uuid AND h.status = 'pending' LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}",
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-440, 0],
+      "id": "check-existing-handoff",
+      "name": "Check Existing Handoff",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "duplicate-check",
+              "leftValue": "{{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [-200, 0],
+      "id": "is-new-handoff",
+      "name": "Is New Handoff?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations SET status = 'waiting_agent', updated_at = NOW() WHERE id = $1::uuid RETURNING id, status, business_id;",
+        "options": {
+          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}",
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [40, -120],
+      "id": "update-conv-status",
+      "name": "Set Conversation Status",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO handoffs (business_id, conversation_id, status, reason, assigned_to) SELECT c.business_id, c.id, 'pending', $2, CASE WHEN $3 IS NULL OR btrim($3) = '' OR lower(btrim($3)) = 'null' THEN NULL WHEN $3 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $3::uuid WHEN lower(btrim($3)) IN ('unassigned', 'none', 'n/a') THEN NULL ELSE (SELECT su.id FROM staff_users su WHERE su.business_id = c.business_id AND su.status = 'active' AND (su.display_name ILIKE btrim($3) || '%' OR su.first_name ILIKE btrim($3) OR su.last_name ILIKE btrim($3) OR su.email::text ILIKE btrim($3) || '%') ORDER BY su.display_name LIMIT 1) END FROM conversations c WHERE c.id = $1::uuid RETURNING id, status, reason, assigned_to, created_at;",
+        "options": {
+          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}\n{{ String($('Normalize Input').first().json.reason || '') }}\n{{ String($('Normalize Input').first().json.assigned_to || '') }}",
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [280, -120],
+      "id": "create-handoff-record",
+      "name": "Create Handoff Record",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', $1::uuid, 'human_handoff_requested', NULL, 'ai', $2, jsonb_build_object('handoff_id', $3::uuid), jsonb_build_object('request_id', $4, 'timestamp', NOW())) RETURNING id;",
+        "options": {
+          "queryReplacement": "{{ $('Normalize Input').first().json.conversation_id }}, {{ $('Normalize Input').first().json.reason }}, {{ $('Create Handoff Record').first().json.id }}, {{ $('Normalize Input').first().json.request_id }}",
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [520, -120],
+      "id": "handoff-audit-log",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const handoff = $('Create Handoff Record').first()?.json || {};\nconst phone = $('Normalize Input').first()?.json?.phone || '';\nreturn [{ json: { success: true, message: 'The conversation has been flagged for human agent takeover. A representative will reach out shortly.', handoff_details: { handoff_id: handoff.id, status: handoff.status, reason: handoff.reason, assigned_to: handoff.assigned_to, created_at: handoff.created_at }, customer_phone: phone } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, -120],
+      "id": "format-handoff-output",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "jsCode": "const existing = $('Check Existing Handoff').first()?.json || {};\nreturn [{ json: { success: true, message: 'A handoff for this conversation already exists. The customer is already being assisted.', handoff_details: { handoff_id: existing.id, status: existing.status, reason: existing.reason, assigned_to: existing.assigned_to, created_at: existing.created_at, duplicate: true } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [40, 120],
+      "id": "return-existing-handoff",
+      "name": "Return Existing Handoff"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": { "main": [[{ "node": "Normalize Input", "type": "main", "index": 0 }]] },
+    "Normalize Input": { "main": [[{ "node": "Check Existing Handoff", "type": "main", "index": 0 }]] },
+    "Check Existing Handoff": { "main": [[{ "node": "Is New Handoff?", "type": "main", "index": 0 }]] },
+    "Is New Handoff?": { "main": [[{ "node": "Set Conversation Status", "type": "main", "index": 0 }], [{ "node": "Return Existing Handoff", "type": "main", "index": 0 }]] },
+    "Set Conversation Status": { "main": [[{ "node": "Create Handoff Record", "type": "main", "index": 0 }]] },
+    "Create Handoff Record": { "main": [[{ "node": "Audit Log", "type": "main", "index": 0 }]] },
+    "Audit Log": { "main": [[{ "node": "Format Output", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" }
+}

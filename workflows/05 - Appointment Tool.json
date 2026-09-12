@@ -1,0 +1,336 @@
+{
+  "name": "05 - Appointment Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "appointment_type"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "location"
+            },
+            {
+              "name": "preferred_date"
+            },
+            {
+              "name": "preferred_time"
+            },
+            {
+              "name": "duration_minutes"
+            },
+            {
+              "name": "request_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        -16
+      ],
+      "id": "appointment-trigger",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nconst preferredDate = input.preferred_date;\nconst preferredTime = input.preferred_time;\nconst durationMinutes = Number(input.duration_minutes || 60);\n\nif (!preferredDate || !preferredTime) {\n  return [{\n    json: {\n      success: false,\n      appointment_ready: false,\n      error: 'Appointment requires a preferred_date and preferred_time.',\\n      contact_id: input.contact_id,\\n      conversation_id: input.conversation_id\n    }\n  }];\n}\n\nconst dateTimeString = `${preferredDate}T${preferredTime}:00`;\nconst dateTime = new Date(dateTimeString);\n\nif (isNaN(dateTime.getTime())) {\n  return [{\n    json: {\n      success: false,\n      appointment_ready: false,\n      error: 'Supplied date or time string is invalid.',\n      contact_id: input.contact_id,\n      conversation_id: input.conversation_id\n    }\n  }];\n}\n\nconst endTime = new Date(dateTime.getTime() + (durationMinutes * 60 * 1000));\n\nreturn [{\n  json: {\n    success: true,\n    appointment_ready: true,\n    contact_id: input.contact_id,\n    conversation_id: input.conversation_id,\n    appointment_type: input.appointment_type || 'site_visit',\n    title: input.title || 'Site Visit',\n    location: input.location || null,\n    starts_at: dateTime.toISOString().replace(/\\.\\d{3}Z$/, 'Z'),\n    ends_at: endTime.toISOString().replace(/\\.\\d{3}Z$/, 'Z'),\n    duration_minutes: durationMinutes\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        -16
+      ],
+      "id": "validate-inputs-node",
+      "name": "Validate Inputs"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "appt-ready-check",
+              "leftValue": "={{ $json.appointment_ready }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -360,
+        -16
+      ],
+      "id": "input-valid-if",
+      "name": "Inputs Valid?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS conflict_count FROM appointments a WHERE a.contact_id = $3::uuid AND a.business_id = $4::uuid AND a.status IN ('scheduled', 'confirmed') AND a.starts_at < ($1::timestamptz + ($2 || ' minutes')::interval) AND a.ends_at > $1::timestamptz;",
+        "options": {
+          "queryReplacement": "={{ $json.starts_at }}\n{{ $json.duration_minutes }}\n{{ $json.contact_id }}\n{{ $('When Executed by Another Workflow').first().json.business_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -240,
+        48
+      ],
+      "id": "check-conflicts-node",
+      "name": "Check for Conflicts",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Validate Inputs').first().json;\nconst conflict = $('Check for Conflicts').first()?.json || {};\nconst hasConflict = Number(conflict.conflict_count || 0) > 0;\n\nreturn [{\n  json: {\n    ...input,\n    has_conflict: hasConflict\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        160
+      ],
+      "id": "format-conflict-result",
+      "name": "Format Conflict Result"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "conflict-check-id",
+              "leftValue": "={{ $json.has_conflict }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        160
+      ],
+      "id": "conflict-if-node",
+      "name": "No Conflict?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO appointments (business_id, contact_id, conversation_id, appointment_type, title, location, starts_at, ends_at) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::timestamptz, $8::timestamptz) RETURNING id, contact_id, appointment_type, status, title, location, starts_at, ends_at, created_at;",
+        "options": {
+          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.business_id }}\n{{ $json.contact_id }}\n{{ $json.conversation_id }}\n{{ $json.appointment_type }}\n{{ $json.title }}\n{{ $json.location }}\n{{ $json.starts_at }}\n{{ $json.ends_at }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        240,
+        16
+      ],
+      "id": "create-appointment-node",
+      "name": "Create Appointment",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata)\nVALUES ('appointment', $1::uuid, 'appointment_created', NULL, 'ai', 'Appointment created via AI tool', jsonb_build_object('appointment_id', $1::uuid), jsonb_build_object('request_id', $2, 'timestamp', NOW()))\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $('Create Appointment').first().json.id }}\n{{ $('When Executed by Another Workflow').first().json.request_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        240,
+        200
+      ],
+      "id": "appointment-audit-log-node",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Format Conflict Result').first()?.json || {};\nif (input.has_conflict) {\n  return [{ json: { error: true, message: 'Requested time conflicts with an existing appointment.', has_conflict: true } }];\n}\nif (!input.appointment_ready) {\n  return [{ json: { error: true, message: input.error || 'Date and time required.' } }];\n}\n\nconst created = $('Create Appointment').first()?.json || {};\nreturn [{\n  json: {\n    success: true,\n    message: `Appointment scheduled: ${created.title} on ${created.starts_at}.`,\n    appointment: created\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        448
+      ],
+      "id": "format-output-node",
+      "name": "Format Output"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Inputs": {
+      "main": [
+        [
+          {
+            "node": "Inputs Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inputs Valid?": {
+      "main": [
+        [
+          {
+            "node": "Check for Conflicts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Conflicts": {
+      "main": [
+        [
+          {
+            "node": "Format Conflict Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Conflict Result": {
+      "main": [
+        [
+          {
+            "node": "No Conflict?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Conflict?": {
+      "main": [
+        [
+          {
+            "node": "Create Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Appointment": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

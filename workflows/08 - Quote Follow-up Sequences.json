@@ -1,0 +1,207 @@
+{
+  "name": "08 - Quote Follow-up Sequences",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1040, 0],
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email FROM quotes q JOIN contacts c ON q.contact_id = c.id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '24 hours' AND q.sent_at > NOW() - INTERVAL '25 hours' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff') LIMIT 10;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-800, 0],
+      "id": "find-24h-followup",
+      "name": "Find 24h Follow-ups",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email FROM quotes q JOIN contacts c ON q.contact_id = c.id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '3 days' AND q.sent_at > NOW() - INTERVAL '3 days 1 hour' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '3day') LIMIT 10;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-800, 200],
+      "id": "find-3day-followup",
+      "name": "Find 3-Day Follow-ups",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email FROM quotes q JOIN contacts c ON q.contact_id = c.id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '7 days' AND q.sent_at > NOW() - INTERVAL '7 days 1 hour' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '7day') LIMIT 10;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-800, 400],
+      "id": "find-7day-followup",
+      "name": "Find 7-Day Follow-ups",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const name = item.json.display_name || 'there';\n  const message = `Hello ${name}, I wanted to follow up on the quote we sent for your construction project. Do you have any questions or would you like to discuss any details? We are here to help!`;\n  return { json: { ...item.json, message, follow_up_type: '24h', template_used: 'quote_follow_up_24h' } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-560, 0],
+      "id": "format-24h-message",
+      "name": "Format 24h Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const name = item.json.display_name || 'there';\n  const message = `Hi ${name}, I hope you had a chance to review the quote for your construction project. If you would like to proceed or have any questions, please let us know. We would be happy to schedule a site visit if needed.`;\n  return { json: { ...item.json, message, follow_up_type: '3day', template_used: 'quote_follow_up_3day' } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-560, 200],
+      "id": "format-3day-message",
+      "name": "Format 3-Day Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const name = item.json.display_name || 'there';\n  const message = `Dear ${name}, as a valued prospective customer, I wanted to let you know we currently have availability for new projects. If you would like to move forward with your construction project, we would be pleased to offer you priority scheduling. Please let us know if you are interested!`;\n  return { json: { ...item.json, message, follow_up_type: '7day', template_used: 'quote_follow_up_7day' } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-560, 400],
+      "id": "format-7day-message",
+      "name": "Format 7-Day Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES ($1::uuid, 'outgoing', 'staff', 'text', $2, $3, NOW(), NOW());",
+        "options": {
+          "queryReplacement": "={{ $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ follow_up_type: $json.follow_up_type, template_used: $json.template_used, quote_id: $json.id, automated: true }) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-320, 200],
+      "id": "insert-followup-message",
+      "name": "Insert Follow-up Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "waha_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-200, 200],
+      "id": "waha-send-followup",
+      "name": "WAHA Send Follow-up",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('quote', $1::uuid, 'automated_follow_up', 'system', 'automation', $2, jsonb_build_object('follow_up_type', $3), jsonb_build_object('quote_number', $4, 'contact_id', $5::uuid, 'timestamp', NOW())) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $json.id }}\n={{ 'Automated ' + $json.follow_up_type + ' follow-up sent for quote ' + $json.quote_number }}\n={{ $json.follow_up_type }}\n={{ $json.quote_number }}\n={{ $json.contact_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-80, 200],
+      "id": "audit-log",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => ({ json: { ...item.json, success: true, message: `Follow-up sent for quote ${item.json.quote_number} to ${item.json.display_name || item.json.phone}` } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 200],
+      "id": "format-output",
+      "name": "Format Output"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[
+        { "node": "Find 24h Follow-ups", "type": "main", "index": 0 },
+        { "node": "Find 3-Day Follow-ups", "type": "main", "index": 0 },
+        { "node": "Find 7-Day Follow-ups", "type": "main", "index": 0 }
+      ]]
+    },
+    "Find 24h Follow-ups": { "main": [[{ "node": "Format 24h Message", "type": "main", "index": 0 }]] },
+    "Find 3-Day Follow-ups": { "main": [[{ "node": "Format 3-Day Message", "type": "main", "index": 0 }]] },
+    "Find 7-Day Follow-ups": { "main": [[{ "node": "Format 7-Day Message", "type": "main", "index": 0 }]] },
+    "Format 24h Message": { "main": [[{ "node": "Insert Follow-up Message", "type": "main", "index": 0 }]] },
+    "Format 3-Day Message": { "main": [[{ "node": "Insert Follow-up Message", "type": "main", "index": 0 }]] },
+    "Format 7-Day Message": { "main": [[{ "node": "Insert Follow-up Message", "type": "main", "index": 0 }]] },
+    "Insert Follow-up Message": { "main": [[{ "node": "WAHA Send Follow-up", "type": "main", "index": 0 }]] },
+    "WAHA Send Follow-up": { "main": [[{ "node": "Audit Log", "type": "main", "index": 0 }]] },
+    "Audit Log": { "main": [[{ "node": "Format Output", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1.0.0",
+  "meta": { "instanceId": "whatsapp-sales-assistant" },
+  "nodeGroups": [],
+  "id": "quote-follow-up-sequences",
+  "tags": []
+}

@@ -14,7 +14,16 @@ if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
 }
 
-# 2. Start Docker Compose
+# 2. Generate SSL certificates for Postgres
+$certScript = Join-Path $PSScriptRoot "..\docker\postgres\generate-certs.ps1"
+if (Test-Path $certScript) {
+    Write-Host "Generating SSL certificates for Postgres..." -ForegroundColor Cyan
+    & $certScript
+} else {
+    Write-Warning "SSL certificate generation script not found at $certScript"
+}
+
+# 3. Start Docker Compose
 Write-Host "Starting Docker containers in detached mode..." -ForegroundColor Cyan
 docker compose up -d
 
@@ -38,12 +47,10 @@ Write-Host "==========================================================" -Foregro
 Write-Host "Service URLs:"
 Write-Host " - pgAdmin:  http://localhost:5050  (credentials in .env)"
 Write-Host " - n8n:     http://localhost:5678  (credentials in .env)"
-Write-Host " - Flowise: http://localhost:3000  (credentials in .env)"
 Write-Host " - WAHA:    http://localhost:3001  (credentials in .env)"
 Write-Host ""
 Write-Host "Next Steps:"
 Write-Host " 1. Open the WAHA Dashboard and scan the QR code to link WhatsApp."
 Write-Host " 2. This script auto-registers the WAHA -> n8n webhook (path: waha/messages)."
 Write-Host " 3. Open n8n; Workflow '01 - Incoming WhatsApp Message' is active and listening."
-Write-Host " 4. (Optional) Open Flowise and import your Sales Assistant chatflow."
 Write-Host "==========================================================" -ForegroundColor Green

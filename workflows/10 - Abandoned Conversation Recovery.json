@@ -1,0 +1,150 @@
+{
+  "name": "10 - Abandoned Conversation Recovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-800, 0],
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id AS conversation_id, c.contact_id, c.last_message_at, c.status, ct.display_name, ct.phone, ct.email, (SELECT text_body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_text FROM conversations c JOIN contacts ct ON c.contact_id = ct.id WHERE c.status = 'active' AND c.last_message_at < NOW() - INTERVAL '3 days' AND c.last_message_at > NOW() - INTERVAL '4 days' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.created_at > c.last_message_at AND m.sender_type = 'staff' AND m.metadata->>'recovery_attempt' = 'true') ORDER BY c.last_message_at ASC LIMIT 10;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-560, 0],
+      "id": "find-abandoned",
+      "name": "Find Abandoned Conversations",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const name = item.json.display_name || 'there';\n  const message = `Hi ${name}, we noticed you haven't responded to our previous message. We're here to help with your construction project! If you have any questions or would like to continue the conversation, please let us know. We'd be happy to assist you.`;\n  return {\n    json: {\n      ...item.json,\n      message,\n      recovery_attempt: true\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 0],
+      "id": "format-recovery",
+      "name": "Format Recovery Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES ($1::uuid, 'outgoing', 'staff', 'text', $2, $3, NOW(), NOW());",
+        "options": {
+          "queryReplacement": "={{ $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ recovery_attempt: true, automated: true, original_message_at: $json.last_message_at }) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [-80, 0],
+      "id": "insert-recovery",
+      "name": "Insert Recovery Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "waha_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [40, 0],
+      "id": "waha-send-recovery",
+      "name": "WAHA Send Recovery",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', $1::uuid, 'recovery_attempt', 'system', 'automation', $2, jsonb_build_object('recovery_attempt', true), jsonb_build_object('contact_id', $3::uuid, 'timestamp', NOW())) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $json.conversation_id }}\n={{ 'Recovery attempt sent for abandoned conversation' }}\n={{ $json.contact_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [160, 0],
+      "id": "audit-log",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[
+        { "node": "Find Abandoned Conversations", "type": "main", "index": 0 }
+      ]]
+    },
+    "Find Abandoned Conversations": {
+      "main": [[
+        { "node": "Format Recovery Message", "type": "main", "index": 0 }
+      ]]
+    },
+    "Format Recovery Message": {
+      "main": [[
+        { "node": "Insert Recovery Message", "type": "main", "index": 0 }
+      ]]
+    },
+    "Insert Recovery Message": {
+      "main": [[
+        { "node": "WAHA Send Recovery", "type": "main", "index": 0 }
+      ]]
+    },
+    "WAHA Send Recovery": {
+      "main": [[
+        { "node": "Audit Log", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1.0.0",
+  "meta": { "instanceId": "whatsapp-sales-assistant" },
+  "nodeGroups": [],
+  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "tags": []
+}

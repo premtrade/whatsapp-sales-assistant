@@ -25,25 +25,37 @@
             {
               "id": "f65aaec1-81d1-43bc-80b5-3d962e67eafb",
               "name": "event",
-              "value": "={{$json.body.event}}",
+              "value": "={{ String($json.body.event || '').toLowerCase() === 'message.any' ? 'message' : String($json.body.event || '').toLowerCase() }}",
               "type": "string"
             },
             {
               "id": "1fd24149-38f1-446a-b18b-25631342af1b",
               "name": "phone",
-              "value": "={{$json.body.payload.from}}",
+              "value": "={{ String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
+              "type": "string"
+            },
+            {
+              "id": "tenant-phone-assignment",
+              "name": "business_phone",
+              "value": "={{ String($json.body.payload.to || $json.body.payload._data?.to || $json.body.to || $json.body.session || 'default') }}",
+              "type": "string"
+            },
+            {
+              "id": "chat-id-assignment",
+              "name": "chat_id",
+              "value": "={{ String($json.body.payload.from || '') }}",
               "type": "string"
             },
             {
               "id": "81e5b4e9-4de3-4831-a566-ee3d25eeb035",
-              "name": "=message",
+              "name": "message",
               "value": "={{$json.body.payload.body}}",
               "type": "string"
             },
             {
               "id": "5b6a1563-7010-4be4-b684-8eac4e96722d",
               "name": "message_id",
-              "value": "={{$json.body.payload._data.id._serialized}}",
+              "value": "={{$json.body.payload._data?.id?._serialized || $json.body.payload.id || ''}}",
               "type": "string"
             },
             {
@@ -55,7 +67,7 @@
             {
               "id": "ff18259c-9968-4cc7-84b3-5bc30ec3fcfd",
               "name": "timestamp",
-              "value": "={{$json.body.payload._data.t}}",
+              "value": "={{$json.body.payload._data?.t || $json.body.payload.timestamp || $json.body.timestamp || ''}}",
               "type": "string"
             },
             {
@@ -91,6 +103,19 @@
     },
     {
       "parameters": {
+        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        48
+      ],
+      "id": "sanitize-inputs-node",
+      "name": "Sanitize Inputs"
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "{\n  \"status\": \"received\"\n}",
         "options": {
@@ -119,7 +144,7 @@
             {
               "id": "088a54e1-a89f-4a4b-8a9c-90ff20d7a263",
               "leftValue": "={{ $json.event }}",
-              "rightValue": "message.any",
+              "rightValue": "message",
               "operator": {
                 "type": "string",
                 "operation": "equals",
@@ -177,9 +202,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO contacts (phone, display_name, source)\nVALUES ($1, $2, 'whatsapp')\nON CONFLICT (phone)\nDO UPDATE SET display_name = EXCLUDED.display_name\nRETURNING id, phone;",
+        "query": "INSERT INTO contacts (business_id, phone, display_name, source)\nSELECT b.id, $1, $2, 'whatsapp'\nFROM businesses b\nWHERE (regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR b.waha_session_name = $3)\n  AND b.status = 'active'\n  AND b.deleted_at IS NULL\nON CONFLICT (business_id, phone)\nDO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\nRETURNING id, business_id, phone;",
         "options": {
-          "queryReplacement": "={{ $json.phone }}, {{ $json.customer_name }}"
+          "queryReplacement": "={{ $json.phone }}, {{ JSON.stringify($json.customer_name) }}, {{ $json.business_phone }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -200,9 +225,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO conversations (contact_id, channel, status, last_message_at)\nVALUES ($1, 'whatsapp', 'active', NOW())\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id;",
+        "query": "INSERT INTO conversations (business_id, contact_id, channel, status, last_message_at)\nSELECT business_id, id, 'whatsapp', 'active', NOW()\nFROM contacts\nWHERE id = $1::uuid\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id, business_id;",
         "options": {
-          "queryReplacement": "={{ $(\"Upsert Contact\").item.json.id }}"
+          "queryReplacement": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -223,9 +248,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, $2, 'incoming', 'customer', 'text', $3, $4::jsonb\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
+        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, $2, 'incoming', 'customer', 'text', $3::text, jsonb_build_object('event', $4, 'phone', $5, 'customer_name', $6, 'timestamp', $7, 'hasMedia', $8)\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $(\"Upsert Conversation\").item.json.id }}, {{ $(\"Normalize Payload\").item.json.message_id }}, {{ $(\"Normalize Payload\").item.json.message }}, {{ JSON.stringify($(\"Normalize Payload\").item.json) }}"
+          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -248,7 +273,7 @@
         "operation": "executeQuery",
         "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $(\"Upsert Conversation\").item.json.id }}"
+          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -306,7 +331,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO audit_logs (\n    entity_type, entity_id, action, performed_by,\n    performed_by_type, description, new_values, metadata\n)\nVALUES (\n    'conversation', $1, 'message_received', NULL,\n    'system', 'Incoming WhatsApp message received', $2::jsonb,\n    jsonb_build_object('source', 'whatsapp', 'workflow', 'Webhook 1')\n)\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $(\"Upsert Conversation\").item.json.id }}, {{ JSON.stringify($(\"Normalize Payload\").item.json) }}"
+          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ JSON.stringify($(\"Normalize Payload\").first().json) }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -328,22 +353,22 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "u6LzGPItprCnpd9U",
-          "mode": "list",
-          "cachedResultUrl": "/workflow/u6LzGPItprCnpd9U",
-          "cachedResultName": "Workflow 2 - AI Brain"
+          "value": "Workflow 2 - AI Brain",
+          "mode": "name"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ $(\"Upsert Conversation\").item.json.id.trim() }}",
-            "contact_id": "={{ $(\"Upsert Contact\").item.json.id.trim() }}",
-            "phone": "={{ $(\"Normalize Payload\").item.json.phone }}",
-            "customer_name": "={{ $(\"Normalize Payload\").item.json.customer_name }}",
-            "message": "={{ $(\"Normalize Payload\").item.json.message }}",
-            "timestamp": "={{ $(\"Normalize Payload\").item.json.timestamp }}",
-            "hasMedia": "={{ Boolean($(\"Normalize Payload\").item.json.hasMedia) }}",
-            "message_id": "={{ $('Normalize Payload').item.json.message_id }}"
+            "conversation_id": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}",
+            "contact_id": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}",
+            "phone": "={{ $(\"Normalize Payload\").first().json.phone }}",
+            "chat_id": "={{ $(\"Normalize Payload\").first().json.chat_id }}",
+            "business_id": "={{ $(\"Upsert Contact\").first().json.business_id }}",
+            "customer_name": "={{ $(\"Sanitize Inputs\").first().json.customer_name }}",
+            "message": "={{ $(\"Sanitize Inputs\").first().json.message }}",
+            "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
+            "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
+            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -452,6 +477,17 @@
       ]
     },
     "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Inputs": {
       "main": [
         [
           {

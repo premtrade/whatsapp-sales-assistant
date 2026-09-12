@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-sales-assistant-tests",
+  "version": "1.0.0",
+  "description": "Test suite for WhatsApp Sales Assistant",
+  "private": true,
+  "scripts": {
+    "test": "jest --config jest.config.js",
+    "test:unit": "jest --config jest.config.js --testPathPattern=unit",
+    "test:security": "jest --config jest.config.js --testPathPattern=security",
+    "test:workflows": "jest --config jest.config.js --testPathPattern=workflows",
+    "lint": "echo \"No JS lint configured\""
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.0"
+  }
+}

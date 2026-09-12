@@ -23,7 +23,7 @@ VALUES
     '+18765551234',
     'John Brown',
     'john@example.com',
-    'Brown Construction'
+    'Garco Construction Services Limited'
 )
 ON CONFLICT (phone) DO NOTHING;
 
@@ -40,18 +40,20 @@ INSERT INTO products
     product_type,
     unit,
     price,
-    currency
+    currency,
+    metadata
 )
 VALUES
 (
-    'ROOF-001',
-    'Roof Inspection',
-    'Residential roof inspection',
-    'Roofing',
+    'GARCO-001',
+    'General Construction Consultation',
+    'General construction consultation and site assessment',
+    'Construction',
     'service',
     'job',
-    15000,
-    'JMD'
+    NULL,
+    'JMD',
+    '{"requires_human_approval": true}'::jsonb
 )
 ON CONFLICT (sku) DO NOTHING;
 
@@ -84,7 +86,7 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO settings
 (setting_key, setting_value, data_type)
 VALUES
-('company_name','Demo Company','string')
+('company_name','Garco Construction Services Limited','string')
 ON CONFLICT (setting_key) DO NOTHING;
 
 INSERT INTO settings

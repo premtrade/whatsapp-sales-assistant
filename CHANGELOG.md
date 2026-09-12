@@ -57,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `scripts/configure-waha-webhook.ps1` (idempotent WAHA→n8n webhook registration) and `scripts/apply-migrations.ps1` (idempotent upgrade runner); wire webhook registration into `scripts/setup.ps1` and drop hardcoded password hints.
 - Remove stray 0-byte root files (`-Uri`, `Invoke-RestMethod`, `X-Api-Key`, `}`).
 
+### Changed
+- Removed Flowise from the project entirely: service definition removed from `docker-compose.yml`, Flowise environment variables removed from `.env` and `.env.example`, Flowise database removed from `docker/postgres/init-multiple-dbs.sql`, Flowise references removed from backup/restore/health-check/setup scripts, and `docker/flowise/` configuration directory deleted.
+
 ### Fixed
 - Qdrant health check updated to use a bash TCP check (`/dev/tcp`) instead of `wget`, since the Qdrant container image does not include `wget` or `curl`
 - Flowise now uses a separate database (`flowise`) instead of sharing `whatsapp_sales` with n8n, resolving migration conflicts where the `LinkWorkspaceId` migration failed because n8n's `user` table schema differs from Flowise's
