@@ -72,7 +72,9 @@ api.interceptors.response.use(
     }
     if (error.response?.status === 401) {
       // Token expired or invalid — clear local auth and force re-login.
+      // NOTE: must match keys used in frontend/src/services/auth.ts
       localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_staff')
       localStorage.removeItem('staff_user')
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.assign('/login?expired=1')

@@ -1,6 +1,6 @@
 export function authService() {
   const tokenKey = 'auth_token'
-  const staffKey = 'auth_staff'
+  const staffKey = 'staff_user'
 
   function getToken(): string | null {
     return localStorage.getItem(tokenKey)
