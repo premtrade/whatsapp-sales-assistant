@@ -85,6 +85,12 @@ COMMENT ON COLUMN conversations.assigned_to IS
 CREATE INDEX IF NOT EXISTS idx_conversations_contact
 ON conversations(contact_id);
 
+-- One conversation per contact per channel; backs the ON CONFLICT
+-- (contact_id, channel) upsert in n8n Workflow 01 (also added by
+-- migration 049 for existing installations).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_conversations_contact_channel
+ON conversations(contact_id, channel);
+
 CREATE INDEX IF NOT EXISTS idx_conversations_status
 ON conversations(status);
 
