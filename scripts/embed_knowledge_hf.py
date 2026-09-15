@@ -2,18 +2,19 @@
 """
 scripts/embed_knowledge_hf.py - Embed knowledge chunks using Hugging Face Inference API.
 
-Uses the free Hugging Face inference API (no API key required for basic usage).
-The model outputs 384 dimensions, which is different from the existing 768-dim embeddings.
+Uses the Hugging Face Inference API with sentence-transformers/distilbert-base-nli-mean-tokens
+(768 dimensions - matches the knowledge_chunks.embedding vector(768) column and the
+model configured in n8n Workflow 03 "Generate Message Embedding").
 
-This script will re-embed ALL chunks with the new model.
+Idempotent: safe to re-run - chunks already embedded are skipped.
 
 Usage (from repo root):
     python scripts/embed_knowledge_hf.py
 
 Environment (reads .env, then OS env overrides):
     POSTGRES_HOST/PORT/DB/USER/PASSWORD
-    HF_API_KEY (optional - for higher rate limits)
-    HF_MODEL (default: sentence-transformers/paraphrase-MiniLM-L3-v2)
+    HUGGINGFACE_API_KEY (or HF_API_KEY)
+    HF_EMBED_MODEL (default: sentence-transformers/distilbert-base-nli-mean-tokens)
 """
 import json
 import os
@@ -51,14 +52,16 @@ PG_USER = ENV.get("POSTGRES_USER", "postgres")
 PG_DB = ENV.get("POSTGRES_DB", "whatsapp_sales")
 PG_PASSWORD = ENV.get("POSTGRES_PASSWORD", "")
 
-HF_API_KEY = ENV.get("HF_API_KEY", "")
-HF_MODEL = ENV.get("HF_EMBED_MODEL", "sentence-transformers/paraphrase-MiniLM-L3-v2")
-EMBED_DIMS = 384  # MiniLM-L3 outputs 384 dimensions
+HF_API_KEY = ENV.get("HUGGINGFACE_API_KEY") or ENV.get("HF_API_KEY", "")
+HF_MODEL = ENV.get(
+    "HF_EMBED_MODEL", "sentence-transformers/distilbert-base-nli-mean-tokens"
+)
+EMBED_DIMS = 768  # distilbert-base-nli-mean-tokens outputs 768 dimensions
 
 
 def hf_embed(texts):
-    """Embed texts via Hugging Face inference API."""
-    url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{HF_MODEL}"
+    """Embed texts via Hugging Face Inference API (router endpoint)."""
+    url = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}"
 
     headers = {
         "Content-Type": "application/json",
@@ -127,17 +130,21 @@ def record_embedded(conn, chunk_id, vector, text, title):
             """,
             (vec_literal, HF_MODEL, str(chunk_id)),
         )
-        # Also update memory_embeddings
+        # Also record in memory_embeddings (no unique constraint on
+        # (source_type, source_id), so guard with WHERE NOT EXISTS)
         cur.execute(
             """
             INSERT INTO memory_embeddings
               (source_type, source_id, content, embedding_model, embedding_status,
                embedded_at, metadata)
-            VALUES (%s::uuid, %s, %s, %s, 'completed', NOW(), jsonb_build_object('title', %s))
-            ON CONFLICT (source_type, source_id)
-            DO UPDATE SET embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model;
+            SELECT 'knowledge', %s::uuid, %s, %s, 'completed', NOW(),
+                   jsonb_build_object('title', %s)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM memory_embeddings
+                WHERE source_type = 'knowledge' AND source_id = %s::uuid
+            );
             """,
-            (str(chunk_id), text, HF_MODEL, title),
+            (str(chunk_id), text, HF_MODEL, title, str(chunk_id)),
         )
 
 

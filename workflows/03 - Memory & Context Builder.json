@@ -204,13 +204,13 @@
                   {
                       "parameters":  {
                                          "method":  "POST",
-                                         "url":  "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/distilbert-base-nli-mean-tokens",
+                                         "url":  "https://router.huggingface.co/hf-inference/models/sentence-transformers/distilbert-base-nli-mean-tokens",
                                          "sendHeaders":  true,
                                          "headerParameters":  {
                                                                   "parameters":  [
                                                                                      {
                                                                                          "name":  "Authorization",
-                                                                                         "value":  "Bearer {{ $env.HF_API_KEY }}"
+                                                                                         "value":  "Bearer {{ $env.HUGGINGFACE_API_KEY }}"
                                                                                      }
                                                                                  ]
                                                               },
