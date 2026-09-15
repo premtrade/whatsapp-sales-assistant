@@ -11,10 +11,21 @@ SET search_path TO public;
 -- Drop old plain index first (we'll replace with unique constraint)
 DROP INDEX IF EXISTS idx_messages_whatsapp_id;
 
--- Add the UNIQUE constraint (creates a unique index automatically)
-ALTER TABLE messages
-  ADD CONSTRAINT IF NOT EXISTS uq_messages_whatsapp_id
-  UNIQUE (whatsapp_message_id);
+-- Add the UNIQUE constraint (creates a unique index automatically).
+-- NOTE: PostgreSQL has no ADD CONSTRAINT IF NOT EXISTS; use a guarded DO block.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'uq_messages_whatsapp_id'
+      AND conrelid = 'public.messages'::regclass
+  ) THEN
+    ALTER TABLE messages
+      ADD CONSTRAINT uq_messages_whatsapp_id
+      UNIQUE (whatsapp_message_id);
+  END IF;
+END $$;
 
 -- Re-add named index for query performance (separate from the constraint)
 -- The constraint itself creates an index, so this is optional but makes

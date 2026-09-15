@@ -14,13 +14,18 @@ SET search_path TO public;
 -- ==========================================================
 
 ALTER TABLE knowledge_chunks
-ADD COLUMN IF NOT EXISTS embedding vector(3072);
+ADD COLUMN IF NOT EXISTS embedding vector(768);
+
+-- Existing installations may carry the wrong dimension from an earlier
+-- partial run of this migration; coerce to the canonical 768-dim shape.
+ALTER TABLE knowledge_chunks
+ALTER COLUMN embedding TYPE vector(768);
 
 COMMENT ON COLUMN knowledge_chunks.embedding IS
-'3072-dim vector embedding from Gemini gemini-embedding-001';
+'768-dim vector embedding from Gemini gemini-embedding-001 (outputDimensionality=768)';
 
 -- HNSW index for ANN cosine similarity search
--- m=24, ef_construction=128 more appropriate for 3072-dim vectors
+-- 768 dims is well within pgvector's 2000-dim HNSW limit
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw
 ON knowledge_chunks
 USING hnsw (embedding vector_cosine_ops)
@@ -31,10 +36,13 @@ WITH (m = 24, ef_construction = 128);
 -- ==========================================================
 
 ALTER TABLE memory_embeddings
-ADD COLUMN IF NOT EXISTS embedding vector(3072);
+ADD COLUMN IF NOT EXISTS embedding vector(768);
+
+ALTER TABLE memory_embeddings
+ALTER COLUMN embedding TYPE vector(768);
 
 COMMENT ON COLUMN memory_embeddings.embedding IS
-'3072-dim vector embedding from Gemini gemini-embedding-001';
+'768-dim vector embedding from Gemini gemini-embedding-001 (outputDimensionality=768)';
 
 -- HNSW index for ANN cosine similarity search
 CREATE INDEX IF NOT EXISTS idx_memory_embeddings_embedding_hnsw

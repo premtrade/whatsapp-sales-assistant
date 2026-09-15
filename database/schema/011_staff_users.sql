@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS staff_users
 
     email CITEXT UNIQUE NOT NULL,
 
+    password_hash VARCHAR(255) NOT NULL,
+
     phone VARCHAR(25),
 
     role VARCHAR(30)
