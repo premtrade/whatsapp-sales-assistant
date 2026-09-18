@@ -6,8 +6,9 @@ import { createAuditLog } from '../services/audit.service';
 import logger from '../utils/logger';
 
 export const listDueFollowUps = async (req: Request, res: Response): Promise<void> => {
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
   const limit = typeof req.query.limit === 'string' ? Math.min(parseInt(req.query.limit, 10), 100) : 50;
-  const followUps = await getDueFollowUps(limit);
+  const followUps = await getDueFollowUps(limit, tenantId);
 
   res.json({
     success: true,
@@ -16,7 +17,8 @@ export const listDueFollowUps = async (req: Request, res: Response): Promise<voi
 };
 
 export const listFollowUpsByConversation = async (req: Request, res: Response): Promise<void> => {
-  const followUps = await getFollowUpsByConversation(req.params.conversationId!);
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
+  const followUps = await getFollowUpsByConversation(req.params.conversationId!, tenantId);
   res.json({ success: true, data: followUps });
 };
 

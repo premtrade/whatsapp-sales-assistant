@@ -13,6 +13,9 @@
               "name": "contact_id"
             },
             {
+              "name": "business_id"
+            },
+            {
               "name": "phone"
             },
             {
@@ -186,7 +189,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const result = $('Extract Customer Facts').first()?.json || {};\nconst facts = result.output?.facts || result.facts || [];\nconst contactId = $('When Executed by Another Workflow').first().json.contact_id;\n\nconst normalizedFacts = facts.map(f => ({\n  contact_id: contactId,\n  fact_key: String(f.fact_key),\n  fact_value: String(f.fact_value),\n  confidence: Number(f.confidence || 0.9),\n  source: 'ai'\n}));\n\nreturn [{ json: { facts: normalizedFacts, count: normalizedFacts.length } }];"
+        "jsCode": "const result = $('Extract Customer Facts').first()?.json || {};\nconst facts = result.output?.facts || result.facts || [];\nconst contactId = $('When Executed by Another Workflow').first().json.contact_id;\n\nconst normalizedFacts = (Array.isArray(facts) ? facts : [])\n  .filter(f => f && f.fact_key != null && f.fact_value != null)\n  .map(f => ({\n    contact_id: contactId,\n    fact_key: String(f.fact_key).trim(),\n    fact_value: String(f.fact_value).trim(),\n    confidence: Number(f.confidence || 0.9),\n    source: 'ai'\n  }))\n  .filter(f => f.fact_key && f.fact_value && !['null', 'undefined', ''].includes(f.fact_key.toLowerCase()));\n\nreturn [{ json: { facts: normalizedFacts, count: normalizedFacts.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

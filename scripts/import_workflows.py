@@ -87,38 +87,38 @@ def import_workflow(path: Path):
     with open(path, "r", encoding="utf-8") as f:
         wf_data = json.load(f)
 
-    # Drop fixed IDs so n8n assigns new ones
+    # Drop fixed IDs and read-only metadata so n8n accepts the import payload.
     wf_data.pop("id", None)
     wf_data.pop("versionId", None)
-    # Drop the active field — n8n's POST endpoint rejects it as read-only
     wf_data.pop("active", None)
     wf_data.pop("activeVersionId", None)
     wf_data.pop("isArchived", None)
     wf_data.pop("triggerCount", None)
     wf_data.pop("shared", None)
+    wf_data.pop("meta", None)
+    wf_data.pop("tags", None)
 
     try:
         created = http("POST", "/workflows", json=wf_data)
     except Exception as e:
         print(f"  !! import failed: {e}")
-        return False
+        return None
 
     new_id = created.get("id")
     print(f"  imported as id={new_id}")
+    return new_id
 
-    # Activate. n8n requires sub-workflow calls to reference a "published" version,
-    # so we always issue both /publish and /activate for safety.
+
+def publish_workflow(workflow_id: str) -> bool:
     for ep in ("publish", "activate"):
         try:
-            http("POST", f"/workflows/{new_id}/{ep}")
+            http("POST", f"/workflows/{workflow_id}/{ep}")
             print(f"  {ep}d")
         except Exception as e:
             print(f"  !! {ep} failed: {e}")
-            # If publish fails with "already published" or "no changes", keep going
             if ep == "publish":
                 continue
             return False
-
     return True
 
 
@@ -142,12 +142,26 @@ def main() -> int:
             return 1
 
     ok = 0
+    imported_ids = {}
     for fn in WORKFLOW_ORDER:
-        if import_workflow(WF_DIR / fn):
+        wid = import_workflow(WF_DIR / fn)
+        if wid:
+            imported_ids[fn] = wid
             ok += 1
         time.sleep(1)
 
-    print(f"\nDone: {ok}/{len(WORKFLOW_ORDER)} imported successfully.")
+    print(f"\nImported {ok}/{len(WORKFLOW_ORDER)} workflows.")
+    print("Publishing/activating in dependency order...")
+    published = 0
+    for fn in WORKFLOW_ORDER:
+        wid = imported_ids.get(fn)
+        if not wid:
+            continue
+        if publish_workflow(wid):
+            published += 1
+        time.sleep(0.5)
+
+    print(f"\nDone: {ok} imported, {published} published/activated out of {len(WORKFLOW_ORDER)}.")
     print("\nNEXT STEPS:")
     print("  1. Open n8n UI: http://localhost:5678")
     print("  2. For each imported workflow, re-link credentials:")

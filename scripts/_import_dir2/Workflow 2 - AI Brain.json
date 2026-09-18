@@ -1,0 +1,652 @@
+{
+  "name": "Workflow 2 - AI Brain",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "chat_id"
+            },
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "hasMedia",
+              "type": "boolean"
+            },
+            {
+              "name": "timestamp"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -912,
+        64
+      ],
+      "id": "bd789656-a143-4a11-8145-30e58c3b80dd",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('When Executed by Another Workflow').first().json.message }}",
+        "options": {
+          "systemMessage": "You are a WhatsApp sales assistant for {{ $json.business_name || 'Garco Construction Services' }} (Kingston, Jamaica).\n\n=== CONTEXT (authoritative) ===\n{{ $json.formattedPrompt }}\n\n=== RECENT CONVERSATION ===\n{{ $json.conversationHistory || 'No previous messages.' }}\n\n=== CUSTOMER FACTS (remember for next turns) ===\n{{ JSON.stringify($json.customerFacts || []) }}\n\nToday's greeting word: {{ $json.time_greeting || 'evening' }}.\n\nRULES:\n1. On a FIRST message, reply exactly: \"Good {{ $json.time_greeting || 'evening' }}! You're speaking with {{ $json.business_name || 'Garco Construction Services' }}. How can I help you today?\" Do not add more on a greeting.\n2. Answer ONLY from CONTEXT. If CONTEXT lacks the answer, briefly say so and offer to connect with a representative, then call the Handoff Tool. Never fabricate prices, hours, people, exact addresses, services, or project details.\n3. Never echo or quote internal guidance text (anything saying \"AI MUST NOT\", \"INTERNAL\", \"Do not invent\", \"should be confirmed\", or the labels \"CUSTOMER FACTS\"/\"AUTHORITATIVE\" prefixes). Rephrase in your own words.\n4. For appointment / site-visit / scheduling requests: call the Appointment Tool ONCE and stop. If a required detail (project location, date, or time) is missing, ask the customer for it - never guess. Only confirm \"I've scheduled your appointment...\" when the tool reports success:true; otherwise ask for the missing detail.\n5. For quote / price / estimate questions: use the Quote Tool only when CONTEXT has an authoritative price; otherwise say quotes are customized after reviewing scope and offer a human. Do NOT hand off pricing questions.\n6. If the customer explicitly asks to speak to a person, a manager, or raises a complaint, call the Handoff Tool.\n7. Replies: 1-2 concise sentences.\n8. Output only compact JSON (no markdown): {\"reply\":\"...\",\"facts_extracted\":[],\"intent\":\"general_inquiry\",\"lead_stage\":\"qualifying\",\"sentiment\":\"neutral\",\"escalate\":false,\"escalation_reason\":\"\"}. No other keys."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -560,
+        32
+      ],
+      "id": "b7c5917c-af89-449d-acf4-21172b560269",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first()?.json || {};\nconst rawValue = input.output || input.text || input.content || '';\nconst raw = typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue);\nlet parsed;\ntry {\n  parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());\n} catch {\n  parsed = { reply: raw.trim() };\n}\n\nconst trigger = $('When Executed by Another Workflow').first()?.json || {};\nconst businessName = String($('Format Context').first()?.json?.business_name || 'our company');\n\nlet reply = typeof parsed.reply === 'string' ? parsed.reply : String(raw).trim();\n\n// Guard: if the AI echoed unresolved template syntax from context, fall back to a greeting.\nif (/{{|\\$json|\\$node|\\$env/.test(reply)) {\n  reply = 'Good afternoon! You\\'re speaking with ' + businessName + '. How can I help you today?';\n}\n\nconst cleanFacts = (Array.isArray(parsed.facts_extracted) ? parsed.facts_extracted : [])\n  .map(f => ({\n    key: String((f && (f.key || f.fact_key)) || ''),\n    value: String((f && (f.value || f.fact_value)) || ''),\n    confidence: f && f.confidence != null ? f.confidence : 1\n  }))\n  .filter(f => f.key && f.value && !['null', 'undefined', ''].includes(f.key.toLowerCase()));\n\nreturn [{\n  json: {\n    reply,\n    facts_extracted: cleanFacts,\n    intent: typeof parsed.intent === 'string' ? parsed.intent : 'general_inquiry',\n    lead_stage: typeof parsed.lead_stage === 'string' ? parsed.lead_stage : 'qualifying',\n    sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'neutral',\n    escalate: !!parsed.escalate,\n    escalation_reason: typeof parsed.escalation_reason === 'string' ? parsed.escalation_reason : '',\n    conversation_id: trigger.conversation_id || '',\n    contact_id: trigger.contact_id || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        32
+      ],
+      "id": "parse-ai-output-node",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "08 - AI Output Processor",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
+            "reply": "={{ $('Parse AI Output').first().json.reply }}",
+            "facts_extracted": "={{ $('Parse AI Output').first().json.facts_extracted }}",
+            "intent": "={{ $('Parse AI Output').first().json.intent }}",
+            "lead_stage": "={{ $('Parse AI Output').first().json.lead_stage }}",
+            "sentiment": "={{ $('Parse AI Output').first().json.sentiment }}",
+            "escalate": "={{ $('Parse AI Output').first().json.escalate }}",
+            "escalation_reason": "={{ $('Parse AI Output').first().json.escalation_reason }}",
+            "customer_name": "={{ $('When Executed by Another Workflow').first().json.customer_name }}",
+            "phone": "={{ $('When Executed by Another Workflow').first().json.phone }}",
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -224,
+        64
+      ],
+      "id": "call-ai-output-processor-node",
+      "name": "Call '08 - AI Output Processor'"
+    },
+    {
+      "parameters": {
+        "jsCode": "try { const ctx = $input.first()?.json || {}; const facts = Array.isArray(ctx.customer_facts) ? ctx.customer_facts.filter(f => f && f.fact_key && f.fact_value !== null && f.fact_value !== undefined && f.fact_key !== 'null') : []; const factName = facts.find(f => f.fact_key === 'customer_name')?.fact_value || ''; const businessName = ctx.business_name || 'our company'; const customerName = (ctx.customer?.name && ctx.customer.name !== 'Unknown' ? ctx.customer.name : factName) || 'Unknown'; let prompt = `AUTHORITATIVE BUSINESS IDENTITY: ${businessName}\\nNever output unresolved template expressions such as {{ $json.business_name }}. If asked whether this is Garco, answer using the business identity above.\\n`; if (customerName !== 'Unknown') prompt += `AUTHORITATIVE CUSTOMER NAME: ${customerName}\\nIf asked the customer name, answer it directly.\\n`; if (ctx.customer?.phone) prompt += `CUSTOMER PHONE: ${ctx.customer.phone}\\n`; if (facts.length) { prompt += '\\nCUSTOMER FACTS:\\n'; for (const f of facts) prompt += `- ${f.fact_key}: ${f.fact_value}\\n`; } if (Array.isArray(ctx.knowledge) && ctx.knowledge.length) { prompt += '\\nAUTHORITATIVE KNOWLEDGE:\\n'; for (const kb of ctx.knowledge.slice(0, 8)) prompt += `- ${kb.chunk_text}\\n`; } if (Array.isArray(ctx.products) && ctx.products.length) { prompt += '\\nPRODUCTS:\\n'; for (const p of ctx.products.slice(0, 20)) prompt += `- ${p.name}: ${p.price} ${p.currency}\\n`; } const recent = Array.isArray(ctx.recent_messages) ? ctx.recent_messages.slice(-6) : []; const history = recent.map(m => `${m.direction === 'in' || m.direction === 'incoming' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join('\\n') || 'No previous messages.'; return [{ json: { formattedPrompt: prompt, business_name: businessName, business_timezone: ctx.business_timezone || 'America/Jamaica', conversationHistory: history, customerFacts: facts, customerName, currentMessage: ctx.current_message?.text || '' } }]; } catch(e) { return [{ json: { formattedPrompt: 'AUTHORITATIVE BUSINESS IDENTITY: our company\\nNo context available.', business_name: 'our company', conversationHistory: 'No previous messages.', customerFacts: [], customerName: 'Unknown' } }]; }"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        32
+      ],
+      "id": "format-context-node",
+      "name": "Format Context"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.8-27b",
+        "options": {
+          "maxTokens": 700,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        272
+      ],
+      "id": "bf30af68-916e-4ac6-b26d-ad3cd08742c4",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "wXpNdoZt6qFdQVc2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, gen_random_uuid()::text, 'outgoing',\n    'ai', 'text', $2, '{}'::jsonb\n)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('Parse AI Output').first().json.reply || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -272,
+        32
+      ],
+      "id": "8a4090af-91de-4fc9-84e4-691e15bfd13e",
+      "name": "Insert AI Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "waha_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session: $('When Executed by Another Workflow').first().json.session || 'default', chatId: $('When Executed by Another Workflow').first().json.chat_id || $('When Executed by Another Workflow').first().json.phone, text: $('Parse AI Output').first().json.reply }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -96,
+        32
+      ],
+      "id": "df043a19-5f4c-4898-b7b4-dc7747a200ee",
+      "name": "WAHA Send Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        128,
+        16
+      ],
+      "id": "1fb8a56e-30d1-4f3e-8dfe-aa8f2983dc8f",
+      "name": "Update Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, description)\nVALUES ('conversation', $1, 'ai_reply', 'AI replied to customer');",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        112,
+        224
+      ],
+      "id": "956456a6-506d-4efc-9e45-ed2e62ce64a5",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "03 - Memory & Context Builder",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ $json.conversation_id.trim() }}",
+            "contact_id": "={{ $json.contact_id.trim() }}",
+            "phone": "={{ $json.phone }}",
+            "chat_id": "={{ $json.chat_id }}",
+            "business_id": "={{ $json.business_id }}",
+            "customer_name": "={{ $json.customer_name }}",
+            "message": "={{ $json.message }}",
+            "message_id": "={{ $json.message_id }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "hasMedia": "={{ $json.hasMedia }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "hasMedia",
+              "displayName": "hasMedia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        144
+      ],
+      "id": "807ea6d8-adc8-447d-a243-2348a131b0f8",
+      "name": "Call '03 - Memory & Context Builder'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "04 - Memory Writer",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "phone": "={{$('When Executed by Another Workflow').first().json.phone}}",
+            "customer_name": "={{$('When Executed by Another Workflow').first().json.customer_name}}",
+            "message": "={{$('When Executed by Another Workflow').first().json.message}}",
+            "message_id": "={{$('When Executed by Another Workflow').first().json.message_id}}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        -32
+      ],
+      "id": "call-memory-writer-node",
+      "name": "Call '04 - Memory Writer'"
+    },
+    {
+      "parameters": {
+        "description": "Schedule a site visit or consultation. Use when the customer requests an appointment, site visit, meeting, or a time to be booked. Pass appointment_type, title, location, preferred_date (YYYY-MM-DD), preferred_time (HH:MM 24h), duration_minutes. Call this tool BEFORE telling the customer anything is scheduled, and only confirm the appointment when the tool result reports success. If a required detail such as the project location, date, or time is missing, ask the customer for it first.",
+        "workflowId": {
+          "__rl": true,
+          "value": "05 - Appointment Tool",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "appointment_type": "={{ $fromAI('appointment_type','Type: site_visit, consultation','string') }}",
+            "title": "={{ $fromAI('title','Title','string') }}",
+            "location": "={{ $fromAI('location','Address','string') }}",
+            "preferred_date": "={{ $fromAI('preferred_date','YYYY-MM-DD','string') }}",
+            "preferred_time": "={{ $fromAI('preferred_time','HH:MM 24h','string') }}",
+            "duration_minutes": "={{ $fromAI('duration_minutes','Minutes','number') }}"
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        200
+      ],
+      "id": "call-appointment-tool-node",
+      "name": "Call '05 - Appointment Tool'"
+    },
+    {
+      "parameters": {
+        "description": "Create a quote ONLY when customer asks for a quote AND an authoritative price exists. Pass product_name_or_sku, quantity, currency, notes. If no price exists, escalate via Handoff Tool.",
+        "workflowId": {
+          "__rl": true,
+          "value": "06 - Quote Tool",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "product_name_or_sku": "={{ $fromAI('product_name_or_sku','Product or SKU','string') }}",
+            "quantity": "={{ $fromAI('quantity','Quantity min 1','number') }}",
+            "currency": "={{ $fromAI('currency','JMD or USD','string') }}",
+            "notes": "={{ $fromAI('notes','Notes','string') }}"
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -368,
+        200
+      ],
+      "id": "call-quote-tool-node",
+      "name": "Call '06 - Quote Tool'"
+    },
+    {
+      "parameters": {
+        "description": "Escalate to a human. Use when: customer asks to speak to a person, asks about pricing/quote/availability/office location, asks technical/legal questions, has a complaint, or knowledge base lacks answer. Pass reason and optionally assigned_to.",
+        "workflowId": {
+          "__rl": true,
+          "value": "07 - Handoff Tool",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "reason": "={{ $fromAI('reason','Why human needed','string') }}",
+            "assigned_to": "={{ $fromAI('assigned_to','Staff or unassigned','string') }}"
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        200
+      ],
+      "id": "call-handoff-tool-node",
+      "name": "Call '07 - Handoff Tool'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call '03 - Memory & Context Builder'",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call '04 - Memory Writer'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Insert AI Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call '08 - AI Output Processor'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '08 - AI Output Processor'": {
+      "main": []
+    },
+    "Insert AI Message": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Send Message": {
+      "main": [
+        [
+          {
+            "node": "Update Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Conversation": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '03 - Memory & Context Builder'": {
+      "main": [
+        [
+          {
+            "node": "Format Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '04 - Memory Writer'": {
+      "main": [
+        []
+      ]
+    },
+    "Call '05 - Appointment Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '06 - Quote Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '07 - Handoff Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7b66e577-2697-42a2-9b45-3a77a20b3e9d",
+  "meta": {
+    "instanceId": "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
+  },
+  "nodeGroups": [],
+  "id": "u6LzGPItprCnpd9U",
+  "tags": []
+}

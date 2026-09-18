@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT c.id AS conversation_id, c.contact_id, c.last_message_at, c.status, ct.display_name, ct.phone, ct.email, (SELECT text_body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_text FROM conversations c JOIN contacts ct ON c.contact_id = ct.id WHERE c.status = 'active' AND c.last_message_at < NOW() - INTERVAL '3 days' AND c.last_message_at > NOW() - INTERVAL '4 days' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.created_at > c.last_message_at AND m.sender_type = 'staff' AND m.metadata->>'recovery_attempt' = 'true') ORDER BY c.last_message_at ASC LIMIT 10;",
+         "query": "SELECT c.id AS conversation_id, c.contact_id, c.last_message_at, c.status, ct.display_name, ct.phone, ct.email, ct.business_id, b.waha_session_name, (SELECT text_body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_text FROM conversations c JOIN contacts ct ON c.contact_id = ct.id JOIN businesses b ON b.id = ct.business_id WHERE c.status = 'active' AND c.last_message_at < NOW() - INTERVAL '3 days' AND c.last_message_at > NOW() - INTERVAL '4 days' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.created_at > c.last_message_at AND m.sender_type = 'staff' AND m.metadata->>'recovery_attempt' = 'true') ORDER BY c.last_message_at ASC LIMIT 10;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -81,7 +81,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "jsonBody": "={\n  \"session\": \"{{ $json.waha_session_name || 'default' }}\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

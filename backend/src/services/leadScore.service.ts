@@ -1,5 +1,6 @@
 import { query } from '../utils/database';
 import { NotFoundError, BadRequestError } from '../utils/errors';
+import { PaginationQuery, TenantScopedQuery } from '../types/index';
 import logger from '../utils/logger';
 
 export interface LeadScore {
@@ -44,11 +45,7 @@ export interface LeadScoreInput {
   scoreReasoning?: Record<string, unknown>;
 }
 
-export interface LeadScoreFilters {
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+export interface LeadScoreFilters extends PaginationQuery, TenantScopedQuery {
   status?: string;
   contactId?: string;
   projectType?: string;
@@ -80,6 +77,11 @@ function buildWhereClause(filters: LeadScoreFilters): { where: string; params: u
   if (filters.maxScore !== undefined) {
     conditions.push(`ls.total_score <= $${paramIndex++}`);
     params.push(filters.maxScore);
+  }
+  const tenantId = filters.businessId || filters.tenantId;
+  if (tenantId) {
+    conditions.push(`ls.business_id = $${paramIndex++}`);
+    params.push(tenantId);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -127,14 +129,14 @@ export async function getLeadScores(filters: LeadScoreFilters): Promise<{ data: 
   };
 }
 
-export async function getLeadScoreById(id: string): Promise<LeadScore> {
+export async function getLeadScoreById(id: string, tenantId: string): Promise<LeadScore> {
   const result = await query<LeadScore>(
     `SELECT id, contact_id, conversation_id, budget_score, urgency_score, project_type_score,
             location_score, engagement_score, total_score, status, project_type, estimated_budget,
             preferred_timeline, project_location, score_reasoning, last_calculated_at, created_at, updated_at
-     FROM lead_scores
-     WHERE id = $1`,
-    [id]
+      FROM lead_scores
+      WHERE id = $1 AND business_id = $2`,
+    [id, tenantId]
   );
 
   const score = result.rows[0];
@@ -157,7 +159,7 @@ export async function getLeadScoreByContact(contactId: string): Promise<LeadScor
   return result.rows[0] || null;
 }
 
-export async function calculateAndSaveLeadScore(input: LeadScoreInput): Promise<LeadScore> {
+export async function calculateAndSaveLeadScore(input: LeadScoreInput, tenantId: string): Promise<LeadScore> {
   const weights = { budget: 0.25, urgency: 0.20, project_type: 0.25, location: 0.15, engagement: 0.15 };
 
   const budgetScore = Math.max(0, Math.min(100, input.budgetScore ?? 0));
@@ -178,10 +180,10 @@ export async function calculateAndSaveLeadScore(input: LeadScoreInput): Promise<
 
   const result = await query<LeadScore>(
     `INSERT INTO lead_scores (
-      contact_id, conversation_id, budget_score, urgency_score, project_type_score,
+      contact_id, conversation_id, business_id, budget_score, urgency_score, project_type_score,
       location_score, engagement_score, total_score, status, project_type, estimated_budget,
       preferred_timeline, project_location, score_reasoning
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'new', $9, $10, $11, $12, $13)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'new', $9, $10, $11, $12, $13, $14)
     ON CONFLICT (contact_id, conversation_id) DO UPDATE SET
       budget_score = EXCLUDED.budget_score,
       urgency_score = EXCLUDED.urgency_score,
@@ -196,12 +198,13 @@ export async function calculateAndSaveLeadScore(input: LeadScoreInput): Promise<
       score_reasoning = EXCLUDED.score_reasoning,
       last_calculated_at = NOW(),
       updated_at = NOW()
-    RETURNING id, contact_id, conversation_id, budget_score, urgency_score, project_type_score,
+    RETURNING id, contact_id, conversation_id, business_id, budget_score, urgency_score, project_score_type,
               location_score, engagement_score, total_score, status, project_type, estimated_budget,
               preferred_timeline, project_location, score_reasoning, last_calculated_at, created_at, updated_at`,
     [
       input.contactId,
       input.conversationId || null,
+      tenantId,
       budgetScore,
       urgencyScore,
       projectTypeScore,
@@ -222,25 +225,23 @@ export async function calculateAndSaveLeadScore(input: LeadScoreInput): Promise<
   logger.info('Lead score calculated', {
     leadScoreId: score.id,
     contactId: input.contactId,
-    totalScore: clampedTotal,
-    status: score.status,
   });
 
   return score;
 }
 
-export async function updateLeadScoreStatus(id: string, status: string): Promise<LeadScore> {
+export async function updateLeadScoreStatus(id: string, status: string, tenantId: string): Promise<LeadScore> {
   const validStatuses = ['new', 'qualified', 'unqualified', 'converted', 'lost'];
   if (!validStatuses.includes(status)) {
     throw new BadRequestError(`Invalid lead score status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
   }
 
   const result = await query<LeadScore>(
-    `UPDATE lead_scores SET status = $1, updated_at = NOW() WHERE id = $2
-     RETURNING id, contact_id, conversation_id, budget_score, urgency_score, project_type_score,
-               location_score, engagement_score, total_score, status, project_type, estimated_budget,
-               preferred_timeline, project_location, score_reasoning, last_calculated_at, created_at, updated_at`,
-    [status, id]
+    `UPDATE lead_scores SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3
+    RETURNING id, contact_id, conversation_id, budget_score, urgency_score, project_type_score,
+              location_score, engagement_score, total_score, status, project_type, estimated_budget,
+              preferred_timeline, project_location, score_reasoning, last_calculated_at, created_at, updated_at`,
+    [status, id, tenantId]
   );
 
   const score = result.rows[0];
@@ -251,7 +252,7 @@ export async function updateLeadScoreStatus(id: string, status: string): Promise
   return score;
 }
 
-export async function getLeadPipelineSummary(): Promise<{
+export async function getLeadPipelineSummary(tenantId: string): Promise<{
   total: number;
   averageScore: number;
   byStatus: Record<string, number>;
@@ -259,10 +260,10 @@ export async function getLeadPipelineSummary(): Promise<{
   scoreDistribution: { range: string; count: number }[];
 }> {
   const [totalResult, avgResult, statusResult, projectTypeResult, distributionResult] = await Promise.all([
-    query<{ total: string }>('SELECT COUNT(*) as total FROM lead_scores'),
-    query<{ avg: string }>('SELECT COALESCE(ROUND(AVG(total_score)), 0) as avg FROM lead_scores'),
-    query<{ status: string; count: string }>('SELECT status, COUNT(*) as count FROM lead_scores GROUP BY status'),
-    query<{ project_type: string; count: string }>('SELECT project_type, COUNT(*) as count FROM lead_scores WHERE project_type IS NOT NULL GROUP BY project_type ORDER BY count DESC'),
+    query<{ total: string }>('SELECT COUNT(*) as total FROM lead_scores WHERE business_id = $1', [tenantId]),
+    query<{ avg: string }>('SELECT COALESCE(ROUND(AVG(total_score)), 0) as avg FROM lead_scores WHERE business_id = $1', [tenantId]),
+    query<{ status: string; count: string }>('SELECT status, COUNT(*) as count FROM lead_scores WHERE business_id = $1 GROUP BY status', [tenantId]),
+    query<{ project_type: string; count: string }>('SELECT project_type, COUNT(*) as count FROM lead_scores WHERE business_id = $1 AND project_type IS NOT NULL GROUP BY project_type ORDER BY count DESC', [tenantId]),
     query<{ range: string; count: string }>(`
       SELECT
         CASE
@@ -272,9 +273,10 @@ export async function getLeadPipelineSummary(): Promise<{
         END as range,
         COUNT(*) as count
       FROM lead_scores
+      WHERE business_id = $1
       GROUP BY range
       ORDER BY MIN(total_score)
-    `),
+    `, [tenantId]),
   ]);
 
   const byStatus: Record<string, number> = {};

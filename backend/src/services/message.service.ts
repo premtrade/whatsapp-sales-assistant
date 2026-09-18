@@ -7,6 +7,7 @@ import { emitNewMessage, emitDashboardStatsUpdated } from '../websocketServer';
 
 interface ConversationRow {
   contact_id: string;
+  business_id: string;
 }
 
 interface ContactRow {
@@ -33,7 +34,7 @@ export async function sendMessage(
   metadata: Record<string, unknown> = {}
 ): Promise<Message> {
   const conversationResult = await query<ConversationRow>(
-    'SELECT contact_id FROM conversations WHERE id = $1',
+    'SELECT contact_id, business_id FROM conversations WHERE id = $1',
     [conversationId]
   );
 
@@ -76,9 +77,10 @@ export async function sendMessage(
 
   await triggerWahaWebhook(conversationId, contact.phone, textBody, metadata);
 
-  // Emit real-time events
-  await emitNewMessage(conversationId, message);
-  await emitDashboardStatsUpdated();
+  // Emit real-time events with tenantId
+  const tenantId = conversation.business_id;
+  await emitNewMessage(tenantId, conversationId, message);
+  await emitDashboardStatsUpdated(undefined, tenantId);
 
   return message;
 }

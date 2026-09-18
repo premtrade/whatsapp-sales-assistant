@@ -2,11 +2,21 @@
 """
 scripts/embed_knowledge_hf.py - Embed knowledge chunks using Hugging Face Inference API.
 
-Uses the Hugging Face Inference API with sentence-transformers/distilbert-base-nli-mean-tokens
+Uses the Hugging Face Inference API with BAAI/bge-base-en-v1.5
 (768 dimensions - matches the knowledge_chunks.embedding vector(768) column and the
 model configured in n8n Workflow 03 "Generate Message Embedding").
 
-Idempotent: safe to re-run - chunks already embedded are skipped.
+Model choice matters: bge-base-en-v1.5 retrieves Garco knowledge far better than the
+previous distilbert-base-nli-mean-tokens. Distilbert scored the question
+"What are your services?" at only 0.39 cosine similarity (below Workflow 03's
+similarity threshold, so the AI answered "I don't have that information"), while
+bge-base-en-v1.5 scores the correct services chunks at 0.54-0.56.
+
+bge retrieval convention (must match Workflow 03 exactly):
+    - passages/chunks are embedded WITHOUT any prefix
+    - search queries are embedded WITH QUERY_PREFIX
+
+Idempotent: safe to re-run - chunks are re-embedded with the current model.
 
 Usage (from repo root):
     python scripts/embed_knowledge_hf.py
@@ -14,7 +24,7 @@ Usage (from repo root):
 Environment (reads .env, then OS env overrides):
     POSTGRES_HOST/PORT/DB/USER/PASSWORD
     HUGGINGFACE_API_KEY (or HF_API_KEY)
-    HF_EMBED_MODEL (default: sentence-transformers/distilbert-base-nli-mean-tokens)
+    HF_EMBED_MODEL (default: BAAI/bge-base-en-v1.5)
 """
 import json
 import os
@@ -53,10 +63,18 @@ PG_DB = ENV.get("POSTGRES_DB", "whatsapp_sales")
 PG_PASSWORD = ENV.get("POSTGRES_PASSWORD", "")
 
 HF_API_KEY = ENV.get("HUGGINGFACE_API_KEY") or ENV.get("HF_API_KEY", "")
-HF_MODEL = ENV.get(
-    "HF_EMBED_MODEL", "sentence-transformers/distilbert-base-nli-mean-tokens"
-)
-EMBED_DIMS = 768  # distilbert-base-nli-mean-tokens outputs 768 dimensions
+HF_MODEL = ENV.get("HF_EMBED_MODEL", "BAAI/bge-base-en-v1.5")
+EMBED_DIMS = 768  # bge-base-en-v1.5 outputs 768 dimensions
+
+# bge-base-en-v1.5 recommends this instruction prefix on *queries* only.
+# Workflow 03 "Generate Message Embedding" must send the same prefix so that
+# query vectors live in the same space as the passage vectors written here.
+QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+
+
+def with_query_prefix(text):
+    """Add the bge query instruction prefix (for search queries, not passages)."""
+    return QUERY_PREFIX + str(text)
 
 
 def hf_embed(texts):

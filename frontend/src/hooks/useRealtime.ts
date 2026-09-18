@@ -1,24 +1,26 @@
 import { useEffect, useState, useCallback } from 'react'
 
-export function useWebSocket(onMessage: (data: any) => void) {
+export function useRealtime(
+  handlers: Record<string, (data: any) => void>
+) {
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('auth_token')
     if (!token) return
 
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws`)
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws?token=${encodeURIComponent(token)}`)
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'auth', payload: { token } }))
       setConnected(true)
     }
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        onMessage(data)
+        const handler = handlers[data.type]
+        if (handler) handler(data)
       } catch {}
     }
 
@@ -26,7 +28,7 @@ export function useWebSocket(onMessage: (data: any) => void) {
     ws.onerror = () => setConnected(false)
 
     return () => ws.close()
-  }, [onMessage])
+  }, [handlers])
 
   return { connected }
 }
@@ -42,7 +44,7 @@ export function useSearch() {
     setLoading(true)
     try {
       const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')?.replace(/^jwt:/, '')}` }
       })
       if (res.ok) {
         const data = await res.json()

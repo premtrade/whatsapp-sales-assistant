@@ -30,6 +30,12 @@ function buildWhereClause(filters: QuoteFilters): { where: string; params: unkno
     params.push(`%${filters.search}%`, `%${filters.search}%`);
   }
 
+  const tenantId = filters.businessId || filters.tenantId;
+  if (tenantId) {
+    conditions.push(`q.business_id = $${paramIndex++}`);
+    params.push(tenantId);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   return { where: whereClause, params };
@@ -74,13 +80,18 @@ export async function getQuotes(filters: QuoteFilters): Promise<{ data: Quote[];
   };
 }
 
-export async function getQuoteById(id: string): Promise<Quote> {
-  const result = await query<Quote>(
-    `SELECT id, quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total, currency, notes, valid_until, created_by, created_at, updated_at, metadata
+export async function getQuoteById(id: string, tenantId?: string): Promise<Quote> {
+  let sql = `SELECT id, business_id, quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total, currency, notes, valid_until, created_by, created_at, updated_at, metadata
      FROM quotes
-     WHERE id = $1`,
-    [id]
-  );
+     WHERE id = $1`;
+  const params: unknown[] = [id];
+
+  if (tenantId) {
+    sql += ' AND business_id = $2';
+    params.push(tenantId);
+  }
+
+  const result = await query<Quote>(sql, params);
 
   const row = result.rows[0];
   if (!row) throw new NotFoundError('Quote not found');
@@ -90,8 +101,8 @@ export async function getQuoteById(id: string): Promise<Quote> {
   } as Quote;
 }
 
-export async function getQuoteWithDetails(id: string): Promise<QuoteWithDetails> {
-  const quote = await getQuoteById(id);
+export async function getQuoteWithDetails(id: string, tenantId?: string): Promise<QuoteWithDetails> {
+  const quote = await getQuoteById(id, tenantId);
 
   const [contactResult, itemsResult] = await Promise.all([
     query<{ display_name: string }>('SELECT display_name FROM contacts WHERE id = $1', [quote.contact_id]),
@@ -105,25 +116,36 @@ export async function getQuoteWithDetails(id: string): Promise<QuoteWithDetails>
   };
 }
 
-export async function updateQuoteStatus(id: string, status: string): Promise<Quote> {
+export async function updateQuoteStatus(id: string, status: string, tenantId?: string): Promise<Quote> {
   const validStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired', 'cancelled'];
   if (!validStatuses.includes(status)) {
     throw new BadRequestError(`Invalid status: ${status}`);
   }
 
-  const result = await query<Quote>(
-    `UPDATE quotes SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total, currency, notes, valid_until, created_by, created_at, updated_at, metadata`,
-    [status, id]
-  );
+  let sql = `UPDATE quotes SET status = $1, updated_at = NOW() WHERE id = $2`;
+  const params: unknown[] = [status, id];
+
+  if (tenantId) {
+    sql += ' AND business_id = $3';
+    params.push(tenantId);
+  }
+
+  sql += ' RETURNING id, business_id, quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total, currency, notes, valid_until, created_by, created_at, updated_at, metadata';
+
+  const result = await query<Quote>(sql, params);
 
   const quote = result.rows[0];
   if (!quote) throw new NotFoundError('Quote not found');
 
-  // Emit real-time event for dashboard update
-  await emitDashboardStatsUpdated();
+  // Emit real-time event for dashboard update scoped to tenant
+  const emitTenantId = quote.business_id || tenantId;
+  if (emitTenantId) {
+    await emitDashboardStatsUpdated(undefined, emitTenantId);
+  }
 
   return {
     ...quote,
     requires_review: Boolean((quote as { metadata?: { requires_review?: boolean } }).metadata?.requires_review),
   } as Quote;
 }
+

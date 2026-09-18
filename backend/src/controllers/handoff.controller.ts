@@ -24,6 +24,7 @@ const createHandoffSchema = z.object({
 export const listHandoffs = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
 
   const result = await getHandoffs({
     page,
@@ -34,6 +35,7 @@ export const listHandoffs = async (req: Request, res: Response): Promise<void> =
     conversationId: getOptionalString(query.conversationId),
     assignedTo: getOptionalString(query.assignedTo),
     requestedBy: getOptionalString(query.requestedBy),
+    tenantId,
   });
 
   res.json({
@@ -43,8 +45,9 @@ export const listHandoffs = async (req: Request, res: Response): Promise<void> =
   });
 };
 
-export const listPendingHandoffs = async (_req: Request, res: Response): Promise<void> => {
-  const handoffs = await getPendingHandoffs();
+export const listPendingHandoffs = async (req: Request, res: Response): Promise<void> => {
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
+  const handoffs = await getPendingHandoffs(50, tenantId);
 
   res.json({
     success: true,
@@ -53,14 +56,19 @@ export const listPendingHandoffs = async (_req: Request, res: Response): Promise
 };
 
 export const assignHandoffHandler = async (req: Request, res: Response): Promise<void> => {
-  const currentUser = (req as Request & { user?: UserPayload }).user;
+  const currentUser = (req as Request & { user?: any }).user;
   if (!currentUser) {
     throw new BadRequestError('Unauthorized');
   }
 
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+
   try {
     const validated = assignSchema.parse(req.body);
-    const handoff = await assignHandoff(req.params.id!, validated.staffId, currentUser.id);
+    const handoff = await assignHandoff(req.params.id!, validated.staffId, currentUser.id, tenantId);
 
     await createAuditLog(
       'handoffs',
@@ -75,7 +83,7 @@ export const assignHandoffHandler = async (req: Request, res: Response): Promise
       req.get('user-agent')!
     );
 
-    logger.info('Handoff assigned via API', { handoffId: req.params.id, userId: currentUser.id });
+    logger.info('Handoff assigned via API', { handoffId: req.params.id, userId: currentUser.id, tenantId });
 
     res.json({
       success: true,
@@ -91,14 +99,19 @@ export const assignHandoffHandler = async (req: Request, res: Response): Promise
 };
 
 export const updateHandoffStatusHandler = async (req: Request, res: Response): Promise<void> => {
-  const currentUser = (req as Request & { user?: UserPayload }).user;
+  const currentUser = (req as Request & { user?: any }).user;
   if (!currentUser) {
     throw new BadRequestError('Unauthorized');
   }
 
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+
   try {
     const validated = updateStatusSchema.parse(req.body);
-    const handoff = await updateHandoffStatus(req.params.id!, validated.status, currentUser.id);
+    const handoff = await updateHandoffStatus(req.params.id!, validated.status, currentUser.id, tenantId);
 
     await createAuditLog(
       'handoffs',
@@ -127,7 +140,8 @@ export const updateHandoffStatusHandler = async (req: Request, res: Response): P
 };
 
 export const getHandoff = async (req: Request, res: Response): Promise<void> => {
-  const handoff = await getHandoffById(req.params.id!);
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
+  const handoff = await getHandoffById(req.params.id!, tenantId);
 
   res.json({
     success: true,
@@ -136,9 +150,14 @@ export const getHandoff = async (req: Request, res: Response): Promise<void> => 
 };
 
 export const createHandoffHandler = async (req: Request, res: Response): Promise<void> => {
-  const currentUser = (req as Request & { user?: UserPayload }).user;
+  const currentUser = (req as Request & { user?: any }).user;
   if (!currentUser) {
     throw new BadRequestError('Unauthorized');
+  }
+
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
   }
 
   try {
@@ -148,7 +167,7 @@ export const createHandoffHandler = async (req: Request, res: Response): Promise
       requestedBy: currentUser.id,
       reason: validated.reason,
       notes: validated.notes,
-    });
+    }, tenantId);
 
     await createAuditLog(
       'handoffs',
@@ -163,7 +182,7 @@ export const createHandoffHandler = async (req: Request, res: Response): Promise
       req.get('user-agent')!
     );
 
-    logger.info('Handoff created via API', { handoffId: handoff.id, userId: currentUser.id });
+    logger.info('Handoff created via API', { handoffId: handoff.id, userId: currentUser.id, tenantId });
 
     res.status(201).json({
       success: true,

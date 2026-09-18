@@ -4,7 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { apiRateLimiter, authRateLimiter } from './middleware/rateLimiter';
+import { apiRateLimiter, authRateLimiter, adminRateLimiter } from './middleware/rateLimiter';
 import { validateBody } from './middleware/validation';
 import { loginSchema } from './controllers/auth.controller';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -28,6 +28,8 @@ import staffRoutes from './routes/staff.routes';
 import whatsappConfigRoutes from './routes/whatsappConfig.routes';
 import systemHealthRoutes from './routes/systemHealth.routes';
 import { healthRoutes } from './routes/health.routes';
+import webhookRoutes from './routes/webhook.routes';
+import publicRoutes from './routes/public.routes';
 import { ApiResponse } from './types';
 
 const app: Application = express();
@@ -40,7 +42,7 @@ app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret', 'X-Signature-256', 'X-Timestamp', 'X-API-Key', 'X-N8N-Webhook-Secret'],
 }));
 
 app.use(requestIdMiddleware);
@@ -77,8 +79,10 @@ app.use('/api/conversations', conversationNoteRoutes);
 app.use('/api/quick-replies', quickReplyRoutes);
 app.use('/api/businesses', businessRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/staff/users', staffRoutes);
+app.use('/api/staff', staffRoutes);
 
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/public', publicRoutes);
 app.use('/api/whatsapp', whatsappConfigRoutes);
 app.use('/api/system', systemHealthRoutes);
 

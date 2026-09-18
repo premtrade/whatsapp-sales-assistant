@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSettings, updateSetting, getStaffUsers } from '@/services/api'
+import { getSettings, updateSetting, getStaffUsers, getCurrentStaff, createStaffUser, updateStaffUser, updateStaffStatus, deleteStaffUser, exportSettings, importSettings, clearSystemCache } from "@/services/api"
 import { PageHeader, LoadingState, ErrorState } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
@@ -54,6 +54,11 @@ export function SettingsPage() {
   const { data: staff, isLoading: staffLoading, error: staffError, refetch: refetchStaff } = useQuery({
     queryKey: ['staff', 'users'],
     queryFn: () => getStaffUsers({ page: 1, limit: 100 }),
+  })
+
+  const { data: currentStaff, isLoading: currentStaffLoading, error: currentStaffError } = useQuery({
+    queryKey: ['current-staff'],
+    queryFn: getCurrentStaff,
   })
 
   const updateMutation = useMutation({
@@ -355,3 +360,5 @@ export function SettingsPage() {
     </div>
   )
 }
+
+

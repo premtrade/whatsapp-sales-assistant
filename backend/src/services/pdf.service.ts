@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { query } from '../utils/database';
+import { getBusinessById } from './business.service';
 
 interface QuoteData {
   quote_number: string;
@@ -20,12 +21,13 @@ interface QuoteData {
   total: number;
   currency: string;
   notes: string;
+  business_id: string;
 }
 
 export async function generateQuotePDF(quoteId: string): Promise<string> {
   const quoteResult = await query<QuoteData>(`
     SELECT
-      q.quote_number, q.created_at, q.valid_until, q.subtotal, q.tax, q.total, q.currency, q.notes,
+      q.quote_number, q.created_at, q.valid_until, q.subtotal, q.tax, q.total, q.currency, q.notes, q.business_id,
       c.display_name as customer_name, c.phone as customer_phone,
       COALESCE(json_agg(json_build_object('description', COALESCE(p.name, qi.description), 'quantity', qi.quantity, 'unit_price', qi.unit_price, 'line_total', qi.line_total)) FILTER (WHERE qi.id IS NOT NULL), '[]'::json) as items
     FROM quotes q
@@ -39,6 +41,12 @@ export async function generateQuotePDF(quoteId: string): Promise<string> {
   const data = quoteResult.rows[0];
   if (!data) throw new Error('Quote not found');
 
+  const business = await getBusinessById(data.business_id);
+  const businessName = business?.name || 'Our Company';
+  const businessPhone = business?.phone || business?.whatsapp_phone || '';
+  const businessWebsite = business?.website || '';
+  const businessAddress = business?.address || '';
+
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   const filename = `quote_${data.quote_number}_${Date.now()}.pdf`;
   const dir = path.join('/app/storage/quotes');
@@ -48,13 +56,11 @@ export async function generateQuotePDF(quoteId: string): Promise<string> {
   const stream = fs.createWriteStream(filepath);
   doc.pipe(stream);
 
-  doc.fontSize(24).fillColor('#1a5276').text('GARCO CONSTRUCTION', 50, 50);
-  doc.fontSize(10).fillColor('#666').text('Services Limited', 50, 75);
-  // Per Garco's authoritative policy, do NOT assert a single office address
-  // (the website lists conflicting addresses). Show contact channels only.
-  doc.fontSize(8).text('Office location: please confirm via our website or phone');
-  doc.text('Phone: +1 (876) 908-1970');
-  doc.text('Web: https://www.garcoconstruction.com/');
+  doc.fontSize(24).fillColor('#1a5276').text(businessName.toUpperCase(), 50, 50);
+  doc.fontSize(10).fillColor('#666').text(businessAddress || 'Services', 50, 75);
+  if (businessAddress) doc.fontSize(8).text(`Address: ${businessAddress}`);
+  if (businessPhone) doc.text(`Phone: ${businessPhone}`);
+  if (businessWebsite) doc.text(`Web: ${businessWebsite}`);
 
   doc.fontSize(18).fillColor('#000').text('QUOTATION', 50, 130);
 
@@ -95,7 +101,7 @@ export async function generateQuotePDF(quoteId: string): Promise<string> {
 
   doc.fontSize(8).fillColor('#666');
   doc.text(
-    'This is a preliminary estimate. Final pricing and payment terms will be confirmed by a Garco representative before any work begins.',
+    `This is a preliminary estimate. Final pricing and payment terms will be confirmed by ${businessName} before any work begins.`,
     50, 700, { width: 495, align: 'center' }
   );
 

@@ -1,5 +1,6 @@
 import { config } from '../config';
-import { getSettingByKey } from './settings.service';
+import { getSettingByKey, getSettings } from './settings.service';
+import { getBusinessById } from './business.service';
 import logger from '../utils/logger';
 
 interface WAHASessionResponse {
@@ -46,7 +47,16 @@ export interface WhatsAppStatus {
   qrCode?: string;
 }
 
-export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
+async function resolveWahaSession(tenantId: string): Promise<string> {
+  try {
+    const business = await getBusinessById(tenantId);
+    return business.waha_session_name || config.waha.session || 'default';
+  } catch {
+    return config.waha.session || 'default';
+  }
+}
+
+export async function getWhatsAppConfig(tenantId: string): Promise<WhatsAppConfig> {
   const [
     phoneNumberSetting,
     businessNameSetting,
@@ -55,12 +65,12 @@ export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
     apiVersionSetting,
     messageLimitSetting,
   ] = await Promise.all([
-    getSettingByKey('whatsapp_phone_number').catch(() => null),
-    getSettingByKey('whatsapp_business_name').catch(() => null),
-    getSettingByKey('whatsapp_business_id').catch(() => null),
-    getSettingByKey('whatsapp_webhook_url').catch(() => null),
-    getSettingByKey('whatsapp_api_version').catch(() => null),
-    getSettingByKey('whatsapp_message_limit').catch(() => null),
+    getSettingByKey('whatsapp_phone_number', tenantId).catch(() => null),
+    getSettingByKey('whatsapp_business_name', tenantId).catch(() => null),
+    getSettingByKey('whatsapp_business_id', tenantId).catch(() => null),
+    getSettingByKey('whatsapp_webhook_url', tenantId).catch(() => null),
+    getSettingByKey('whatsapp_api_version', tenantId).catch(() => null),
+    getSettingByKey('whatsapp_message_limit', tenantId).catch(() => null),
   ]);
 
   const phoneNumber = phoneNumberSetting?.setting_value || '';
@@ -76,10 +86,10 @@ export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
 
   try {
     const baseUrl = `http://${config.waha.host}:${config.waha.port}`;
-    const session = config.waha.session || 'default';
+    const session = await resolveWahaSession(tenantId);
 
     const [sessionRes, templatesRes, usageRes] = await Promise.allSettled([
-      fetch(`${baseUrl}/api/sessions/${session}`, {
+      fetch(`${baseUrl}/api/sessions/${encodeURIComponent(session)}`, {
         headers: { 'X-Api-Key': config.waha.apiKey },
       }),
       fetch(`${baseUrl}/api/templates`, {
@@ -126,19 +136,19 @@ export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
   };
 }
 
-export async function getWhatsAppStatus(): Promise<WhatsAppStatus> {
-  const phoneNumberSetting = await getSettingByKey('whatsapp_phone_number').catch(() => null);
-  const businessNameSetting = await getSettingByKey('whatsapp_business_name').catch(() => null);
-  const businessIdSetting = await getSettingByKey('whatsapp_business_id').catch(() => null);
+export async function getWhatsAppStatus(tenantId: string): Promise<WhatsAppStatus> {
+  const phoneNumberSetting = await getSettingByKey('whatsapp_phone_number', tenantId).catch(() => null);
+  const businessNameSetting = await getSettingByKey('whatsapp_business_name', tenantId).catch(() => null);
+  const businessIdSetting = await getSettingByKey('whatsapp_business_id', tenantId).catch(() => null);
 
   let connected = false;
   let qrCode: string | undefined;
 
   try {
     const baseUrl = `http://${config.waha.host}:${config.waha.port}`;
-    const session = config.waha.session || 'default';
+    const session = await resolveWahaSession(tenantId);
 
-    const sessionRes = await fetch(`${baseUrl}/api/sessions/${session}`, {
+    const sessionRes = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(session)}`, {
       headers: { 'X-Api-Key': config.waha.apiKey },
     });
 
@@ -155,19 +165,19 @@ export async function getWhatsAppStatus(): Promise<WhatsAppStatus> {
 
   return {
     connected,
-    session: config.waha.session || 'default',
+    session: await resolveWahaSession(tenantId),
     phoneNumber: phoneNumberSetting?.setting_value || '',
     businessName: businessNameSetting?.setting_value || '',
     qrCode,
   };
 }
 
-export async function testWhatsAppConnection(): Promise<{ success: boolean; message: string }> {
+export async function testWhatsAppConnection(tenantId: string): Promise<{ success: boolean; message: string }> {
   try {
     const baseUrl = `http://${config.waha.host}:${config.waha.port}`;
-    const session = config.waha.session || 'default';
+    const session = await resolveWahaSession(tenantId);
 
-    const res = await fetch(`${baseUrl}/api/sessions/${session}`, {
+    const res = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(session)}`, {
       headers: { 'X-Api-Key': config.waha.apiKey },
     });
 

@@ -14,32 +14,32 @@ export interface DashboardStats {
   leadPipeline: { total: number; averageScore: number; byStatus: Record<string, number>; byProjectType: Record<string, number>; scoreDistribution: { range: string; count: number }[] };
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(tenantId: string): Promise<DashboardStats> {
   try {
   const [
     conversations, handoffs, quotes, appointments, contacts,
     recentActivity, pipelineTotal, trends, handoffReasons, leadPipeline
   ] = await Promise.all([
-    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM conversations GROUP BY status`),
-    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM handoffs GROUP BY status`),
-    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM quotes GROUP BY status`),
-    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM appointments GROUP BY status`),
-    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM contacts GROUP BY status`),
+    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM conversations WHERE business_id = $1 GROUP BY status`, [tenantId]),
+    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM handoffs WHERE business_id = $1 GROUP BY status`, [tenantId]),
+    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM quotes WHERE business_id = $1 GROUP BY status`, [tenantId]),
+    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM appointments WHERE business_id = $1 GROUP BY status`, [tenantId]),
+    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM contacts WHERE business_id = $1 GROUP BY status`, [tenantId]),
     Promise.all([
-      query<{ count: string }>(`SELECT COUNT(*) as count FROM conversations WHERE started_at >= NOW() - INTERVAL '24 hours'`),
-      query<{ count: string }>(`SELECT COUNT(*) as count FROM messages WHERE created_at >= NOW() - INTERVAL '24 hours'`),
-      query<{ count: string }>(`SELECT COUNT(*) as count FROM handoffs WHERE created_at >= NOW() - INTERVAL '24 hours'`),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM conversations WHERE business_id = $1 AND started_at >= NOW() - INTERVAL '24 hours'`, [tenantId]),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.business_id = $1 AND m.created_at >= NOW() - INTERVAL '24 hours'`, [tenantId]),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM handoffs WHERE business_id = $1 AND created_at >= NOW() - INTERVAL '24 hours'`, [tenantId]),
     ]),
-    query<{ count: string; total: string }>(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM quotes`),
+    query<{ count: string; total: string }>(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM quotes WHERE business_id = $1`, [tenantId]),
     Promise.all([
-      query<{ date: string; count: string }>(`SELECT DATE(created_at) as date, COUNT(*) as count FROM conversations WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY date`),
-      query<{ date: string; count: string }>(`SELECT DATE(created_at) as date, COUNT(*) as count FROM messages WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY date`),
+      query<{ date: string; count: string }>(`SELECT DATE(created_at) as date, COUNT(*) as count FROM conversations WHERE business_id = $1 AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY date`, [tenantId]),
+      query<{ date: string; count: string }>(`SELECT DATE(created_at) as date, COUNT(*) as count FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.business_id = $1 AND m.created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY date`, [tenantId]),
     ]),
-    query<{ reason: string; count: string }>(`SELECT COALESCE(reason, 'Unspecified') as reason, COUNT(*) as count FROM handoffs GROUP BY reason ORDER BY count DESC`),
+    query<{ reason: string; count: string }>(`SELECT COALESCE(reason, 'Unspecified') as reason, COUNT(*) as count FROM handoffs WHERE business_id = $1 GROUP BY reason ORDER BY count DESC`, [tenantId]),
     (async () => {
       try {
         const { getLeadPipelineSummary } = await import('./leadScore.service');
-        return getLeadPipelineSummary();
+        return getLeadPipelineSummary(tenantId);
       } catch {
         return { total: 0, averageScore: 0, byStatus: {}, byProjectType: {}, scoreDistribution: [] };
       }

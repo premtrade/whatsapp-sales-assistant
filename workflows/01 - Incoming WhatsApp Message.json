@@ -202,9 +202,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO contacts (business_id, phone, display_name, source)\nSELECT b.id, $1, $2, 'whatsapp'\nFROM businesses b\nWHERE (regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR b.waha_session_name = $3)\n  AND b.status = 'active'\n  AND b.deleted_at IS NULL\nON CONFLICT (business_id, phone)\nDO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\nRETURNING id, business_id, phone;",
+         "query": "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, 'whatsapp'\n    FROM businesses b\n    WHERE (regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR b.waha_session_name = $3)\n      AND b.deleted_at IS NULL\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
         "options": {
-          "queryReplacement": "={{ $json.phone }}, {{ JSON.stringify($json.customer_name) }}, {{ $json.business_phone }}"
+          "queryReplacement": "={{ $json.phone }}, {{ $json.customer_name }}, {{ $json.business_phone }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -297,24 +297,23 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict",
+            "typeValidation": "loose",
             "version": 3
           },
           "conditions": [
             {
-              "id": "53425458-b3b2-4abb-8197-adef86b787c5",
-              "leftValue": "={{ $json.phone.startsWith(\"status@broadcast\") }}",
-              "rightValue": "false",
+              "id": "is-real-message",
+              "leftValue": "={{ Boolean($json.message) && !String($json.chat_id || '').startsWith('status@broadcast') }}",
+              "rightValue": true,
               "operator": {
                 "type": "boolean",
-                "operation": "false",
+                "operation": "true",
                 "singleValue": true
               }
             }
           ],
           "combinator": "and"
         },
-        "looseTypeValidation": "={{ false }}",
         "options": {}
       },
       "type": "n8n-nodes-base.if",
@@ -368,7 +367,8 @@
             "message": "={{ $(\"Sanitize Inputs\").first().json.message }}",
             "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
             "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
-            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}"
+            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}",
+            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -603,19 +603,18 @@
             "node": "Call 'Workflow 2 - AI Brain'",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Call 'Workflow 2 - AI Brain'": {
-      "main": [
-        [
+          },
           {
             "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Call 'Workflow 2 - AI Brain'": {
+      "main": [
+        []
       ]
     }
   },

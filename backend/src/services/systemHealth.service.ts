@@ -1,6 +1,7 @@
 import { query } from '../utils/database';
 import { config } from '../config';
 import logger from '../utils/logger';
+import { memoryCache } from '../utils/cache';
 
 export interface SystemHealthItem {
   label: string;
@@ -149,3 +150,9 @@ export async function getSystemMetrics(): Promise<{
     connections: 0, // Would need to track active connections
   };
 }
+
+export async function clearSystemCache(): Promise<void> {
+  memoryCache.clear();
+  logger.info('System cache cleared via API');
+}
+

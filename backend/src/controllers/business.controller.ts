@@ -11,7 +11,10 @@ import {
 } from '../services/business.service';
 
 export const listBusinesses = async (req: Request, res: Response): Promise<void> => {
-  const businesses = await getBusinesses();
+  const user = (req as any).user;
+  const tenantId = user?.businessId || user?.tenantId;
+  
+  const businesses = await getBusinesses(tenantId);
   res.json({
     success: true,
     data: businesses,
@@ -19,7 +22,10 @@ export const listBusinesses = async (req: Request, res: Response): Promise<void>
 };
 
 export const getBusiness = async (req: Request, res: Response): Promise<void> => {
-  const business = await getBusinessById(req.params.id!);
+  const user = (req as any).user;
+  const tenantId = user?.businessId || user?.tenantId;
+  
+  const business = await getBusinessById(req.params.id!, tenantId);
   res.json({
     success: true,
     data: business,
@@ -44,6 +50,15 @@ export const getBusinessByPhone = async (req: Request, res: Response): Promise<v
 };
 
 export const createNewBusiness = async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  if (user?.role !== 'super_admin') {
+    res.status(403).json({
+      success: false,
+      message: 'Insufficient permissions. Super-admin only.',
+    });
+    return;
+  }
+
   const data: BusinessCreateRequest = req.body;
 
   if (!data.name || !data.slug) {
@@ -62,7 +77,16 @@ export const createNewBusiness = async (req: Request, res: Response): Promise<vo
 };
 
 export const updateExistingBusiness = async (req: Request, res: Response): Promise<void> => {
-  const business = await updateBusiness(req.params.id!, req.body);
+  const user = (req as any).user;
+  if (user?.role !== 'super_admin') {
+    res.status(403).json({
+      success: false,
+      message: 'Insufficient permissions. Super-admin only.',
+    });
+    return;
+  }
+  
+  const business = await updateBusiness(req.params.id!, req.body, user);
   res.json({
     success: true,
     data: business,
@@ -70,7 +94,16 @@ export const updateExistingBusiness = async (req: Request, res: Response): Promi
 };
 
 export const deleteExistingBusiness = async (req: Request, res: Response): Promise<void> => {
-  await deleteBusiness(req.params.id!);
+  const user = (req as any).user;
+  if (user?.role !== 'super_admin') {
+    res.status(403).json({
+      success: false,
+      message: 'Insufficient permissions. Super-admin only.',
+    });
+    return;
+  }
+  
+  await deleteBusiness(req.params.id!, user);
   res.json({
     success: true,
     message: 'Business deleted successfully',

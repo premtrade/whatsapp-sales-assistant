@@ -1,0 +1,2 @@
+const items = $input.all();
+return items.map(item => ({ json: { ...item.json, success: true, message: `Follow-up sent for quote ${item.json.quote_number} to ${item.json.display_name || item.json.phone}` } }));

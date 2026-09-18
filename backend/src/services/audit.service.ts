@@ -1,5 +1,7 @@
 import { query } from '../utils/database';
 import { AuditLogFilters, AuditLog } from '../types';
+import { BadRequestError } from '../utils/errors';
+import logger from '../utils/logger';
 
 function buildWhereClause(filters: AuditLogFilters): { where: string; params: unknown[] } {
   const conditions: string[] = [];
@@ -34,6 +36,11 @@ function buildWhereClause(filters: AuditLogFilters): { where: string; params: un
     conditions.push(`created_at <= $${paramIndex++}`);
     params.push(filters.endDate);
   }
+  const tenantId = filters.businessId || filters.tenantId;
+  if (tenantId) {
+    conditions.push(`business_id = $${paramIndex++}`);
+    params.push(tenantId);
+  }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -53,7 +60,7 @@ export async function getAuditLogs(filters: AuditLogFilters): Promise<{ data: Au
   const total = parseInt(countResult.rows[0]?.total || '0', 10);
 
   const dataQuery = `
-    SELECT id, entity_type, entity_id, action, performed_by, performed_by_type, description, old_values, new_values, metadata, ip_address, user_agent, created_at
+    SELECT id, business_id, entity_type, entity_id, action, performed_by, performed_by_type, description, old_values, new_values, metadata, ip_address, user_agent, created_at
     FROM audit_logs
     ${where}
     ORDER BY created_at ${sortOrder}
@@ -83,12 +90,18 @@ export async function createAuditLog(
   newValues?: unknown,
   metadata: Record<string, unknown> = {},
   ipAddress?: string,
-  userAgent?: string
+  userAgent?: string,
+  businessId?: string
 ): Promise<void> {
   try {
+    const resolvedTenant = businessId || (metadata?.business_id as string) || (metadata?.tenantId as string) || null;
+    if (!resolvedTenant) {
+      throw new BadRequestError('businessId is required for audit logging');
+    }
+
     await query(
-      `INSERT INTO audit_logs (entity_type, action, performed_by, performed_by_type, description, old_values, new_values, metadata, ip_address, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO audit_logs (entity_type, action, performed_by, performed_by_type, description, old_values, new_values, metadata, ip_address, user_agent, business_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         entityType,
         action,
@@ -100,9 +113,11 @@ export async function createAuditLog(
         metadata,
         ipAddress || null,
         userAgent || null,
+        resolvedTenant,
       ]
     );
   } catch (error) {
-    console.error('Failed to create audit log', error);
+    logger.error('Failed to create audit log', { error });
+    // Don't throw the error to avoid breaking the request due to audit logging failure
   }
 }

@@ -16,6 +16,7 @@ export interface StaffUser {
   status: 'active' | 'inactive' | 'suspended'
   timezone: string
   metadata: Record<string, unknown>
+  businessId?: string
 }
 
 export interface LoginRequest {

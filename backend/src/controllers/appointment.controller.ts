@@ -13,12 +13,14 @@ const updateStatusSchema = z.object({
 export const listAppointments = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
 
   const result = await getAppointments({
     page,
     limit,
     sortBy,
     sortOrder,
+    businessId: tenantId,
     status: getOptionalString(query.status),
     contactId: getOptionalString(query.contactId),
     assignedTo: getOptionalString(query.assignedTo),
@@ -34,7 +36,8 @@ export const listAppointments = async (req: Request, res: Response): Promise<voi
 };
 
 export const getAppointment = async (req: Request, res: Response): Promise<void> => {
-  const appointment = await getAppointmentById(req.params.id!);
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+  const appointment = await getAppointmentById(req.params.id!, tenantId);
 
   res.json({
     success: true,
@@ -48,9 +51,11 @@ export const updateAppointmentStatusController = async (req: Request, res: Respo
     throw new BadRequestError('Unauthorized');
   }
 
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+
   try {
     const validated = updateStatusSchema.parse(req.body);
-    const appointment = await updateAppointmentStatus(req.params.id!, validated.status);
+    const appointment = await updateAppointmentStatus(req.params.id!, validated.status, tenantId);
 
     await createAuditLog(
       'appointments',
@@ -62,7 +67,8 @@ export const updateAppointmentStatusController = async (req: Request, res: Respo
       { status: validated.status },
       { appointmentId: req.params.id! },
       req.ip!,
-      req.get('user-agent')!
+      req.get('user-agent')!,
+      tenantId
     );
 
     res.json({

@@ -1,673 +1,655 @@
 {
-    "name":  "Workflow 2 - AI Brain",
-    "nodes":  [
-                  {
-                      "parameters":  {
-                                         "workflowInputs":  {
-                                                                "values":  [
-                                                                               {
-                                                                                   "name":  "conversation_id"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "contact_id"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "phone"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "chat_id"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "business_id"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "customer_name"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "message"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "message_id"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "hasMedia",
-                                                                                   "type":  "boolean"
-                                                                               },
-                                                                               {
-                                                                                   "name":  "timestamp"
-                                                                               }
-                                                                           ]
-                                                            }
-                                     },
-                      "type":  "n8n-nodes-base.executeWorkflowTrigger",
-                      "typeVersion":  1.2,
-                      "position":  [
-                                       -912,
-                                       64
-                                   ],
-                      "id":  "bd789656-a143-4a11-8145-30e58c3b80dd",
-                      "name":  "When Executed by Another Workflow"
-                  },
-                  {
-                      "parameters":  {
-                                         "promptType":  "define",
-                                         "text":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.message }}",
-                                         "options":  {
-                                                                         "systemMessage":  "You are the WhatsApp Sales Assistant for {{ $json.business_name || \u0027our company\u0027 }}.\n\nIDENTITY RULE: The business name above is authoritative. If the customer asks whether this is Garco or asks who they are speaking with, answer directly that this is {{ $json.business_name || \u0027our company\u0027 }}. Never say you are unsure when business_name is present.\n\nANSWERING PRIORITY: Answer the customer\u0027s direct question first using the supplied context. Ask a qualifying question only after giving the available answer, and only when more detail is genuinely needed.\n\nKNOWLEDGE BASE:\n{{ $json.formattedPrompt }}\n\nCONVERSATION HISTORY:\n{{ $json.conversationHistory || \u0027No previous messages.\u0027 }}\n\nCUSTOMER FACTS:\n{{ $json.customerFacts || \u0027No customer facts available.\u0027 }}\n\nSTRICT RULES:\n- Use ALL provided context to answer: KNOWLEDGE BASE chunks, Customer Facts, Products, and Conversation History.\n- For questions about the customer (name, location, project, preferences, history), use Customer Facts.\n- For questions about the business (services, pricing, history, website), use KNOWLEDGE BASE.\n- If the answer is NOT in the provided context, say: \"I don\u0027t have that information. Let me connect you with someone who can help.\"\n- NEVER invent, guess, or make up any facts, names, dates, or prices.\n- Keep replies concise but informative (2-4 sentences).\n- Be friendly, professional, and helpful.\n\nPERSONALIZATION:\n- Address the customer by name when known: {{ $json.customerName || \u0027there\u0027 }}\n- Reference previous interactions when relevant: \"Last time you mentioned...\"\n- If this is a returning customer, acknowledge it: \"Welcome back!\"\n\nMEDIA HANDLING:\n- If the customer sends an image, describe what you can see and ask how you can help.\n- If the customer sends a document, acknowledge receipt and offer to connect them with a human for review.\n- If you cannot view media, say: \"I can see you\u0027ve sent something. Could you describe what you need help with?\"\n\nPROACTIVE QUALIFICATION:\n- When a new customer asks about services, proactively ask qualifying questions one at a time:\n  1. What type of project are you working on?\n  2. Where is the project located?\n  3. What is your approximate budget?\n  4. When are you looking to start?\n- Do not ask all questions at once. Ask one or two per message, naturally within the conversation.\n\nLEAD STAGE GUIDELINES:\n- new: First contact, no information gathered\n- qualifying: Asking or answering questions about needs\n- qualified: Customer has shared project type, location, and budget\n- product_interest: Customer is asking about specific services\n- quote_requested: Customer explicitly asks for a price or quote\n- quote_sent: A quote has been generated and sent\n- appointment_requested: Customer wants to schedule a meeting\n- won: Customer has accepted a quote or committed to proceed\n- lost: Customer has gone cold or explicitly said no\n\nCRITICAL TOOL CALLING RULES:\n- DO NOT attempt to call a tool called \"JSON\" or wrap your answer in a tool call. \"JSON\" is NOT a tool.\n- Tool calls must ONLY be used for \u0027Call 05 - Appointment Tool\u0027, \u0027Call 06 - Quote Tool\u0027, or \u0027Call 07 - Handoff Tool\u0027 when their specific criteria are met.\n- When replying to the customer (answering questions, greetings, general conversation), DO NOT call any tool. Return your response directly as the final text message.\n\nOUTPUT FORMAT:\n- Your ENTIRE response must be valid JSON. Do not wrap it in markdown or add any text before or after the JSON object.\n- Write your final response as a JSON object directly in the message text (do NOT use a tool call for this):\n{\n  \"reply\": \"string â€” the message to send to the customer\",\n  \"facts_extracted\": [{\"key\": \"string\", \"value\": \"string\", \"confidence\": 0.9}],\n  \"intent\": \"quote_request|appointment_request|handoff|general_inquiry|complaint\",\n  \"lead_stage\": \"new|qualifying|qualified|product_interest|quote_requested|quote_sent|negotiating|appointment_requested|won|lost\",\n  \"sentiment\": \"positive|neutral|negative|frustrated\",\n  \"escalate\": false,\n  \"escalation_reason\": \"string\"\n}\n- If you do not extract any facts, return an empty array for facts_extracted.\n- If the customer asks for a quote or pricing, set intent to \"quote_request\" and escalate to true.\n- If the customer asks to speak to a person, set intent to \"handoff\" and escalate to true.\n- If the customer requests an appointment or site visit, set intent to \"appointment_request\".\n- If the customer sounds frustrated or angry, set sentiment to \"frustrated\" and escalate to true.\n\nTOOL USAGE:\n- Use Appointment Tool ONLY for scheduling site visits.\n- Use Handoff Tool ONLY if customer asks for quotes/prices or to speak to a manager. When using Handoff Tool, you MUST extract a reason from the customer\u0027s message (e.g., \u0027customer_request\u0027, \u0027pricing_inquiry\u0027, \u0027complaint\u0027, \u0027manager_request\u0027). Set assigned_to to \u0027unassigned\u0027 unless the customer specifies a staff member."
-                                                         ,
-                                                         "systemMessage":  "You are a WhatsApp sales assistant.\n\nCONTEXT:\n{{ $json.formattedPrompt }}\n\nRECENT HISTORY:\n{{ $json.conversationHistory || \u0027No previous messages.\u0027 }}\n\nCUSTOMER FACTS:\n{{ JSON.stringify($json.customerFacts || []) }}\n\nRules:\n- Treat AUTHORITATIVE BUSINESS IDENTITY in CONTEXT as the tenant identity. Never output unresolved template syntax such as {{ or $json.\n- In the first reply, identify the business by its exact context name in the first sentence. For a greeting say: \"Good afternoon! You\u0027re speaking with [business name]. How can I help you today?\" For a direct question, identify the business briefly, then answer.\n- Answer directly from context. Never invent prices, hours, founders, locations, or services. If context lacks the answer, say so and offer human help.\n- Use Appointment Tool only for appointment requests. Use Handoff Tool only for pricing, manager, complaint, or explicit human-help requests.\n- Keep replies to 1-2 concise sentences.\n\nReturn only compact valid JSON, with no markdown:\n{\"reply\":\"string\",\"facts_extracted\":[],\"intent\":\"general_inquiry\",\"lead_stage\":\"qualifying\",\"sentiment\":\"neutral\",\"escalate\":false,\"escalation_reason\":\"\"}"
-                                                     }
-                                     },
-                      "type":  "@n8n/n8n-nodes-langchain.agent",
-                      "typeVersion":  3.1,
-                      "position":  [
-                                       -560,
-                                       32
-                                   ],
-                      "id":  "b7c5917c-af89-449d-acf4-21172b560269",
-                      "name":  "AI Agent"
-                  },
-                  {
-                      "parameters":  {
-                                         "jsCode":  "// Parse structured AI output and extract business signals\nconst input = $input.first()?.json || {};\nlet raw = input.output || input.text || input.content || \u0027\u0027;\nif (typeof raw !== \u0027string\u0027) raw = JSON.stringify(raw);\n\nlet parsed = null;\ntry {\n  const cleaned = raw.replace(/```json/g, \u0027\u0027).replace(/```/g, \u0027\u0027).trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = { reply: String(raw), facts_extracted: [], intent: \u0027general_inquiry\u0027, lead_stage: \u0027new\u0027, sentiment: \u0027neutral\u0027, escalate: false, escalation_reason: \u0027\u0027 };\n}\n\nconst reply = typeof parsed.reply === \u0027string\u0027 ? parsed.reply : String(raw);\nconst facts = Array.isArray(parsed.facts_extracted) ? parsed.facts_extracted : [];\nconst intent = typeof parsed.intent === \u0027string\u0027 ? parsed.intent : \u0027general_inquiry\u0027;\nconst leadStage = typeof parsed.lead_stage === \u0027string\u0027 ? parsed.lead_stage : \u0027new\u0027;\nconst sentiment = typeof parsed.sentiment === \u0027string\u0027 ? parsed.sentiment : \u0027neutral\u0027;\nconst escalate = !!parsed.escalate;\nconst escalationReason = typeof parsed.escalation_reason === \u0027string\u0027 ? parsed.escalation_reason : \u0027\u0027;\n\nconst conversationId = $(\u0027When Executed by Another Workflow\u0027).first()?.json?.conversation_id || \u0027\u0027;\nconst contactId = $(\u0027When Executed by Another Workflow\u0027).first()?.json?.contact_id || \u0027\u0027;\n\nreturn [{\n  json: {\n    reply,\n    facts_extracted: facts,\n    intent,\n    lead_stage: leadStage,\n    sentiment,\n    escalate,\n    escalation_reason: escalationReason,\n    conversation_id: conversationId,\n    contact_id: contactId,\n  }\n}];"
-                                     },
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       -416,
-                                       32
-                                   ],
-                      "id":  "parse-ai-output-node",
-                      "name":  "Parse AI Output",
-                      "parameters":  {
-                                         "jsCode":  "const input = $input.first()?.json || {}; const rawValue = input.output || input.text || input.content || ''; const raw = typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue); let parsed; try { parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim()); } catch { parsed = { reply: raw }; } const trigger = $('When Executed by Another Workflow').first()?.json || {}; const context = $('Format Context').first()?.json || {}; const businessName = context.business_name || 'our company'; const message = String(trigger.message || '').trim(); const lower = message.toLowerCase(); const knowledge = String(context.formattedPrompt || ''); const lines = knowledge.split(String.fromCharCode(10)).map(line => String(line).replace(/^[- ]+/, '').replace(/^Q:[^?]*[?][ ]*A:[ ]*/i, '').replace(/^A:[ ]*/i, '').trim()).filter(line => line.length > 30 && !line.startsWith('AUTHORITATIVE BUSINESS IDENTITY') && !line.startsWith('CUSTOMER')); const findLine = (pattern, excluded) => lines.find(line => pattern.test(line) && !(excluded && excluded.test(line))); const greeting = /^(hi|hello|hey|good morning|good afternoon|good evening|good day)[!. ,]*$/i.test(message); const identityQuestion = (lower.includes('is this') || lower.includes('are you')) && /garco|company|business|construction/i.test(lower); const wantsServices = /\\b(service|services)\\b/i.test(lower); const wantsFounder = /\\b(founder|founded|established)\\b/i.test(lower); const wantsLocation = /\\b(locat|address)\\w*\\b/i.test(lower); const wantsCoverage = /\\b(island[- ]wide|all across jamaica|outside kingston)\\b/i.test(lower); const wantsPrice = /\\b(cost|price|pricing|quote|quotation|estimate)\\b/i.test(lower); const wantsAppointment = /\\b(appointment|site visit|schedule|book)\\b/i.test(lower); let reply = typeof parsed.reply === 'string' ? parsed.reply : String(raw); if (greeting) reply = `Good evening! This is ${businessName}. How can I help you today?`; else if (identityQuestion) reply = `Yes, this is ${businessName}. How can I help you today?`; else if (wantsServices) { const line = findLine(/offers|services|general construction|renovation/i, /website/i); if (line) reply = line; } else if (wantsFounder) { const founder = findLine(/founded|founder/i); const year = findLine(/established in 1999|established|1999/i); if (founder || year) reply = [founder, year && year !== founder ? year : ''].filter(Boolean).join(' '); } else if (wantsLocation) { const line = findLine(/located|address|kingston/i, /website/i); if (line) reply = line; } else if (wantsCoverage) { const line = findLine(/outside.*area|island|kingston.*area|service availability/i); if (line) reply = line; } else if (wantsPrice) { reply = `We do not publish standard prices. A customized ${wantsAppointment ? 'site assessment and ' : ''}quotation is prepared after reviewing the project scope. Please share the project location and preferred timing, and we can arrange the next step.`; } else if (wantsAppointment && !parsed.reply) { reply = 'I can help arrange a site visit. Please provide the project location and preferred date and time.'; } if (reply.includes('{{')) reply = businessName; return [{ json: { reply, facts_extracted: Array.isArray(parsed.facts_extracted) ? parsed.facts_extracted : [], intent: typeof parsed.intent === 'string' ? parsed.intent : 'general_inquiry', lead_stage: typeof parsed.lead_stage === 'string' ? parsed.lead_stage : 'new', sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'neutral', escalate: !!parsed.escalate, escalation_reason: typeof parsed.escalation_reason === 'string' ? parsed.escalation_reason : '', conversation_id: trigger.conversation_id || '', contact_id: trigger.contact_id || '' } }];"
-                                     }
-                  },
-                  {
-                      "parameters":  {
-                                         "workflowId":  {
-                                                            "__rl":  true,
-                                                            "value":  "08 - AI Output Processor",
-                                                            "mode":  "name"
-                                                        },
-                                         "workflowInputs":  {
-                                                                "mappingMode":  "defineBelow",
-                                                                "value":  {
-                                                                              "conversation_id":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id }}",
-                                                                              "contact_id":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.contact_id }}",
-                                                                              "business_id":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.business_id }}",
-                                                                              "reply":  "={{ $(\u0027Parse AI Output\u0027).first().json.reply }}",
-                                                                              "facts_extracted":  "={{ $(\u0027Parse AI Output\u0027).first().json.facts_extracted }}",
-                                                                              "intent":  "={{ $(\u0027Parse AI Output\u0027).first().json.intent }}",
-                                                                              "lead_stage":  "={{ $(\u0027Parse AI Output\u0027).first().json.lead_stage }}",
-                                                                              "sentiment":  "={{ $(\u0027Parse AI Output\u0027).first().json.sentiment }}",
-                                                                              "escalate":  "={{ $(\u0027Parse AI Output\u0027).first().json.escalate }}",
-                                                                              "escalation_reason":  "={{ $(\u0027Parse AI Output\u0027).first().json.escalation_reason }}",
-                                                                              "customer_name":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.customer_name }}",
-                                                                              "phone":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.phone }}",
-                                                                              "request_id":  "={{ $(\u0027When Executed by Another Workflow\u0027).first().json.message_id }}"
-                                                                          }
-                                                            }
-                                     },
-                      "type":  "n8n-nodes-base.executeWorkflow",
-                      "typeVersion":  1.3,
-                      "position":  [
-                                       -224,
-                                       64
-                                   ],
-                      "id":  "call-ai-output-processor-node",
-                      "name":  "Call \u002708 - AI Output Processor\u0027"
-                  },
-                  {
-                      "parameters":  {
-                                         "jsCode":  "try { const ctx = $input.first()?.json || {}; const facts = Array.isArray(ctx.customer_facts) ? ctx.customer_facts.filter(f => f && f.fact_key && f.fact_value !== null && f.fact_value !== undefined && f.fact_key !== \u0027null\u0027) : []; const factName = facts.find(f => f.fact_key === \u0027customer_name\u0027)?.fact_value || \u0027\u0027; const businessName = ctx.business_name || \u0027our company\u0027; const customerName = (ctx.customer?.name && ctx.customer.name !== \u0027Unknown\u0027 ? ctx.customer.name : factName) || \u0027Unknown\u0027; let prompt = `AUTHORITATIVE BUSINESS IDENTITY: ${businessName}\\nNever output unresolved template expressions such as {{ $json.business_name }}. If asked whether this is Garco, answer using the business identity above.\\n`; if (customerName !== \u0027Unknown\u0027) prompt += `AUTHORITATIVE CUSTOMER NAME: ${customerName}\\nIf asked the customer name, answer it directly.\\n`; if (ctx.customer?.phone) prompt += `CUSTOMER PHONE: ${ctx.customer.phone}\\n`; if (facts.length) { prompt += \u0027\\nCUSTOMER FACTS:\\n\u0027; for (const f of facts) prompt += `- ${f.fact_key}: ${f.fact_value}\\n`; } if (Array.isArray(ctx.knowledge) && ctx.knowledge.length) { prompt += \u0027\\nAUTHORITATIVE KNOWLEDGE:\\n\u0027; for (const kb of ctx.knowledge.slice(0, 8)) prompt += `- ${kb.chunk_text}\\n`; } if (Array.isArray(ctx.products) && ctx.products.length) { prompt += \u0027\\nPRODUCTS:\\n\u0027; for (const p of ctx.products.slice(0, 20)) prompt += `- ${p.name}: ${p.price} ${p.currency}\\n`; } const recent = Array.isArray(ctx.recent_messages) ? ctx.recent_messages.slice(-6) : []; const history = recent.map(m => `${m.direction === \u0027in\u0027 || m.direction === \u0027incoming\u0027 ? \u0027Customer\u0027 : \u0027Assistant\u0027}: ${m.text_body}`).join(\u0027\\n\u0027) || \u0027No previous messages.\u0027; return [{ json: { formattedPrompt: prompt, business_name: businessName, conversationHistory: history, customerFacts: facts, customerName, currentMessage: ctx.current_message?.text || \u0027\u0027 } }]; } catch(e) { return [{ json: { formattedPrompt: \u0027AUTHORITATIVE BUSINESS IDENTITY: our company\\nNo context available.\u0027, business_name: \u0027our company\u0027, conversationHistory: \u0027No previous messages.\u0027, customerFacts: [], customerName: \u0027Unknown\u0027 } }]; }"
-                                     },
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       -680,
-                                       32
-                                   ],
-                      "id":  "format-context-node",
-                      "name":  "Format Context"
-                  },
-                  {
-                      "parameters":  {
-                                         "model":  "qwen/qwen3.8-27b",
-                                         "options":  {
-                                                         "maxTokens": 700,
-                                                         "temperature": 0.2
-                                                     }
-                                     },
-                      "type":  "@n8n/n8n-nodes-langchain.lmChatGroq",
-                      "typeVersion":  1,
-                      "position":  [
-                                       -576,
-                                       272
-                                   ],
-                      "id":  "bf30af68-916e-4ac6-b26d-ad3cd08742c4",
-                      "name":  "Groq Chat Model",
-                      "credentials":  {
-                                          "groqApi":  {
-                                                          "id":  "wXpNdoZt6qFdQVc2",
-                                                          "name":  "Groq account"
-                                                      }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, gen_random_uuid()::text, \u0027outgoing\u0027,\n    \u0027ai\u0027, \u0027text\u0027, $2, \u0027{}\u0027::jsonb\n)\nRETURNING id;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}, {{ String($(\u0027Parse AI Output\u0027).first().json.reply || \u0027\u0027) }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       -272,
-                                       32
-                                   ],
-                      "id":  "8a4090af-91de-4fc9-84e4-691e15bfd13e",
-                      "name":  "Insert AI Message",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "tOjZeRRL1hW2zbUk",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "method":  "POST",
-                                         "url":  "http://waha:3000/api/sendText",
-                                         "sendHeaders":  true,
-                                         "headerParameters":  {
-                                                                  "parameters":  [
-                                                                                     {
-                                                                                         "name":  "X-Api-Key",
-                                                                                         "value":  "waha_2026"
-                                                                                     }
-                                                                                 ]
-                                                              },
-                                         "sendBody":  true,
-                                         "specifyBody":  "json",
-                                         "jsonBody":  "={{ JSON.stringify({ session: $('When Executed by Another Workflow').first().json.session || 'default', chatId: $('When Executed by Another Workflow').first().json.chat_id || $('When Executed by Another Workflow').first().json.phone, text: $('Parse AI Output').first().json.reply }) }}",
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.httpRequest",
-                      "typeVersion":  4.4,
-                      "position":  [
-                                       -96,
-                                       32
-                                   ],
-                      "id":  "df043a19-5f4c-4898-b7b4-dc7747a200ee",
-                      "name":  "WAHA Send Message"
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       128,
-                                       16
-                                   ],
-                      "id":  "1fb8a56e-30d1-4f3e-8dfe-aa8f2983dc8f",
-                      "name":  "Update Conversation",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "tOjZeRRL1hW2zbUk",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "INSERT INTO audit_logs (entity_type, entity_id, action, description)\nVALUES (\u0027conversation\u0027, $1, \u0027ai_reply\u0027, \u0027AI replied to customer\u0027);",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ String($(\u0027When Executed by Another Workflow\u0027).first().json.conversation_id || \u0027\u0027) }}"
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2.7,
-                      "position":  [
-                                       112,
-                                       224
-                                   ],
-                      "id":  "956456a6-506d-4efc-9e45-ed2e62ce64a5",
-                      "name":  "Audit Log",
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "tOjZeRRL1hW2zbUk",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
-                                         "workflowId":  {
-                                                            "__rl":  true,
-                                                            "value":  "03 - Memory \u0026 Context Builder",
-                                                            "mode":  "name"
-                                                        },
-                                         "workflowInputs":  {
-                                                                "mappingMode":  "defineBelow",
-                                                                "value":  {
-                                                                              "conversation_id":  "={{ $json.conversation_id.trim() }}",
-                                                                              "contact_id":  "={{ $json.contact_id.trim() }}",
-                                                                              "phone":  "={{ $json.phone }}",
-                                                                              "chat_id":  "={{ $json.chat_id }}",
-                                                                              "business_id":  "={{ $json.business_id }}",
-                                                                              "customer_name":  "={{ $json.customer_name }}",
-                                                                              "message":  "={{ $json.message }}",
-                                                                              "message_id":  "={{ $json.message_id }}",
-                                                                              "timestamp":  "={{ $json.timestamp }}",
-                                                                              "hasMedia":  "={{ $json.hasMedia }}"
-                                                                          },
-                                                                "matchingColumns":  [
-
-                                                                                    ],
-                                                                "schema":  [
-                                                                               {
-                                                                                   "id":  "conversation_id",
-                                                                                   "displayName":  "conversation_id",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "contact_id",
-                                                                                   "displayName":  "contact_id",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "phone",
-                                                                                   "displayName":  "phone",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "customer_name",
-                                                                                   "displayName":  "customer_name",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "message",
-                                                                                   "displayName":  "message",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "message_id",
-                                                                                   "displayName":  "message_id",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "hasMedia",
-                                                                                   "displayName":  "hasMedia",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "boolean",
-                                                                                   "removed":  false
-                                                                               },
-                                                                               {
-                                                                                   "id":  "timestamp",
-                                                                                   "displayName":  "timestamp",
-                                                                                   "required":  false,
-                                                                                   "defaultMatch":  false,
-                                                                                   "display":  true,
-                                                                                   "canBeUsedToMatch":  true,
-                                                                                   "type":  "string",
-                                                                                   "removed":  false
-                                                                               }
-                                                                           ],
-                                                                "attemptToConvertTypes":  false,
-                                                                "convertFieldsToString":  true
-                                                            },
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "type":  "n8n-nodes-base.executeWorkflow",
-                      "typeVersion":  1.3,
-                      "position":  [
-                                       -736,
-                                       144
-                                   ],
-                      "id":  "807ea6d8-adc8-447d-a243-2348a131b0f8",
-                      "name":  "Call \u002703 - Memory \u0026 Context Builder\u0027"
-                  },
-                  {
-                      "parameters":  {
-                                         "workflowId":  {
-                                                            "__rl":  true,
-                                                            "value":  "04 - Memory Writer",
-                                                            "mode":  "name"
-                                                        },
-                                         "workflowInputs":  {
-                                                                "mappingMode":  "defineBelow",
-                                                                "value":  {
-                                                                              "conversation_id":  "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-                                                                              "contact_id":  "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-                                                                              "business_id":  "={{$('When Executed by Another Workflow').first().json.business_id}}",
-                                                                              "phone":  "={{$('When Executed by Another Workflow').first().json.phone}}",
-                                                                              "customer_name":  "={{$('When Executed by Another Workflow').first().json.customer_name}}",
-                                                                              "message":  "={{$('When Executed by Another Workflow').first().json.message}}",
-                                                                              "message_id":  "={{$('When Executed by Another Workflow').first().json.message_id}}"
-                                                                          }
-                                                            }
-                                     },
-                      "type":  "n8n-nodes-base.executeWorkflow",
-                      "typeVersion":  1.3,
-                      "position":  [
-                                       32,
-                                       -32
-                                   ],
-                      "id":  "call-memory-writer-node",
-                      "name":  "Call \u002704 - Memory Writer\u0027"
-                  },
-                  {
-                      "parameters":  {
-                                         "description":  "Schedule a site visit or consultation. Use when customer requests an appointment, site visit, meeting, or to book a time. Pass appointment_type, title, location, preferred_date, preferred_time, duration_minutes.",
-                                         "workflowId":  {
-                                                            "__rl":  true,
-                                                            "value":  "05 - Appointment Tool",
-                                                            "mode":  "name"
-                                                        },
-                                         "workflowInputs":  {
-                                                                "mappingMode":  "defineBelow",
-                                                                "value":  {
-                                                                              "conversation_id":  "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-                                                                              "contact_id":  "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-                                                                              "business_id":  "={{$('When Executed by Another Workflow').first().json.business_id}}",
-                                                                              "appointment_type":  "={{ $fromAI(\u0027appointment_type\u0027,\u0027Type: site_visit, consultation\u0027,\u0027string\u0027) }}",
-                                                                              "title":  "={{ $fromAI(\u0027title\u0027,\u0027Title\u0027,\u0027string\u0027) }}",
-                                                                              "location":  "={{ $fromAI(\u0027location\u0027,\u0027Address\u0027,\u0027string\u0027) }}",
-                                                                              "preferred_date":  "={{ $fromAI(\u0027preferred_date\u0027,\u0027YYYY-MM-DD\u0027,\u0027string\u0027) }}",
-                                                                              "preferred_time":  "={{ $fromAI(\u0027preferred_time\u0027,\u0027HH:MM 24h\u0027,\u0027string\u0027) }}",
-                                                                              "duration_minutes":  "={{ $fromAI(\u0027duration_minutes\u0027,\u0027Minutes\u0027,\u0027number\u0027) }}"
-                                                                          }
-                                                            }
-                                     },
-                      "type":  "@n8n/n8n-nodes-langchain.toolWorkflow",
-                      "typeVersion":  2.2,
-                      "position":  [
-                                       -512,
-                                       200
-                                   ],
-                      "id":  "call-appointment-tool-node",
-                      "name":  "Call \u002705 - Appointment Tool\u0027"
-                  },
-                  {
-                      "parameters":  {
-                                         "description":  "Create a quote ONLY when customer asks for a quote AND an authoritative price exists. Pass product_name_or_sku, quantity, currency, notes. If no price exists, escalate via Handoff Tool.",
-                                         "workflowId":  {
-                                                            "__rl":  true,
-                                                            "value":  "06 - Quote Tool",
-                                                            "mode":  "name"
-                                                        },
-                                         "workflowInputs":  {
-                                                                "mappingMode":  "defineBelow",
-                                                                "value":  {
-                                                                              "conversation_id":  "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-                                                                              "contact_id":  "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-                                                                              "business_id":  "={{$('When Executed by Another Workflow').first().json.business_id}}",
-                                                                              "product_name_or_sku":  "={{ $fromAI(\u0027product_name_or_sku\u0027,\u0027Product or SKU\u0027,\u0027string\u0027) }}",
-                                                                              "quantity":  "={{ $fromAI(\u0027quantity\u0027,\u0027Quantity min 1\u0027,\u0027number\u0027) }}",
-                                                                              "currency":  "={{ $fromAI(\u0027currency\u0027,\u0027JMD or USD\u0027,\u0027string\u0027) }}",
-                                                                              "notes":  "={{ $fromAI(\u0027notes\u0027,\u0027Notes\u0027,\u0027string\u0027) }}"
-                                                                          }
-                                                            }
-                                     },
-                      "type":  "@n8n/n8n-nodes-langchain.toolWorkflow",
-                      "typeVersion":  2.2,
-                      "position":  [
-                                       -368,
-                                       200
-                                   ],
-                      "id":  "call-quote-tool-node",
-                      "name":  "Call \u002706 - Quote Tool\u0027"
-                  },
-                  {
-                      "parameters":  {
-                                         "description":  "Escalate to a human. Use when: customer asks to speak to a person, asks about pricing/quote/availability/office location, asks technical/legal questions, has a complaint, or knowledge base lacks answer. Pass reason and optionally assigned_to.",
-                                         "workflowId":  {
-                                                            "__rl":  true,
-                                                            "value":  "07 - Handoff Tool",
-                                                            "mode":  "name"
-                                                        },
-                                         "workflowInputs":  {
-                                                                "mappingMode":  "defineBelow",
-                                                                "value":  {
-                                                                              "conversation_id":  "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-                                                                              "contact_id":  "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-                                                                              "business_id":  "={{$('When Executed by Another Workflow').first().json.business_id}}",
-                                                                              "reason":  "={{ $fromAI(\u0027reason\u0027,\u0027Why human needed\u0027,\u0027string\u0027) }}",
-                                                                              "assigned_to":  "={{ $fromAI(\u0027assigned_to\u0027,\u0027Staff or unassigned\u0027,\u0027string\u0027) }}"
-                                                                          }
-                                                            }
-                                     },
-                      "type":  "@n8n/n8n-nodes-langchain.toolWorkflow",
-                      "typeVersion":  2.2,
-                      "position":  [
-                                       -224,
-                                       200
-                                   ],
-                      "id":  "call-handoff-tool-node",
-                      "name":  "Call \u002707 - Handoff Tool\u0027"
-                  }
-              ],
-    "pinData":  {
-
-                },
-    "connections":  {
-                        "When Executed by Another Workflow":  {
-                                                                  "main":  [
-                                                                               [
-                                                                                   {
-                                                                                       "node":  "Call \u002703 - Memory \u0026 Context Builder\u0027",
-                                                                                       "type":  "main",
-                                                                                       "index":  0
-                                                                                   },
-                                                                                   {
-                                                                                       "node":  "Call \u002704 - Memory Writer\u0027",
-                                                                                       "type":  "main",
-                                                                                       "index":  0
-                                                                                   }
-                                                                               ]
-                                                                           ]
-                                                              },
-                        "Groq Chat Model":  {
-                                                "ai_languageModel":  [
-                                                                         [
-                                                                             {
-                                                                                 "node":  "AI Agent",
-                                                                                 "type":  "ai_languageModel",
-                                                                                 "index":  0
-                                                                             }
-                                                                         ]
-                                                                     ]
-                                            },
-                        "AI Agent":  {
-                                         "main":  [
-                                                      [
-                                                          {
-                                                              "node":  "Parse AI Output",
-                                                              "type":  "main",
-                                                              "index":  0
-                                                          }
-                                                      ]
-                                                  ]
-                                     },
-                        "Parse AI Output":  {
-                                                "main":  [
-                                                             [
-                                                                 {
-                                                                     "node":  "Insert AI Message",
-                                                                     "type":  "main",
-                                                                     "index":  0
-                                                                 },
-                                                                 {
-                                                                     "node":  "Call \u002708 - AI Output Processor\u0027",
-                                                                     "type":  "main",
-                                                                     "index":  0
-                                                                 }
-                                                             ]
-                                                         ]
-                                            },
-                        "Call \u002708 - AI Output Processor\u0027":  {
-                                                                          "main":  [
-
-                                                                                   ]
-                                                                      },
-                        "Insert AI Message":  {
-                                                  "main":  [
-                                                               [
-                                                                   {
-                                                                       "node":  "WAHA Send Message",
-                                                                       "type":  "main",
-                                                                       "index":  0
-                                                                   }
-                                                               ]
-                                                           ]
-                                              },
-                        "WAHA Send Message":  {
-                                                  "main":  [
-                                                               [
-                                                                   {
-                                                                       "node":  "Update Conversation",
-                                                                       "type":  "main",
-                                                                       "index":  0
-                                                                   }
-                                                               ]
-                                                           ]
-                                              },
-                        "Update Conversation":  {
-                                                    "main":  [
-                                                                 [
-                                                                     {
-                                                                         "node":  "Audit Log",
-                                                                         "type":  "main",
-                                                                         "index":  0
-                                                                     }
-                                                                 ]
-                                                             ]
-                                                },
-                        "Call \u002703 - Memory \u0026 Context Builder\u0027":  {
-                                                                                    "main":  [
-                                                                                                 [
-                                                                                                     {
-                                                                                                         "node":  "Format Context",
-                                                                                                         "type":  "main",
-                                                                                                         "index":  0
-                                                                                                     }
-                                                                                                 ]
-                                                                                             ]
-                                                                                },
-                        "Format Context":  {
-                                               "main":  [
-                                                            [
-                                                                {
-                                                                    "node":  "AI Agent",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           },
-                        "Call \u002704 - Memory Writer\u0027":  {
-                                                                    "main":  [
-                                                                                 [
-
-                                                                                 ]
-                                                                             ]
-                                                                },
-                        "Call \u002705 - Appointment Tool\u0027":  {
-                                                                       "ai_tool":  [
-                                                                                       [
-                                                                                           {
-                                                                                               "node":  "AI Agent",
-                                                                                               "type":  "ai_tool",
-                                                                                               "index":  0
-                                                                                           }
-                                                                                       ]
-                                                                                   ]
-                                                                   },
-                        "Call \u002706 - Quote Tool\u0027":  {
-                                                                 "ai_tool":  [
-                                                                                 [
-                                                                                     {
-                                                                                         "node":  "AI Agent",
-                                                                                         "type":  "ai_tool",
-                                                                                         "index":  0
-                                                                                     }
-                                                                                 ]
-                                                                             ]
-                                                             },
-                        "Call \u002707 - Handoff Tool\u0027":  {
-                                                                   "ai_tool":  [
-                                                                                   [
-                                                                                       {
-                                                                                           "node":  "AI Agent",
-                                                                                           "type":  "ai_tool",
-                                                                                           "index":  0
-                                                                                       }
-                                                                                   ]
-                                                                               ]
-                                                               }
-                    },
-    "active":  true,
-    "settings":  {
-                     "executionOrder":  "v1",
-                     "binaryMode":  "separate",
-                     "availableInMCP":  false
-                 },
-    "versionId":  "7b66e577-2697-42a2-9b45-3a77a20b3e9d",
-    "meta":  {
-                 "instanceId":  "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
-             },
-    "nodeGroups":  [
-
-                   ],
-    "id":  "u6LzGPItprCnpd9U",
-    "tags":  [
-
-             ]
+  "name": "Workflow 2 - AI Brain",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "chat_id"
+            },
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "hasMedia",
+              "type": "boolean"
+            },
+            {
+              "name": "timestamp"
+            },
+            {
+              "name": "session"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -912,
+        64
+      ],
+      "id": "bd789656-a143-4a11-8145-30e58c3b80dd",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('When Executed by Another Workflow').first().json.message }}",
+        "options": {
+          "systemMessage": "You are a WhatsApp sales assistant for {{ $json.business_name || 'our company' }}.\n\n=== CONTEXT (authoritative) ===\n{{ $json.formattedPrompt }}\n\n=== RECENT CONVERSATION ===\n{{ $json.conversationHistory || 'No previous messages.' }}\n\n=== CUSTOMER FACTS (remember for next turns) ===\n{{ JSON.stringify($json.customerFacts || []) }}\n\nToday's greeting word: {{ $json.time_greeting || 'evening' }}.\n\nRULES:\n1. On a FIRST message, reply exactly: \"Good {{ $json.time_greeting || 'evening' }}! You're speaking with {{ $json.business_name || 'our company' }}. How can I help you today?\" Do not add more on a greeting.\n2. Answer ONLY from CONTEXT. If CONTEXT lacks the answer, briefly say so and offer to connect with a representative, then call the Handoff Tool. Never fabricate prices, hours, people, exact addresses, services, or project details.\n3. Never echo or quote internal guidance text (anything saying \"AI MUST NOT\", \"INTERNAL\", \"Do not invent\", \"should be confirmed\", or the labels \"CUSTOMER FACTS\"/\"AUTHORITATIVE\" prefixes). Rephrase in your own words.\n4. For appointment / site-visit / scheduling requests: call the Appointment Tool ONCE and stop. If a required detail (project location, date, or time) is missing, ask the customer for it - never guess. Only confirm \"I've scheduled your appointment...\" when the tool reports success:true; otherwise ask for the missing detail.\n5. For quote / price / estimate questions: use the Quote Tool only when CONTEXT has an authoritative price; otherwise say quotes are customized after reviewing scope and offer a human. Do NOT hand off pricing questions.\n6. If the customer explicitly asks to speak to a person, a manager, or raises a complaint, call the Handoff Tool.\n7. Replies: 1-2 concise sentences.\n8. Output only compact JSON (no markdown): {\"reply\":\"...\",\"facts_extracted\":[],\"intent\":\"general_inquiry\",\"lead_stage\":\"qualifying\",\"sentiment\":\"neutral\",\"escalate\":false,\"escalation_reason\":\"\"}. No other keys."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -560,
+        32
+      ],
+      "id": "b7c5917c-af89-449d-acf4-21172b560269",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first()?.json || {};\nconst rawValue = input.output || input.text || input.content || '';\nconst raw = typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue);\nlet parsed;\ntry {\n  parsed = JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim());\n} catch {\n  parsed = { reply: raw.trim() };\n}\n\nconst trigger = $('When Executed by Another Workflow').first()?.json || {};\nconst businessName = String($('Format Context').first()?.json?.business_name || 'our company');\n\nlet reply = typeof parsed.reply === 'string' ? parsed.reply : String(raw).trim();\n\n// Guard: if the AI echoed unresolved template syntax from context, fall back to a greeting.\nif (/{{|\\$json|\\$node|\\$env/.test(reply)) {\n  reply = 'Good afternoon! You\\'re speaking with ' + businessName + '. How can I help you today?';\n}\n\nconst cleanFacts = (Array.isArray(parsed.facts_extracted) ? parsed.facts_extracted : [])\n  .map(f => ({\n    key: String((f && (f.key || f.fact_key)) || ''),\n    value: String((f && (f.value || f.fact_value)) || ''),\n    confidence: f && f.confidence != null ? f.confidence : 1\n  }))\n  .filter(f => f.key && f.value && !['null', 'undefined', ''].includes(f.key.toLowerCase()));\n\nreturn [{\n  json: {\n    reply,\n    facts_extracted: cleanFacts,\n    intent: typeof parsed.intent === 'string' ? parsed.intent : 'general_inquiry',\n    lead_stage: typeof parsed.lead_stage === 'string' ? parsed.lead_stage : 'qualifying',\n    sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'neutral',\n    escalate: !!parsed.escalate,\n    escalation_reason: typeof parsed.escalation_reason === 'string' ? parsed.escalation_reason : '',\n    conversation_id: trigger.conversation_id || '',\n    contact_id: trigger.contact_id || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        32
+      ],
+      "id": "parse-ai-output-node",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "08 - AI Output Processor",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
+            "reply": "={{ $('Parse AI Output').first().json.reply }}",
+            "facts_extracted": "={{ JSON.stringify($('Parse AI Output').first().json.facts_extracted || []) }}",
+            "intent": "={{ $('Parse AI Output').first().json.intent }}",
+            "lead_stage": "={{ $('Parse AI Output').first().json.lead_stage }}",
+            "sentiment": "={{ $('Parse AI Output').first().json.sentiment }}",
+            "escalate": "={{ $('Parse AI Output').first().json.escalate }}",
+            "escalation_reason": "={{ $('Parse AI Output').first().json.escalation_reason }}",
+            "customer_name": "={{ $('When Executed by Another Workflow').first().json.customer_name }}",
+            "phone": "={{ $('When Executed by Another Workflow').first().json.phone }}",
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -224,
+        64
+      ],
+      "id": "call-ai-output-processor-node",
+      "name": "Call '08 - AI Output Processor'"
+    },
+    {
+      "parameters": {
+        "jsCode": "try { const ctx = $input.first()?.json || {}; const facts = Array.isArray(ctx.customer_facts) ? ctx.customer_facts.filter(f => f && f.fact_key && f.fact_value !== null && f.fact_value !== undefined && f.fact_key !== 'null') : []; const factName = facts.find(f => f.fact_key === 'customer_name')?.fact_value || ''; const businessName = ctx.business_name || 'our company'; const customerName = (ctx.customer?.name && ctx.customer.name !== 'Unknown' ? ctx.customer.name : factName) || 'Unknown'; let prompt = `AUTHORITATIVE BUSINESS IDENTITY: ${businessName}\\nNever output unresolved template expressions such as {{ $json.business_name }}. If asked about the business, answer using the business identity above.\\n`; if (customerName !== 'Unknown') prompt += `AUTHORITATIVE CUSTOMER NAME: ${customerName}\\nIf asked the customer name, answer it directly.\\n`; if (ctx.customer?.phone) prompt += `CUSTOMER PHONE: ${ctx.customer.phone}\\n`; if (facts.length) { prompt += '\\nCUSTOMER FACTS:\\n'; for (const f of facts) prompt += `- ${f.fact_key}: ${f.fact_value}\\n`; } if (Array.isArray(ctx.knowledge) && ctx.knowledge.length) { prompt += '\\nAUTHORITATIVE KNOWLEDGE:\\n'; for (const kb of ctx.knowledge.slice(0, 8)) prompt += `- ${kb.chunk_text}\\n`; } if (Array.isArray(ctx.products) && ctx.products.length) { prompt += '\\nPRODUCTS:\\n'; for (const p of ctx.products.slice(0, 20)) prompt += `- ${p.name}: ${p.price} ${p.currency}\\n`; } const recent = Array.isArray(ctx.recent_messages) ? ctx.recent_messages.slice(-6) : []; const history = recent.map(m => `${m.direction === 'in' || m.direction === 'incoming' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join('\\n') || 'No previous messages.'; return [{ json: { formattedPrompt: prompt, business_name: businessName, business_timezone: ctx.business_timezone || 'America/Jamaica', conversationHistory: history, customerFacts: facts, customerName, currentMessage: ctx.current_message?.text || '' } }]; } catch(e) { return [{ json: { formattedPrompt: 'AUTHORITATIVE BUSINESS IDENTITY: our company\\nNo context available.', business_name: 'our company', conversationHistory: 'No previous messages.', customerFacts: [], customerName: 'Unknown' } }]; }"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        32
+      ],
+      "id": "format-context-node",
+      "name": "Format Context"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.8-27b",
+        "options": {
+          "maxTokens": 700,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        272
+      ],
+      "id": "bf30af68-916e-4ac6-b26d-ad3cd08742c4",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "wXpNdoZt6qFdQVc2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, gen_random_uuid()::text, 'outgoing',\n    'ai', 'text', $2, '{}'::jsonb\n)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('Parse AI Output').first().json.reply || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -272,
+        32
+      ],
+      "id": "8a4090af-91de-4fc9-84e4-691e15bfd13e",
+      "name": "Insert AI Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "waha_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session: $('When Executed by Another Workflow').first().json.session || 'default', chatId: $('When Executed by Another Workflow').first().json.chat_id || ($('When Executed by Another Workflow').first().json.phone + '@c.us'), text: $('Parse AI Output').first().json.reply }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -96,
+        32
+      ],
+      "id": "df043a19-5f4c-4898-b7b4-dc7747a200ee",
+      "name": "WAHA Send Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        128,
+        16
+      ],
+      "id": "1fb8a56e-30d1-4f3e-8dfe-aa8f2983dc8f",
+      "name": "Update Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, description)\nVALUES ('conversation', $1, 'ai_reply', 'AI replied to customer');",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        112,
+        224
+      ],
+      "id": "956456a6-506d-4efc-9e45-ed2e62ce64a5",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "03 - Memory & Context Builder",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ $json.conversation_id.trim() }}",
+            "contact_id": "={{ $json.contact_id.trim() }}",
+            "phone": "={{ $json.phone }}",
+            "chat_id": "={{ $json.chat_id }}",
+            "business_id": "={{ $json.business_id }}",
+            "customer_name": "={{ $json.customer_name }}",
+            "message": "={{ $json.message }}",
+            "message_id": "={{ $json.message_id }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "hasMedia": "={{ $json.hasMedia }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "hasMedia",
+              "displayName": "hasMedia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        144
+      ],
+      "id": "807ea6d8-adc8-447d-a243-2348a131b0f8",
+      "name": "Call '03 - Memory & Context Builder'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "04 - Memory Writer",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "phone": "={{$('When Executed by Another Workflow').first().json.phone}}",
+            "customer_name": "={{$('When Executed by Another Workflow').first().json.customer_name}}",
+            "message": "={{$('When Executed by Another Workflow').first().json.message}}",
+            "message_id": "={{$('When Executed by Another Workflow').first().json.message_id}}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        -32
+      ],
+      "id": "call-memory-writer-node",
+      "name": "Call '04 - Memory Writer'"
+    },
+    {
+      "parameters": {
+        "description": "Schedule a site visit or consultation. Use when the customer requests an appointment, site visit, meeting, or a time to be booked. Pass appointment_type, title, location, preferred_date (YYYY-MM-DD), preferred_time (HH:MM 24h), duration_minutes. Call this tool BEFORE telling the customer anything is scheduled, and only confirm the appointment when the tool result reports success. If a required detail such as the project location, date, or time is missing, ask the customer for it first.",
+        "workflowId": {
+          "__rl": true,
+          "value": "05 - Appointment Tool",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "appointment_type": "={{ $fromAI('appointment_type','Type: site_visit, consultation','string') }}",
+            "title": "={{ $fromAI('title','Title','string') }}",
+            "location": "={{ $fromAI('location','Address','string') }}",
+            "preferred_date": "={{ $fromAI('preferred_date','YYYY-MM-DD','string') }}",
+            "preferred_time": "={{ $fromAI('preferred_time','HH:MM 24h','string') }}",
+            "duration_minutes": "={{ $fromAI('duration_minutes','Minutes','number') }}"
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        200
+      ],
+      "id": "call-appointment-tool-node",
+      "name": "Call '05 - Appointment Tool'"
+    },
+    {
+      "parameters": {
+        "description": "Create a quote ONLY when customer asks for a quote AND an authoritative price exists. Pass product_name_or_sku, quantity, currency, notes. If no price exists, escalate via Handoff Tool.",
+        "workflowId": {
+          "__rl": true,
+          "value": "06 - Quote Tool",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "product_name_or_sku": "={{ $fromAI('product_name_or_sku','Product or SKU','string') }}",
+            "quantity": "={{ $fromAI('quantity','Quantity min 1','number') }}",
+            "currency": "={{ $fromAI('currency','JMD or USD','string') }}",
+            "notes": "={{ $fromAI('notes','Notes','string') }}"
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -368,
+        200
+      ],
+      "id": "call-quote-tool-node",
+      "name": "Call '06 - Quote Tool'"
+    },
+    {
+      "parameters": {
+        "description": "Escalate to a human. Use when: customer asks to speak to a person, asks about pricing/quote/availability/office location, asks technical/legal questions, has a complaint, or knowledge base lacks answer. Pass reason and optionally assigned_to.",
+        "workflowId": {
+          "__rl": true,
+          "value": "07 - Handoff Tool",
+          "mode": "name"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "reason": "={{ $fromAI('reason','Why human needed','string') }}",
+            "assigned_to": "={{ $fromAI('assigned_to','Staff or unassigned','string') }}"
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        200
+      ],
+      "id": "call-handoff-tool-node",
+      "name": "Call '07 - Handoff Tool'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call '03 - Memory & Context Builder'",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call '04 - Memory Writer'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Insert AI Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call '08 - AI Output Processor'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '08 - AI Output Processor'": {
+      "main": []
+    },
+    "Insert AI Message": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Send Message": {
+      "main": [
+        [
+          {
+            "node": "Update Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Conversation": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '03 - Memory & Context Builder'": {
+      "main": [
+        [
+          {
+            "node": "Format Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '04 - Memory Writer'": {
+      "main": [
+        []
+      ]
+    },
+    "Call '05 - Appointment Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '06 - Quote Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call '07 - Handoff Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7b66e577-2697-42a2-9b45-3a77a20b3e9d",
+  "meta": {
+    "instanceId": "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
+  },
+  "nodeGroups": [],
+  "id": "u6LzGPItprCnpd9U",
+  "tags": []
 }

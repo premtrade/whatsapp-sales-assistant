@@ -61,7 +61,12 @@ services:
       - ./database/migrations/033_fix_garco_product_price.sql:/docker-entrypoint-initdb.d/33_fix_garco_product_price.sql
       - ./database/migrations/034_quotes_metadata_column.sql:/docker-entrypoint-initdb.d/34_quotes_metadata_column.sql
       - ./database/migrations/045_multi_tenancy.sql:/docker-entrypoint-initdb.d/45_multi_tenancy.sql
+      - ./database/migrations/046_enforce_tenant_isolation.sql:/docker-entrypoint-initdb.d/46_enforce_tenant_isolation.sql
+      - ./database/migrations/047_configure_waha_sessions.sql:/docker-entrypoint-initdb.d/47_configure_waha_sessions.sql
       - ./database/migrations/048_whatsapp_settings.sql:/docker-entrypoint-initdb.d/48_whatsapp_settings.sql
+      - ./database/migrations/049_conversations_unique_contact_channel.sql:/docker-entrypoint-initdb.d/49_conversations_unique_contact_channel.sql
+      - ./database/migrations/050_tenant_hardening.sql:/docker-entrypoint-initdb.d/50_tenant_hardening.sql
+      - ./database/migrations/051_add_missing_business_id.sql:/docker-entrypoint-initdb.d/51_add_missing_business_id.sql
 
     networks:
       - backend

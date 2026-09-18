@@ -31,3 +31,26 @@ export async function sendWahaDocument(params: {
   if (!res.ok) throw new Error(`WAHA send failed: ${res.status}`);
   return res.json();
 }
+
+export async function sendWahaText(params: {
+  session: string;
+  chatId: string;
+  text: string;
+}) {
+  const baseUrl = `http://${config.waha.host}:${config.waha.port}`;
+  const res = await fetch(`${baseUrl}/api/sendText`, {
+    method: 'POST',
+    headers: {
+      'X-Api-Key': config.waha.apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      session: params.session,
+      chatId: params.chatId,
+      text: params.text,
+    }),
+  });
+
+  if (!res.ok) throw new Error(`WAHA send text failed: ${res.status}`);
+  return res.json();
+}

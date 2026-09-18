@@ -1,0 +1,2 @@
+const existing = $('Check Existing Handoff').first()?.json || {};
+return [{ json: { success: true, message: 'A handoff for this conversation already exists. The customer is already being assisted.', handoff_details: { handoff_id: existing.id, status: existing.status, reason: existing.reason, assigned_to: existing.assigned_to, created_at: existing.created_at, duplicate: true } } }];

@@ -56,12 +56,14 @@ const createSchema = z.object({
 export const listKnowledgeDocuments = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
 
   const result = await getKnowledgeDocuments({
     page,
     limit,
     sortBy,
     sortOrder,
+    businessId: tenantId,
     status: getOptionalString(query.status),
     documentType: getOptionalString(query.documentType),
     language: getOptionalString(query.language),
@@ -76,7 +78,8 @@ export const listKnowledgeDocuments = async (req: Request, res: Response): Promi
 };
 
 export const getKnowledgeDocument = async (req: Request, res: Response): Promise<void> => {
-  const doc = await getKnowledgeDocumentById(req.params.id!);
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+  const doc = await getKnowledgeDocumentById(req.params.id!, tenantId);
 
   res.json({
     success: true,
@@ -92,8 +95,8 @@ export const createKnowledgeDocumentController = async (req: Request, res: Respo
 
   try {
     const validated = createSchema.parse(req.body);
-    const staffUser = await getStaffUserById(currentUser.id);
-    const doc = await createKnowledgeDocument({ ...validated, businessId: staffUser.business_id });
+    const tenantId = currentUser.businessId || currentUser.tenantId || (await getStaffUserById(currentUser.id)).business_id;
+    const doc = await createKnowledgeDocument({ ...validated, businessId: tenantId });
 
     await createAuditLog(
       'knowledge_documents',
@@ -105,7 +108,8 @@ export const createKnowledgeDocumentController = async (req: Request, res: Respo
       doc,
       { documentId: doc.id },
       req.ip!,
-      req.get('user-agent')!
+      req.get('user-agent')!,
+      tenantId
     );
 
     res.status(201).json({
@@ -158,10 +162,12 @@ export const updateKnowledgeStatusController = async (req: Request, res: Respons
 export const searchKnowledgeChunks = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = vectorSearchSchema.parse(req.body);
+    const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
     const chunks = await searchKnowledgeChunksByVector(
       validated.vector,
       validated.limit || 5,
-      validated.documentId
+      validated.documentId,
+      tenantId
     );
 
     res.json({
@@ -189,9 +195,11 @@ export const searchKnowledgeChunks = async (req: Request, res: Response): Promis
 export const searchKnowledgeChunksText = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = textSearchSchema.parse(req.body);
+    const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
     const chunks = await searchKnowledgeChunksByText(
       validated.query,
-      validated.limit || 5
+      validated.limit || 5,
+      tenantId
     );
 
     res.json({
@@ -233,7 +241,7 @@ export const uploadKnowledgeDocumentController = async (req: Request, res: Respo
   }
 
   try {
-    const staffUser = await getStaffUserById(currentUser.id);
+    const tenantId = currentUser.businessId || currentUser.tenantId || (await getStaffUserById(currentUser.id)).business_id!;
     const result = await processAndIndexDocument({
       title,
       documentType: document_type,
@@ -242,7 +250,7 @@ export const uploadKnowledgeDocumentController = async (req: Request, res: Respo
       originalFileName: req.file.originalname,
       language: language || 'en',
       source: source || req.file.originalname,
-      businessId: staffUser.business_id!,
+      businessId: tenantId,
       metadata: { uploadedBy: currentUser.id },
     });
 
@@ -256,7 +264,8 @@ export const uploadKnowledgeDocumentController = async (req: Request, res: Respo
       { documentId: result.document.id, chunksCreated: result.chunksCreated },
       { documentId: result.document.id },
       req.ip!,
-      req.get('user-agent')!
+      req.get('user-agent')!,
+      tenantId
     );
 
     res.status(201).json({

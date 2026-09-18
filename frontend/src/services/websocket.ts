@@ -43,7 +43,9 @@ export class WebSocketService {
       }
 
       const token = authService().getToken()
-      const wsUrl = token ? this.url : this.url
+      const wsUrl = token
+        ? `${this.url}?token=${encodeURIComponent(token)}`
+        : this.url
 
       this.ws = new WebSocket(wsUrl)
       this.manualClose = false
@@ -51,15 +53,6 @@ export class WebSocketService {
       this.ws.onopen = () => {
         console.log('WebSocket connected')
         this.reconnectAttempts = 0
-
-        if (token) {
-          this.send({
-            type: 'auth',
-            payload: { token },
-            timestamp: new Date().toISOString(),
-          })
-        }
-
         this.emit({ type: 'connected', payload: null, timestamp: new Date().toISOString() })
         resolve()
       }

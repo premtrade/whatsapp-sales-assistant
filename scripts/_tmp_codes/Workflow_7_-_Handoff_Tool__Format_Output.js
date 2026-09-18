@@ -1,0 +1,3 @@
+const handoff = $('Create Handoff Record').first()?.json || {};
+const phone = $('Normalize Input').first()?.json?.phone || '';
+return [{ json: { success: true, message: 'The conversation has been flagged for human agent takeover. A representative will reach out shortly.', handoff_details: { handoff_id: handoff.id, status: handoff.status, reason: handoff.reason, assigned_to: handoff.assigned_to, created_at: handoff.created_at }, customer_phone: phone } }];

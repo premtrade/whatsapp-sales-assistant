@@ -9,8 +9,11 @@ import logger from '../utils/logger';
 export const listLeadScores = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
-
-  const result = await getLeadScores({
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+  const filters = {
     page,
     limit,
     sortBy,
@@ -20,7 +23,11 @@ export const listLeadScores = async (req: Request, res: Response): Promise<void>
     projectType: getOptionalString(query.projectType),
     minScore: getOptionalNumber(query.minScore),
     maxScore: getOptionalNumber(query.maxScore),
-  });
+    businessId: tenantId,
+    tenantId: tenantId
+  };
+
+  const result = await getLeadScores(filters);
 
   res.json({
     success: true,
@@ -30,7 +37,11 @@ export const listLeadScores = async (req: Request, res: Response): Promise<void>
 };
 
 export const getLeadScore = async (req: Request, res: Response): Promise<void> => {
-  const score = await getLeadScoreById(req.params.id!);
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+  const score = await getLeadScoreById(req.params.id!, tenantId);
   res.json({ success: true, data: score });
 };
 
@@ -38,8 +49,11 @@ export const createLeadScore = async (req: Request, res: Response): Promise<void
   const currentUser = (req as Request & { user?: UserPayload }).user;
   if (!currentUser) throw new BadRequestError('Unauthorized');
 
-  const { contactId, conversationId, budgetScore, urgencyScore, projectTypeScore, locationScore, engagementScore, projectType, estimatedBudget, preferredTimeline, projectLocation, scoreReasoning } = req.body;
-
+const { contactId, conversationId, budgetScore, urgencyScore, projectTypeScore, locationScore, engagementScore, projectType, estimatedBudget, preferredTimeline, projectLocation, scoreReasoning } = req.body;
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
   if (!contactId) throw new BadRequestError('contactId is required');
 
   const score = await calculateAndSaveLeadScore({
@@ -55,7 +69,7 @@ export const createLeadScore = async (req: Request, res: Response): Promise<void
     preferredTimeline,
     projectLocation,
     scoreReasoning,
-  });
+  }, tenantId);
 
   await createAuditLog(
     'lead_scores',
@@ -67,7 +81,8 @@ export const createLeadScore = async (req: Request, res: Response): Promise<void
     { totalScore: score.total_score, status: score.status },
     { leadScoreId: score.id },
     req.ip!,
-    req.get('user-agent')!
+    req.get('user-agent')!,
+    tenantId
   );
 
   logger.info('Lead score created via API', { leadScoreId: score.id, contactId, userId: currentUser.id });
@@ -85,8 +100,11 @@ export const updateLeadScore = async (req: Request, res: Response): Promise<void
 
   const { status } = req.body;
   if (!status) throw new BadRequestError('status is required');
-
-  const score = await updateLeadScoreStatus(req.params.id!, status);
+const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+  const score = await updateLeadScoreStatus(req.params.id!, status, tenantId);
 
   await createAuditLog(
     'lead_scores',
@@ -98,7 +116,8 @@ export const updateLeadScore = async (req: Request, res: Response): Promise<void
     { status },
     { leadScoreId: score.id },
     req.ip!,
-    req.get('user-agent')!
+    req.get('user-agent')!,
+    tenantId
   );
 
   res.json({
@@ -108,7 +127,13 @@ export const updateLeadScore = async (req: Request, res: Response): Promise<void
   });
 };
 
-export const getLeadPipeline = async (_req: Request, res: Response): Promise<void> => {
-  const summary = await getLeadPipelineSummary();
+export const getLeadPipeline = async (req: Request, res: Response): Promise<void> => {
+  const currentUser = (req as Request & { user?: UserPayload }).user;
+  if (!currentUser) throw new BadRequestError('Unauthorized');
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+  const summary = await getLeadPipelineSummary(tenantId);
   res.json({ success: true, data: summary });
 };

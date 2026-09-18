@@ -1,0 +1,380 @@
+{
+  "id": "laETujDz5bDDOZQE",
+  "name": "04 - Memory Writer",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "request_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -576,
+        -224
+      ],
+      "id": "2659fabf-95d1-497c-bf90-3d5305fcfa3b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nconst message = (input.message || '').trim();\nlet name = null;\n\n// Multiple patterns to catch various name introduction formats\nconst patterns = [\n  /\\bmy\\s+name\\s+is\\s+([A-Za-z\\u00C0-\\u00FF][A-Za-z\\u00C0-\\u00FF'\\-\\s]{1,80})/i,\n  /\\bi'?m\\s+([A-Za-z\\u00C0-\\u00FF][A-Za-z\\u00C0-\\u00FF'\\-\\s]{1,80})/i,\n  /\\bthis\\s+is\\s+([A-Za-z\\u00C0-\\u00FF][A-Za-z\\u00C0-\\u00FF'\\-\\s]{1,80})/i,\n  /\\bcall\\s+me\\s+([A-Za-z\\u00C0-\\u00FF][A-Za-z\\u00C0-\\u00FF'\\-\\s]{1,80})/i,\n  /\\bname'?s\\s+([A-Za-z\\u00C0-\\u00FF][A-Za-z\\u00C0-\\u00FF'\\-\\s]{1,80})/i\n];\n\nfor (const pattern of patterns) {\n  const match = message.match(pattern);\n  if (match) {\n    name = match[1].trim().replace(/[.,!?;:]+$/, '').trim();\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    conversation_id: input.conversation_id,\n    contact_id: input.contact_id,\n    phone: input.phone,\n    message: input.message,\n    message_id: input.message_id,\n    customer_name: name\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -224
+      ],
+      "id": "86207462-c1e0-4f90-b5dc-fcb60f5e5b83",
+      "name": "Extract Customer Name"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "489aa70b-49e5-4c36-b1fe-4de1fc27a2d8",
+              "leftValue": "={{ $json.customer_name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -240,
+        -208
+      ],
+      "id": "c28d0ea1-51d0-42e5-97d4-1f56a3de77ed",
+      "name": "Name Found?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO customer_facts (contact_id, fact_key, fact_value, confidence, source)\nVALUES ($1::uuid, 'customer_name', $2, 0.99, 'ai')\nON CONFLICT (contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id, contact_id, fact_key, fact_value, confidence, source, updated_at;",
+        "options": {
+          "queryReplacement": "={{ $('Extract Customer Name').item.json.contact_id }}\n{{ $('Extract Customer Name').item.json.customer_name }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -32,
+        -224
+      ],
+      "id": "2ce54512-a0ea-4ae3-ae25-9051be81ff00",
+      "name": "Save Customer Name",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE contacts SET display_name = $1, updated_at = NOW(), last_seen_at = NOW() WHERE id = $2::uuid AND business_id = $3::uuid RETURNING id, phone, display_name, updated_at;",
+        "options": {
+          "queryReplacement": "={{ $('Extract Customer Name').item.json.customer_name }}\n{{ $('Extract Customer Name').item.json.contact_id }}\n{{ $('When Executed by Another Workflow').first().json.business_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        144,
+        -224
+      ],
+      "id": "1c1c2633-f07c-4187-88a0-49e8f44479be",
+      "name": "Update Contact Name",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a customer-memory extraction system for a WhatsApp sales assistant.\n\nYour job is to identify useful, durable customer facts from the customer's latest message.\n\nONLY extract information that is explicitly stated or strongly implied by the customer's message.\n\nDo NOT invent facts.\nDo NOT extract temporary conversational statements.\nDo NOT extract the customer's name.\n\nAllowed fact types:\n- service_interest\n- property_type\n- location\n- preferred_date\n- preferred_time\n- budget\n- project_description\n- urgency\n- company\n- email\n- preferred_language\n\nALWAYS extract budget as a string preserving full currency values like 'JMD 20,000'.\n\nCustomer message:\n{{ $('When Executed by Another Workflow').item.json.message }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a precise customer-memory extraction engine. Return only the requested structured JSON output."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        320,
+        -224
+      ],
+      "id": "9243612a-f6aa-4711-a42f-70fdf7ce4c16",
+      "name": "Extract Customer Facts"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        336,
+        -16
+      ],
+      "id": "a6517ee1-e911-4db8-b28b-96948cb713e1",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "wXpNdoZt6qFdQVc2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"facts\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"fact_key\": { \"type\": \"string\" },\n          \"fact_value\": { \"type\": \"string\" },\n          \"confidence\": { \"type\": \"number\", \"minimum\": 0, \"maximum\": 1 }\n        },\n        \"required\": [\"fact_key\", \"fact_value\", \"confidence\"]\n      }\n    }\n  },\n  \"required\": [\"facts\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        48
+      ],
+      "id": "b7360188-e60c-4fe3-8224-7458293f9c62",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $('Extract Customer Facts').first()?.json || {};\nconst facts = result.output?.facts || result.facts || [];\nconst contactId = $('When Executed by Another Workflow').first().json.contact_id;\n\nconst normalizedFacts = (Array.isArray(facts) ? facts : [])\n  .filter(f => f && f.fact_key != null && f.fact_value != null)\n  .map(f => ({\n    contact_id: contactId,\n    fact_key: String(f.fact_key).trim(),\n    fact_value: String(f.fact_value).trim(),\n    confidence: Number(f.confidence || 0.9),\n    source: 'ai'\n  }))\n  .filter(f => f.fact_key && f.fact_value && !['null', 'undefined', ''].includes(f.fact_key.toLowerCase()));\n\nreturn [{ json: { facts: normalizedFacts, count: normalizedFacts.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        -32
+      ],
+      "id": "2e3d0066-3911-481a-8db7-6eb28c5b33ec",
+      "name": "Prepare Customer Facts"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "320973fe-724e-4836-99aa-e767e40b459e",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "2be27903-74e3-4f6d-8d4f-0591c6ef09f1",
+      "name": "Facts Found?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO customer_facts (contact_id, fact_key, fact_value, confidence, source)\nSELECT * FROM json_to_recordset($1::json)\n  AS x(contact_id uuid, fact_key text, fact_value text, confidence numeric, source text)\nON CONFLICT (contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW();",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json.facts) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        144,
+        -16
+      ],
+      "id": "1340d99d-5588-4271-bce9-165a61368654",
+      "name": "Save Customer Facts",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Extract Customer Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Customer Name": {
+      "main": [
+        [
+          {
+            "node": "Name Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Name Found?": {
+      "main": [
+        [
+          {
+            "node": "Save Customer Name",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Customer Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Customer Name": {
+      "main": [
+        [
+          {
+            "node": "Update Contact Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact Name": {
+      "main": [
+        [
+          {
+            "node": "Extract Customer Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Customer Facts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Customer Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Customer Facts",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Extract Customer Facts",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Customer Facts": {
+      "main": [
+        [
+          {
+            "node": "Facts Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facts Found?": {
+      "main": [
+        [
+          {
+            "node": "Save Customer Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

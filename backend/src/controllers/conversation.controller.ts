@@ -4,7 +4,7 @@ import { BadRequestError } from '../utils/errors';
 import { getPagination, getOptionalString } from '../utils/helpers';
 import logger from '../utils/logger';
 import { createAuditLog } from '../services/audit.service';
-import { UserPayload } from '../types';
+import { AuthenticatedRequest, UserPayload } from '../types';
 import { query } from '../utils/database';
 
 const updateStatusSchema = (data: unknown) => {
@@ -18,12 +18,14 @@ const updateStatusSchema = (data: unknown) => {
 
 export const listConversations = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
+  const tenantId = (req as AuthenticatedRequest).user?.businessId || (req as AuthenticatedRequest).user?.tenantId;
 
   const result = await getConversations({
     page,
     limit,
     sortBy,
     sortOrder,
+    businessId: tenantId,
     status: getOptionalString(req.query.status),
     channel: getOptionalString(req.query.channel),
     contactId: getOptionalString(req.query.contactId),
@@ -41,8 +43,9 @@ export const listConversations = async (req: Request, res: Response): Promise<vo
 };
 
 export const getConversation = async (req: Request, res: Response): Promise<void> => {
-  const conversation = await getConversationById(req.params.id!);
-  const messages = await getConversationMessages(req.params.id!);
+  const tenantId = (req as AuthenticatedRequest).user?.businessId || (req as AuthenticatedRequest).user?.tenantId;
+  const conversation = await getConversationById(req.params.id!, tenantId);
+  const messages = await getConversationMessages(req.params.id!, 50, 0, tenantId);
 
   const handoffResult = await query<{ id: string; reason: string; assigned_to: string | null; status: string }>(
     `SELECT id, reason, assigned_to, status
@@ -97,13 +100,15 @@ export const getConversation = async (req: Request, res: Response): Promise<void
 };
 
 export const updateConversationStatusController = async (req: Request, res: Response): Promise<void> => {
-  const currentUser = (req as Request & { user?: UserPayload }).user;
+  const currentUser = (req as AuthenticatedRequest).user;
   if (!currentUser) {
     throw new BadRequestError('Unauthorized');
   }
 
+  const tenantId = currentUser.businessId || currentUser.tenantId;
   const validated = updateStatusSchema(req.body) as { status: string };
-  const conversation = await updateConversationStatus(req.params.id!, validated.status, currentUser.id);
+  const conversation = await updateConversationStatus(req.params.id!, validated.status, currentUser.id, tenantId);
+
 
   await createAuditLog(
     'conversations',

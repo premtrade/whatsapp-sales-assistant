@@ -1,0 +1,41 @@
+s
+--- customer_facts ---
+(1 row)
+fact_key ~ fact_value ~ confidence ~ created_at
+null ~ null ~ 0.000 ~ 2026-09-15 14:07:18.131411+00
+service_interest ~ roofing repair services ~ 0.900 ~ 2026-09-15 14:09:54.711326+00
+preferred_date ~ tomorrow ~ 1.000 ~ 2026-09-15 14:11:36.455361+00
+preferred_time ~ 3pm ~ 1.000 ~ 2026-09-15 14:11:36.455361+00
+null ~ null ~ 0.000 ~ 2026-09-15 15:38:08.041724+00
+(5 rows)
+s
+--- audit_logs ---
+(1 row)
+action ~ description ~ new_vals ~ created_at
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 15:39:55.215237+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 15:39:42.850379+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 15:38:11.344389+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "82978935955480", "fromMe": false, "source": "whatsapp", "chat_id": "82978935955480@lid",  ~ 2026-09-15 15:37:49.985321+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:11:41.556704+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:11:35.279581+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:11:05.608082+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:11:01.055604+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:10:20.087938+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:10:15.704646+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:09:57.449498+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:09:53.304284+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:09:31.88424+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:09:26.675165+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:08:53.643713+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:08:48.71219+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:08:14.567282+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:08:05.266183+00
+ai_reply ~ AI replied to customer ~  ~ 2026-09-15 14:07:19.220722+00
+message_received ~ Incoming WhatsApp message received ~ {"event": "message", "phone": "251294258356378", "fromMe": false, "source": "whatsapp", "chat_id": "251294258356378@lid" ~ 2026-09-15 14:07:04.906411+00
+(20 rows)
+s
+--- messages col type ---
+(1 row)
+data_type ~ character_maximum_length
+text ~ 
+(1 row)

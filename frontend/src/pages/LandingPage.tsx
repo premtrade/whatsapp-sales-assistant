@@ -207,9 +207,9 @@ export default function LandingPage() {
               <Link to="/login" className="text-sm font-medium text-surface-600 hover:text-surface-900">
                 Sign In
               </Link>
-              <a href="#pricing" className="btn-primary text-sm py-2 px-4">
+              <Link to="/signup" className="btn-primary text-sm py-2 px-4">
                 Start Free Trial
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -236,9 +236,9 @@ export default function LandingPage() {
                 WAFLO is an AI-powered sales assistant that qualifies leads, sends quotes, and books appointments — 24/7, right in WhatsApp. Built for construction, contracting, and service businesses.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href="#pricing" className="btn-primary text-center py-3 px-8 text-base">
+                <Link to="/signup" className="btn-primary text-center py-3 px-8 text-base">
                   Start Free Trial
-                </a>
+                </Link>
                 <a href="#how-it-works" className="btn-secondary text-center py-3 px-8 text-base">
                   See How It Works
                 </a>
@@ -400,7 +400,7 @@ export default function LandingPage() {
                 <div className="w-3 h-3 rounded-full bg-red-400" />
                 <div className="w-3 h-3 rounded-full bg-yellow-400" />
                 <div className="w-3 h-3 rounded-full bg-green-400" />
-                <span className="ml-2 text-xs font-medium text-surface-400">WAFLO Dashboard — Garco Construction</span>
+                 <span className="ml-2 text-xs font-medium text-surface-400">WAFLO Dashboard</span>
               </div>
               <div className="p-6 grid grid-cols-12 gap-4">
                 <div className="col-span-12 md:col-span-3 space-y-4">
@@ -634,7 +634,7 @@ export default function LandingPage() {
             Start your 14-day free trial. No credit card required. Setup in 10 minutes.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/login" className="btn-primary py-3 px-8 text-base">
+            <Link to="/signup" className="btn-primary py-3 px-8 text-base">
               Get Started Free
             </Link>
             <a href="mailto:hello@waflo.com" className="btn-secondary py-3 px-8 text-base bg-transparent border-surface-600 text-white hover:bg-surface-800">

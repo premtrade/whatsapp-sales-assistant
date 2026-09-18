@@ -45,7 +45,8 @@ import type {
   SystemMetrics,
 } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const rawApiUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
+const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -397,6 +398,72 @@ export async function testWhatsAppConnection(): Promise<WhatsAppTestResult> {
   return response.data.data
 }
 
+// Public signup
+export async function publicSignup(data: { businessName: string; slug: string; whatsappPhone: string; ownerName: string; email: string; password: string }): Promise<{ business: any; user: any; token: string; expiresIn: string }> {
+  const response = await api.post<{ success: boolean; data: { business: any; user: any; token: string; expiresIn: string } }>('/public/signup', data)
+  return response.data.data
+}
+
+export async function checkSlugAvailability(slug: string): Promise<{ available: boolean }> {
+  const response = await api.get<{ success: boolean; data: { available: boolean } }>(`/public/business/slug/${encodeURIComponent(slug)}/available`)
+  return response.data.data
+}
+
+export async function checkPhoneAvailability(phone: string): Promise<{ available: boolean }> {
+  const response = await api.get<{ success: boolean; data: { available: boolean } }>(`/public/business/phone/${encodeURIComponent(phone)}/available`)
+  return response.data.data
+}
+
+export async function activateBusiness(id: string): Promise<any> {
+  const response = await api.patch<{ success: boolean; data: any }>(`/public/business/${id}/activate`)
+  return response.data.data
+}
+
+// Staff
+export async function createStaffUser(data: { first_name: string; last_name: string; email: string; phone?: string | null; role?: string; timezone?: string; password?: string }): Promise<StaffUser> {
+  const response = await api.post<{ success: boolean; data: StaffUser }>('/staff/users', data)
+  return response.data.data
+}
+
+export async function updateStaffUser(id: string, data: Partial<{ first_name: string; last_name: string; email: string; phone?: string | null; role?: string; timezone?: string; password?: string }>): Promise<StaffUser> {
+  const response = await api.put<{ success: boolean; data: StaffUser }>(`/staff/users/${id}`, data)
+  return response.data.data
+}
+
+export async function updateStaffStatus(id: string, status: string): Promise<StaffUser> {
+  const response = await api.patch<{ success: boolean; data: StaffUser }>(`/staff/users/${id}/status`, { status })
+  return response.data.data
+}
+
+export async function deleteStaffUser(id: string): Promise<void> {
+  await api.delete(`/staff/users/${id}`)
+}
+
+// Settings
+interface ExportedSetting {
+  key: string
+  value: string | null
+  dataType: string
+  description: string | null
+  isSystem: boolean
+}
+
+interface ExportSettingsResponse {
+  exportedAt: string
+  tenantId: string
+  settings: ExportedSetting[]
+}
+
+export async function exportSettings(): Promise<ExportSettingsResponse> {
+  const response = await api.get<{ success: boolean; data: ExportSettingsResponse }>('/settings/export')
+  return response.data.data
+}
+
+export async function importSettings(settingsList: Array<{ key: string; value: string }>): Promise<{ updated: number; failed: number }> {
+  const response = await api.post<{ success: boolean; data: { updated: number; failed: number } }>('/settings/import', { settings: settingsList })
+  return response.data.data
+}
+
 // System Health
 export async function getSystemHealth(): Promise<SystemHealthResponse> {
   const response = await api.get<{ success: boolean; data: SystemHealthResponse }>('/system/health')
@@ -408,4 +475,9 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
   return response.data.data
 }
 
-export default api
+export async function clearSystemCache(): Promise<{ success: boolean; message: string }> {
+  const response = await api.post<{ success: boolean; message: string }>('/system/cache/clear')
+  return response.data
+}
+
+

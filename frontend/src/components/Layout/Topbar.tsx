@@ -9,7 +9,12 @@ interface SearchResult {
   href: string
 }
 
-export function Topbar() {
+interface TopbarProps {
+  isSidebarOpen: boolean
+  onSidebarToggle: () => void
+}
+
+export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
   const { staff } = useAuth()
   const { isConnected } = useWebSocket()
   const [searchQuery, setSearchQuery] = useState('')
@@ -32,6 +37,19 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-white border-b border-surface-200">
+      {/* Left side: Hamburger button (mobile only) */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onSidebarToggle}
+          className="lg:hidden p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors"
+          aria-label="Open menu"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+
       {/* Search */}
       <div className="flex-1 max-w-xl" ref={searchRef}>
         <div className="relative">
@@ -117,7 +135,7 @@ export function Topbar() {
               >
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 013-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                   Sign Out
                 </span>

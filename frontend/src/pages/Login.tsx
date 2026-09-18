@@ -68,7 +68,7 @@ export function LoginPage() {
                 required
                 autoComplete="email"
                 className="input"
-                placeholder="you@garco.com"
+                placeholder="you@company.com"
               />
             </div>
 
@@ -104,7 +104,7 @@ export function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-surface-500 mt-6">
-          WhatsApp Sales Assistant - Garco Construction Services
+          WhatsApp Sales Assistant
         </p>
       </div>
     </div>

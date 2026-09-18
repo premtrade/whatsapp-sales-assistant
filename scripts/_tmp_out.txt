@@ -1,0 +1,37 @@
+t ~ direction ~ sender_type ~ len ~ text_body
+14:07:00 ~ incoming ~ customer ~ 14 ~ "Good morning"
+14:07:18 ~ outgoing ~ ai ~ 84 ~ Good evening! This is Garco Construction Services Limited. How can I help you today?
+14:08:05 ~ incoming ~ customer ~ 25 ~ "What are your services?"
+14:08:14 ~ outgoing ~ ai ~ 9 ~ I’m sorry
+14:08:48 ~ incoming ~ customer ~ 31 ~ "Where is the company located?"
+14:08:53 ~ outgoing ~ ai ~ 42 ~ OFFICE LOCATION: Garco serves the Kingston
+14:09:26 ~ incoming ~ customer ~ 44 ~ "What is your address and telephone number?"
+14:09:31 ~ outgoing ~ ai ~ 9 ~ I’m sorry
+14:09:53 ~ incoming ~ customer ~ 61 ~ "Can I get a quotation for your project management services?"
+14:09:57 ~ outgoing ~ ai ~ 45 ~ service_interest: project management services
+14:10:15 ~ incoming ~ customer ~ 34 ~ "Can I speak to a representative?"
+14:10:19 ~ outgoing ~ ai ~ 4 ~ Sure
+14:11:00 ~ incoming ~ customer ~ 51 ~ "What is the cost of your roofing repair services?"
+14:11:05 ~ outgoing ~ ai ~ 41 ~ service_interest: roofing repair services
+14:11:35 ~ incoming ~ customer ~ 47 ~ "Can I get an appointment for tomorrow at 3pm?"
+14:11:41 ~ outgoing ~ ai ~ 4 ~ Sure
+15:37:49 ~ incoming ~ customer ~ 90 ~ "Confirm this information for me please bro. Need to know if they got the vouchers or not"
+15:38:09 ~ outgoing ~ ai ~ 91 ~ I’m not sure if they received the vouchers. Let me connect you to a human for confirmation.
+15:39:42 ~ incoming ~ customer ~ 14 ~ "Good morning"
+15:39:53 ~ outgoing ~ ai ~ 84 ~ Good evening! This is Garco Construction Services Limited. How can I help you today?
+(20 rows)
+section
+--- appointments ---
+(1 row)
+title ~ appointment_type ~ status ~ starts_at ~ created_at
+(0 rows)
+section
+--- handoffs ---
+(1 row)
+status ~ reason ~ notes ~ created_at
+(0 rows)
+section
+--- quotes ---
+(1 row)
+quote_number ~ status ~ total ~ currency ~ created_at
+(0 rows)

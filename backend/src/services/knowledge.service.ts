@@ -29,6 +29,12 @@ function buildWhereClause(filters: KnowledgeFilters): { where: string; params: u
     params.push(`%${filters.search}%`, `%${filters.search}%`);
   }
 
+  const tenantId = filters.businessId || filters.tenantId;
+  if (tenantId) {
+    conditions.push(`business_id = $${paramIndex++}`);
+    params.push(tenantId);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   return { where: whereClause, params };
@@ -47,7 +53,7 @@ export async function getKnowledgeDocuments(filters: KnowledgeFilters): Promise<
   const total = parseInt(countResult.rows[0]?.total || '0', 10);
 
   const dataQuery = `
-    SELECT id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at
+    SELECT id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at
     FROM knowledge_documents
     ${where}
     ORDER BY created_at ${sortOrder}
@@ -67,13 +73,18 @@ export async function getKnowledgeDocuments(filters: KnowledgeFilters): Promise<
   };
 }
 
-export async function getKnowledgeDocumentById(id: string): Promise<KnowledgeDocument> {
-  const result = await query<KnowledgeDocument>(
-    `SELECT id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at
+export async function getKnowledgeDocumentById(id: string, tenantId?: string): Promise<KnowledgeDocument> {
+  let sql = `SELECT id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at
      FROM knowledge_documents
-     WHERE id = $1`,
-    [id]
-  );
+     WHERE id = $1`;
+  const params: unknown[] = [id];
+
+  if (tenantId) {
+    sql += ' AND business_id = $2';
+    params.push(tenantId);
+  }
+
+  const result = await query<KnowledgeDocument>(sql, params);
 
   const doc = result.rows[0];
 
@@ -101,16 +112,16 @@ export async function createKnowledgeDocument(input: Partial<KnowledgeDocument> 
   }
 
   if (checksum) {
-    const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1', [checksum]);
+    const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2', [checksum, businessId]);
     if (existing.rows.length > 0) {
-      throw new ConflictError('Document with this checksum already exists');
+      throw new ConflictError('Document with this checksum already exists for this tenant');
     }
   }
 
   const result = await query<KnowledgeDocument>(
     `INSERT INTO knowledge_documents (title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, business_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     RETURNING id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at`,
+     RETURNING id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at`,
     [title, document_type, source || null, file_name || null, mime_type || null, file_size || null, checksum || null, language || 'en', status || 'pending', metadata || {}, businessId]
   );
 
@@ -120,21 +131,28 @@ export async function createKnowledgeDocument(input: Partial<KnowledgeDocument> 
     throw new NotFoundError('Failed to create knowledge document');
   }
 
-  logger.info('Knowledge document created', { documentId: doc.id, title: doc.title });
+  logger.info('Knowledge document created', { documentId: doc.id, title: doc.title, businessId });
 
   return doc;
 }
 
-export async function updateKnowledgeDocumentStatus(id: string, status: string): Promise<KnowledgeDocument> {
+export async function updateKnowledgeDocumentStatus(id: string, status: string, tenantId?: string): Promise<KnowledgeDocument> {
   const validStatuses = ['pending', 'processing', 'indexed', 'failed', 'archived'];
   if (!validStatuses.includes(status)) {
     throw new BadRequestError(`Invalid status: ${status}`);
   }
 
-  const result = await query<KnowledgeDocument>(
-    `UPDATE knowledge_documents SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at`,
-    [status, id]
-  );
+  let sql = `UPDATE knowledge_documents SET status = $1, updated_at = NOW() WHERE id = $2`;
+  const params: unknown[] = [status, id];
+
+  if (tenantId) {
+    sql += ' AND business_id = $3';
+    params.push(tenantId);
+  }
+
+  sql += ' RETURNING id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at';
+
+  const result = await query<KnowledgeDocument>(sql, params);
 
   const doc = result.rows[0];
 
@@ -148,7 +166,8 @@ export async function updateKnowledgeDocumentStatus(id: string, status: string):
 export async function searchKnowledgeChunksByVector(
   vector: number[],
   limit: number = 5,
-  documentId?: string
+  documentId?: string,
+  tenantId?: string
 ): Promise<KnowledgeChunk[]> {
   if (!vector || vector.length === 0) {
     throw new BadRequestError('Vector is required');
@@ -168,11 +187,17 @@ export async function searchKnowledgeChunksByVector(
       kc.updated_at,
       1 - (kc.embedding <=> $1::vector) AS similarity
     FROM knowledge_chunks kc
+    JOIN knowledge_documents kd ON kc.document_id = kd.id
     WHERE kc.embedding IS NOT NULL
   `;
 
   const params: unknown[] = [vectorStr];
   let paramIndex = 2;
+
+  if (tenantId) {
+    sql += ` AND kd.business_id = $${paramIndex++}`;
+    params.push(tenantId);
+  }
 
   if (documentId) {
     sql += ` AND kc.document_id = $${paramIndex++}`;
@@ -191,14 +216,15 @@ export async function searchKnowledgeChunksByVector(
 
 export async function searchKnowledgeChunksByText(
   searchText: string,
-  limit: number = 50
+  limit: number = 50,
+  tenantId?: string
 ): Promise<KnowledgeChunk[]> {
   if (!searchText || searchText.trim().length === 0) {
     return [];
   }
 
-  const result = await query<KnowledgeChunk>(
-    `SELECT
+  let sql = `
+    SELECT
       kc.id,
       kc.document_id,
       kc.chunk_number,
@@ -210,12 +236,27 @@ export async function searchKnowledgeChunksByText(
       kc.updated_at,
       similarity(kc.chunk_text, $1) AS similarity
     FROM knowledge_chunks kc
+    JOIN knowledge_documents kd ON kc.document_id = kd.id
+    WHERE 1=1
+  `;
+  const params: unknown[] = [searchText];
+  let paramIndex = 2;
+
+  if (tenantId) {
+    sql += ` AND kd.business_id = $${paramIndex++}`;
+    params.push(tenantId);
+  }
+
+  sql += `
     ORDER BY similarity(kc.chunk_text, $1) DESC
-    LIMIT $2`,
-    [searchText, limit]
-  );
+    LIMIT $${paramIndex}
+  `;
+  params.push(limit);
+
+  const result = await query<KnowledgeChunk>(sql, params);
   return result.rows;
 }
+
 
 export interface ProcessDocumentInput {
   title: string;

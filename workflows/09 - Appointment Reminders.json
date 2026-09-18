@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.title, a.location, a.starts_at, a.ends_at, a.reminder_sent, a.conversation_id, c.display_name, c.phone, c.email, c.id as contact_id FROM appointments a JOIN contacts c ON a.contact_id = c.id WHERE a.status IN ('scheduled', 'confirmed') AND a.starts_at > NOW() AND a.starts_at <= NOW() + INTERVAL '48 hours' AND (a.reminder_sent = false OR a.reminder_sent IS NULL) ORDER BY a.starts_at ASC LIMIT 20;",
+         "query": "SELECT a.id, a.title, a.location, a.starts_at, a.ends_at, a.reminder_sent, a.conversation_id, c.display_name, c.phone, c.email, c.id as contact_id, c.business_id, b.waha_session_name FROM appointments a JOIN contacts c ON a.contact_id = c.id JOIN businesses b ON b.id = c.business_id WHERE a.status IN ('scheduled', 'confirmed') AND a.starts_at > NOW() AND a.starts_at <= NOW() + INTERVAL '48 hours' AND (a.reminder_sent = false OR a.reminder_sent IS NULL) ORDER BY a.starts_at ASC LIMIT 20;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst now = new Date();\nreturn items.map(item => {\n  const startTime = new Date(item.json.starts_at);\n  const hoursUntil = Math.round((startTime - now) / (1000 * 60 * 60));\n  let reminderType = '48h';\n  let message = '';\n  const name = item.json.display_name || 'there';\n  \n  if (hoursUntil <= 2) {\n    reminderType = '2h';\n    message = `Hi ${name}, this is a friendly reminder that your appointment with Garco Construction is in 2 hours at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. Please ensure the site is accessible. See you soon!`;\n  } else if (hoursUntil <= 24) {\n    reminderType = '24h';\n    message = `Hello ${name}, just a reminder that your appointment with Garco Construction is tomorrow at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. We look forward to meeting with you!`;\n  } else {\n    reminderType = '48h';\n    message = `Hello ${name}, this is a friendly reminder that you have an appointment with Garco Construction on ${startTime.toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric'})} at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. We look forward to meeting with you!`;\n  }\n  \n  return {\n    json: {\n      ...item.json,\n      reminder_type: reminderType,\n      message,\n      hours_until: hoursUntil\n    }\n  };\n});"
+        "jsCode": "const items = $input.all();\nconst now = new Date();\nreturn items.map(item => {\n  const startTime = new Date(item.json.starts_at);\n  const hoursUntil = Math.round((startTime - now) / (1000 * 60 * 60));\n  let reminderType = '48h';\n  let message = '';\n  const name = item.json.display_name || 'there';\n  \n  if (hoursUntil <= 2) {\n    reminderType = '2h';\n    message = `Hi ${name}, this is a friendly reminder that your appointment with us is in 2 hours at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. Please ensure the site is accessible. See you soon!`;\n  } else if (hoursUntil <= 24) {\n    reminderType = '24h';\n    message = `Hello ${name}, just a reminder that your appointment with us is tomorrow at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. We look forward to meeting with you!`;\n  } else {\n    reminderType = '48h';\n    message = `Hello ${name}, this is a friendly reminder that you have an appointment with us on ${startTime.toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric'})} at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. We look forward to meeting with you!`;\n  }\n  \n  return {\n    json: {\n      ...item.json,\n      reminder_type: reminderType,\n      message,\n      hours_until: hoursUntil\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -81,7 +81,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "jsonBody": "={\n  \"session\": \"{{ $json.waha_session_name || 'default' }}\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

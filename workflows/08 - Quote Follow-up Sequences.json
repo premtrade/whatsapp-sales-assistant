@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email FROM quotes q JOIN contacts c ON q.contact_id = c.id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '24 hours' AND q.sent_at > NOW() - INTERVAL '25 hours' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff') LIMIT 10;",
+         "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email, c.business_id, b.waha_session_name FROM quotes q JOIN contacts c ON q.contact_id = c.id JOIN businesses b ON b.id = c.business_id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '24 hours' AND q.sent_at > NOW() - INTERVAL '25 hours' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff') LIMIT 10;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -137,7 +137,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "jsonBody": "={\n  \"session\": \"{{ $json.waha_session_name || 'default' }}\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

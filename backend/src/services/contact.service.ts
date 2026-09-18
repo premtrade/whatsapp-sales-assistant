@@ -30,6 +30,12 @@ function buildWhereClause(filters: ContactFilters): { where: string; params: unk
     params.push(filters.tags);
   }
 
+  const tenantId = filters.businessId || filters.tenantId;
+  if (tenantId) {
+    conditions.push(`business_id = $${paramIndex++}`);
+    params.push(tenantId);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} AND deleted_at IS NULL` : 'WHERE deleted_at IS NULL';
 
   return { where: whereClause, params };
@@ -69,13 +75,20 @@ export async function getContacts(filters: ContactFilters): Promise<{ data: Cont
   };
 }
 
-export async function getContactById(id: string): Promise<Contact> {
-  const result = await query<Contact>(
-    `SELECT id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
-     FROM contacts
-     WHERE id = $1 AND deleted_at IS NULL`,
-    [id]
-  );
+export async function getContactById(id: string, tenantId?: string): Promise<Contact> {
+  let sql = `
+    SELECT id, business_id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
+    FROM contacts
+    WHERE id = $1 AND deleted_at IS NULL
+  `;
+  const params: unknown[] = [id];
+
+  if (tenantId) {
+    sql += ' AND business_id = $2';
+    params.push(tenantId);
+  }
+
+  const result = await query<Contact>(sql, params);
 
   const contact = result.rows[0];
 
@@ -86,8 +99,8 @@ export async function getContactById(id: string): Promise<Contact> {
   return contact;
 }
 
-export async function getContactWithDetails(id: string): Promise<ContactWithDetails> {
-  const contact = await getContactById(id);
+export async function getContactWithDetails(id: string, tenantId?: string): Promise<ContactWithDetails> {
+  const contact = await getContactById(id, tenantId);
 
   const [factsResult] = await Promise.all([
     query<CustomerFact>(
@@ -125,21 +138,35 @@ export async function getContactWithDetails(id: string): Promise<ContactWithDeta
   };
 }
 
-export async function searchContacts(searchTerm: string, limit = 20): Promise<Contact[]> {
-  const result = await query<Contact>(
-    `SELECT id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
-     FROM contacts
-     WHERE deleted_at IS NULL
-       AND (display_name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1 OR company ILIKE $1)
-     ORDER BY last_seen_at DESC
-     LIMIT $2`,
-    [`%${searchTerm}%`, limit]
-  );
+export async function searchContacts(searchTerm: string, limit = 20, tenantId?: string): Promise<Contact[]> {
+  let sql = `
+    SELECT id, business_id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
+    FROM contacts
+    WHERE deleted_at IS NULL
+      AND (display_name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1 OR company ILIKE $1)
+  `;
+  const params: unknown[] = [`%${searchTerm}%`];
+  let paramIndex = 2;
+
+  if (tenantId) {
+    sql += ` AND business_id = $${paramIndex++}`;
+    params.push(tenantId);
+  }
+
+  sql += ` ORDER BY last_seen_at DESC LIMIT $${paramIndex++}`;
+  params.push(limit);
+
+  const result = await query<Contact>(sql, params);
 
   return result.rows;
 }
 
-export async function getCustomerFactsByContactId(contactId: string): Promise<CustomerFact[]> {
+export async function getCustomerFactsByContactId(contactId: string, tenantId?: string): Promise<CustomerFact[]> {
+  // If tenantId is provided, verify contact belongs to tenant first
+  if (tenantId) {
+    await getContactById(contactId, tenantId);
+  }
+
   const result = await query<CustomerFact>(
     `SELECT id, contact_id, fact_key, fact_value, confidence, source, created_at, updated_at
      FROM customer_facts
@@ -150,3 +177,4 @@ export async function getCustomerFactsByContactId(contactId: string): Promise<Cu
 
   return result.rows;
 }
+

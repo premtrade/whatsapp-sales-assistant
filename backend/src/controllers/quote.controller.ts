@@ -17,12 +17,14 @@ const updateStatusSchema = (data: unknown) => {
 export const listQuotes = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
 
   const result = await getQuotes({
     page,
     limit,
     sortBy,
     sortOrder,
+    businessId: tenantId,
     status: getOptionalString(query.status),
     contactId: getOptionalString(query.contactId),
     conversationId: getOptionalString(query.conversationId),
@@ -37,7 +39,8 @@ export const listQuotes = async (req: Request, res: Response): Promise<void> => 
 };
 
 export const getQuote = async (req: Request, res: Response): Promise<void> => {
-  const quote = await getQuoteWithDetails(req.params.id!);
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+  const quote = await getQuoteWithDetails(req.params.id!, tenantId);
 
   res.json({
     success: true,
@@ -51,8 +54,9 @@ export const updateQuoteStatusController = async (req: Request, res: Response): 
     throw new BadRequestError('Unauthorized');
   }
 
+  const tenantId = currentUser.businessId || currentUser.tenantId;
   const validated = updateStatusSchema(req.body) as { status: string };
-  const quote = await updateQuoteStatus(req.params.id!, validated.status);
+  const quote = await updateQuoteStatus(req.params.id!, validated.status, tenantId);
 
   await createAuditLog(
     'quotes',
@@ -64,7 +68,8 @@ export const updateQuoteStatusController = async (req: Request, res: Response): 
     { status: validated.status },
     { quoteId: req.params.id! },
     req.ip!,
-    req.get('user-agent')!
+    req.get('user-agent')!,
+    tenantId
   );
 
   res.json({

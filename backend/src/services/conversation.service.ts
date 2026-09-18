@@ -63,6 +63,12 @@ function buildWhereClause(filters: ConversationFilters): { where: string; params
     params.push(filters.endDate);
   }
 
+  const tenantId = filters.businessId || filters.tenantId;
+  if (tenantId) {
+    conditions.push(`c.business_id = $${paramIndex++}`);
+    params.push(tenantId);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   return { where: whereClause, params, count: whereClause };
@@ -199,7 +205,22 @@ export async function getConversations(filters: ConversationFilters): Promise<{ 
   };
 }
 
-export async function getConversationById(id: string): Promise<ConversationWithDetails> {
+export async function getConversationById(id: string, tenantId?: string): Promise<ConversationWithDetails> {
+  let sql = `SELECT 
+      c.id, c.business_id, c.contact_id, c.channel, c.status, c.assigned_to, c.started_at, c.last_message_at, c.ended_at, c.created_at, c.updated_at,
+      ct.display_name as contact_display_name, ct.phone as contact_phone, ct.email as contact_email, ct.company as contact_company,
+      su.first_name as staff_first_name, su.last_name as staff_last_name, su.email as staff_email, su.role as staff_role
+     FROM conversations c
+     JOIN contacts ct ON c.contact_id = ct.id
+     LEFT JOIN staff_users su ON c.assigned_to = su.id
+     WHERE c.id = $1`;
+  const params: unknown[] = [id];
+
+  if (tenantId) {
+    sql += ' AND c.business_id = $2';
+    params.push(tenantId);
+  }
+
   const result = await query<ConversationWithDetails & {
     contact_display_name: string;
     contact_phone: string;
@@ -209,17 +230,7 @@ export async function getConversationById(id: string): Promise<ConversationWithD
     staff_last_name: string;
     staff_email: string;
     staff_role: string;
-  }>(
-    `SELECT 
-      c.id, c.contact_id, c.channel, c.status, c.assigned_to, c.started_at, c.last_message_at, c.ended_at, c.created_at, c.updated_at,
-      ct.display_name as contact_display_name, ct.phone as contact_phone, ct.email as contact_email, ct.company as contact_company,
-      su.first_name as staff_first_name, su.last_name as staff_last_name, su.email as staff_email, su.role as staff_role
-     FROM conversations c
-     JOIN contacts ct ON c.contact_id = ct.id
-     LEFT JOIN staff_users su ON c.assigned_to = su.id
-     WHERE c.id = $1`,
-    [id]
-  );
+  }>(sql, params);
 
   const row = result.rows[0];
 
@@ -231,6 +242,7 @@ export async function getConversationById(id: string): Promise<ConversationWithD
 
   return {
     id: row.id,
+    business_id: row.business_id,
     contact_id: row.contact_id,
     channel: row.channel,
     status: row.status,
@@ -263,7 +275,12 @@ export async function getConversationById(id: string): Promise<ConversationWithD
   };
 }
 
-export async function getConversationMessages(conversationId: string, limit = 50, offset = 0): Promise<Message[]> {
+export async function getConversationMessages(conversationId: string, limit = 50, offset = 0, tenantId?: string): Promise<Message[]> {
+  // If tenantId is provided, verify conversation belongs to tenant
+  if (tenantId) {
+    await getConversationById(conversationId, tenantId);
+  }
+
   const result = await query<Message>(
     `SELECT id, conversation_id, whatsapp_message_id, direction, sender_type, message_type, text_body, media_url, mime_type, media_size, caption, metadata, delivered_at, read_at, created_at, updated_at
      FROM messages
@@ -279,52 +296,66 @@ export async function getConversationMessages(conversationId: string, limit = 50
 export async function updateConversationStatus(
   id: string,
   status: string,
-  userId: string
+  userId: string,
+  tenantId?: string
 ): Promise<Conversation> {
   const validStatuses = ['active', 'waiting_customer', 'waiting_agent', 'closed', 'archived'];
   if (!validStatuses.includes(status)) {
     throw new BadRequestError(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
   }
 
-  const result = await query<Conversation>(
-    `UPDATE conversations 
+  let sql = `UPDATE conversations 
      SET status = $1, updated_at = NOW()
-     WHERE id = $2
-     RETURNING id, contact_id, channel, status, assigned_to, started_at, last_message_at, ended_at, created_at, updated_at`,
-    [status, id]
-  );
+     WHERE id = $2`;
+  const params: unknown[] = [status, id];
 
+  if (tenantId) {
+    sql += ' AND business_id = $3';
+    params.push(tenantId);
+  }
+
+  sql += ' RETURNING id, business_id, contact_id, channel, status, assigned_to, started_at, last_message_at, ended_at, created_at, updated_at';
+
+  const result = await query<Conversation>(sql, params);
   const conversation = result.rows[0];
 
   if (!conversation) {
     throw new NotFoundError('Conversation not found');
   }
 
-  logger.info('Conversation status updated', { conversationId: id, newStatus: status, userId });
+  logger.info('Conversation status updated', { conversationId: id, newStatus: status, userId, tenantId });
 
-  // Emit real-time events
-  await emitConversationStatusUpdated(conversation);
-  await emitDashboardStatsUpdated();
+  // Emit real-time events scoped to tenant
+  const emitTenantId = conversation.business_id || tenantId;
+  if (emitTenantId) {
+    await emitConversationStatusUpdated(conversation, emitTenantId);
+    await emitDashboardStatsUpdated(undefined, emitTenantId);
+  }
 
   return conversation;
 }
 
-export async function assignConversation(conversationId: string, staffId: string): Promise<Conversation> {
-  const result = await query<Conversation>(
-    `UPDATE conversations 
+export async function assignConversation(conversationId: string, staffId: string, tenantId?: string): Promise<Conversation> {
+  let sql = `UPDATE conversations 
      SET assigned_to = $1, updated_at = NOW()
-     WHERE id = $2
-     RETURNING id, contact_id, channel, status, assigned_to, started_at, last_message_at, ended_at, created_at, updated_at`,
-    [staffId, conversationId]
-  );
+     WHERE id = $2`;
+  const params: unknown[] = [staffId, conversationId];
 
+  if (tenantId) {
+    sql += ' AND business_id = $3';
+    params.push(tenantId);
+  }
+
+  sql += ' RETURNING id, business_id, contact_id, channel, status, assigned_to, started_at, last_message_at, ended_at, created_at, updated_at';
+
+  const result = await query<Conversation>(sql, params);
   const conversation = result.rows[0];
 
   if (!conversation) {
     throw new NotFoundError('Conversation not found');
   }
 
-  logger.info('Conversation assigned', { conversationId, staffId });
+  logger.info('Conversation assigned', { conversationId, staffId, tenantId });
 
   return conversation;
 }

@@ -1,0 +1,63 @@
+{
+  "name": "TMP - Param Test",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tmp/param-test",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "tmp-webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "tmp-param-test"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO _tmp_param_test (buggy) VALUES ($2);",
+        "options": {
+          "queryReplacement": "={{ String('marker') }}, {{ String($json.body.text) }}"
+        }
+      },
+      "id": "tmp-buggy-node",
+      "name": "Buggy String Form",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [240, 0],
+      "credentials": {
+        "postgres": { "id": "tOjZeRRL1hW2zbUk", "name": "Postgres account" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO _tmp_param_test (fixed) VALUES ($2::jsonb #>> '{}');",
+        "options": {
+          "queryReplacement": "={{ String('marker') }}, {{ JSON.stringify($json.body.text) }}"
+        }
+      },
+      "id": "tmp-fixed-node",
+      "name": "Fixed Json Form",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [480, 0],
+      "credentials": {
+        "postgres": { "id": "tOjZeRRL1hW2zbUk", "name": "Postgres account" }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Buggy String Form", "type": "main", "index": 0 }]]
+    },
+    "Buggy String Form": {
+      "main": [[{ "node": "Fixed Json Form", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {},
+  "active": true
+}

@@ -1,13 +1,17 @@
 import { WebSocket } from 'ws';
 import { Request } from 'express';
 
+export type UserRole = 'super_admin' | 'admin' | 'manager' | 'sales' | 'support' | 'technician';
+
 export interface UserPayload {
   id: string;
   email: string;
-  role: string;
+  role: UserRole;
   employeeNumber?: string;
   firstName: string;
   lastName: string;
+  businessId?: string;
+  tenantId?: string;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -26,7 +30,12 @@ export interface DateRangeQuery {
   endDate?: string;
 }
 
-export interface ConversationFilters extends PaginationQuery, DateRangeQuery {
+export interface TenantScopedQuery {
+  businessId?: string;
+  tenantId?: string;
+}
+
+export interface ConversationFilters extends PaginationQuery, DateRangeQuery, TenantScopedQuery {
   status?: string;
   priority?: string;
   contactId?: string;
@@ -35,28 +44,28 @@ export interface ConversationFilters extends PaginationQuery, DateRangeQuery {
   search?: string;
 }
 
-export interface ContactFilters extends PaginationQuery {
+export interface ContactFilters extends PaginationQuery, TenantScopedQuery {
   search?: string;
   status?: string;
   source?: string;
   tags?: string[];
 }
 
-export interface HandoffFilters extends PaginationQuery {
+export interface HandoffFilters extends PaginationQuery, TenantScopedQuery {
   status?: string;
   conversationId?: string;
   assignedTo?: string;
   requestedBy?: string;
 }
 
-export interface QuoteFilters extends PaginationQuery {
+export interface QuoteFilters extends PaginationQuery, TenantScopedQuery {
   status?: string;
   contactId?: string;
   conversationId?: string;
   search?: string;
 }
 
-export interface AppointmentFilters extends PaginationQuery {
+export interface AppointmentFilters extends PaginationQuery, TenantScopedQuery {
   status?: string;
   contactId?: string;
   assignedTo?: string;
@@ -64,19 +73,52 @@ export interface AppointmentFilters extends PaginationQuery {
   endDate?: string;
 }
 
-export interface KnowledgeFilters extends PaginationQuery {
+export interface KnowledgeFilters extends PaginationQuery, TenantScopedQuery {
   status?: string;
   documentType?: string;
   language?: string;
   search?: string;
 }
 
-export interface AuditLogFilters extends PaginationQuery, DateRangeQuery {
+export interface AuditLogFilters extends PaginationQuery, DateRangeQuery, TenantScopedQuery {
   entityType?: string;
   entityId?: string;
   action?: string;
   performedBy?: string;
   performedByType?: string;
+}
+
+export interface StaffFilters extends PaginationQuery, TenantScopedQuery {
+  search?: string;
+  role?: string;
+  status?: string;
+}
+
+export interface LeadScoreFilters extends PaginationQuery, TenantScopedQuery {
+  status?: string;
+  contactId?: string;
+  projectType?: string;
+  minScore?: number;
+  maxScore?: number;
+}
+
+export interface FollowUpFilters extends PaginationQuery, TenantScopedQuery {
+  status?: string;
+  conversationId?: string;
+  contactId?: string;
+}
+
+export interface QuickReplyFilters extends PaginationQuery, TenantScopedQuery {
+  category?: string;
+}
+
+export interface ConversationNoteFilters extends PaginationQuery, TenantScopedQuery {
+  conversationId?: string;
+}
+
+export interface BusinessFilters extends PaginationQuery, TenantScopedQuery {
+  status?: string;
+  search?: string;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -102,11 +144,15 @@ export interface WSClient {
   ws: WebSocket;
   userId?: string;
   role?: string;
+  tenantId?: string;
+  businessId?: string;
+  authenticated?: boolean;
 }
 
 // Database entity types
 export interface Contact {
   id: string;
+  business_id?: string;
   phone: string;
   display_name?: string;
   email?: string;
@@ -125,6 +171,7 @@ export interface Contact {
 
 export interface Conversation {
   id: string;
+  business_id?: string;
   contact_id: string;
   channel: string;
   status: string;
@@ -163,7 +210,7 @@ export interface StaffUser {
   display_name: string;
   email: string;
   phone?: string;
-  role: string;
+  role: UserRole;
   status: string;
   timezone: string;
   metadata: Record<string, unknown>;
@@ -174,6 +221,7 @@ export interface StaffUser {
 
 export interface Handoff {
   id: string;
+  business_id?: string;
   conversation_id: string;
   assigned_to?: string;
   requested_by: string;
@@ -189,6 +237,7 @@ export interface Handoff {
 
 export interface Quote {
   id: string;
+  business_id?: string;
   quote_number: string;
   contact_id: string;
   conversation_id?: string;
@@ -210,6 +259,7 @@ export interface Quote {
 
 export interface Appointment {
   id: string;
+  business_id?: string;
   contact_id: string;
   conversation_id?: string;
   quote_id?: string;
@@ -229,6 +279,7 @@ export interface Appointment {
 
 export interface KnowledgeDocument {
   id: string;
+  business_id?: string;
   title: string;
   document_type: string;
   source?: string;
@@ -258,6 +309,7 @@ export interface KnowledgeChunk {
 
 export interface AuditLog {
   id: string;
+  business_id?: string;
   entity_type: string;
   entity_id?: string;
   action: string;

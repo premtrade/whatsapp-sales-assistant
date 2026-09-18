@@ -6,8 +6,12 @@ import { createAuditLog } from '../services/audit.service';
 import logger from '../utils/logger';
 
 export const listQuickReplies = async (req: Request, res: Response): Promise<void> => {
+  const tenantId = (req as any).user?.businessId || (req as any).user?.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
   const category = req.query.category as string | undefined;
-  const replies = await getQuickReplies(category);
+  const replies = await getQuickReplies(category, tenantId);
   res.json({ success: true, data: replies });
 };
 
@@ -15,12 +19,17 @@ export const addQuickReply = async (req: Request, res: Response): Promise<void> 
   const currentUser = (req as Request & { user?: UserPayload }).user;
   if (!currentUser) throw new BadRequestError('Unauthorized');
 
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+
   const reply = await createQuickReply({
     title: req.body.title,
     text: req.body.text,
     category: req.body.category,
     createdBy: currentUser.id,
-  });
+  }, tenantId);
 
   await createAuditLog(
     'quick_replies',
@@ -30,9 +39,10 @@ export const addQuickReply = async (req: Request, res: Response): Promise<void> 
     `Quick reply created: ${reply.title}`,
     undefined,
     { title: reply.title },
-    { quickReplyId: reply.id },
+    { replyId: reply.id },
     req.ip!,
-    req.get('user-agent')!
+    req.get('user-agent')!,
+    tenantId
   );
 
   res.status(201).json({ success: true, data: reply, message: 'Quick reply created' });
@@ -42,7 +52,11 @@ export const editQuickReply = async (req: Request, res: Response): Promise<void>
   const currentUser = (req as Request & { user?: UserPayload }).user;
   if (!currentUser) throw new BadRequestError('Unauthorized');
 
-  const reply = await updateQuickReply(req.params.id!, req.body);
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+  const reply = await updateQuickReply(req.params.id!, req.body, tenantId);
 
   await createAuditLog(
     'quick_replies',
@@ -54,7 +68,8 @@ export const editQuickReply = async (req: Request, res: Response): Promise<void>
     { title: reply.title },
     { quickReplyId: reply.id },
     req.ip!,
-    req.get('user-agent')!
+    req.get('user-agent')!,
+    tenantId
   );
 
   res.json({ success: true, data: reply, message: 'Quick reply updated' });
@@ -64,7 +79,11 @@ export const removeQuickReply = async (req: Request, res: Response): Promise<voi
   const currentUser = (req as Request & { user?: UserPayload }).user;
   if (!currentUser) throw new BadRequestError('Unauthorized');
 
-  await deleteQuickReply(req.params.id!);
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  if (!tenantId) {
+    throw new BadRequestError('Tenant scope required');
+  }
+  await deleteQuickReply(req.params.id!, tenantId);
 
   await createAuditLog(
     'quick_replies',
