@@ -1,6 +1,38 @@
 ﻿$ErrorActionPreference = 'Stop'
 $guid = { return [guid]::NewGuid().ToString() }
 
+# Guard query: $1 = sender phone, $2 = alphanumeric fingerprint of message text
+$guardQuery = @"
+WITH target AS (
+    SELECT cv.id AS conversation_id
+    FROM contacts c
+    JOIN conversations cv ON cv.contact_id = c.id AND cv.channel = 'whatsapp'
+    WHERE c.phone = `$1
+    ORDER BY cv.last_message_at DESC NULLS LAST
+    LIMIT 1
+),
+echo AS (
+    SELECT EXISTS(
+        SELECT 1
+        FROM messages m
+        WHERE m.conversation_id = (SELECT conversation_id FROM target)
+          AND m.direction = 'outgoing'
+          AND m.created_at > NOW() - INTERVAL '15 minutes'
+          AND length(`$2) > 0
+          AND lower(regexp_replace(coalesce(m.text_body, ''), '[^a-zA-Z0-9]+', '', 'g')) = `$2
+    ) AS is_echo
+),
+own AS (
+    SELECT EXISTS(
+        SELECT 1 FROM businesses b
+        WHERE regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(`$1, '[^0-9]', '', 'g')
+          AND b.deleted_at IS NULL
+    ) AS is_own_number
+)
+SELECT own.is_own_number, echo.is_echo, (own.is_own_number OR echo.is_echo) AS should_block
+FROM own CROSS JOIN echo;
+"@
+
 function Patch-Workflow([string]$Path) {
     Write-Host "Patching $Path"
     $json = Get-Content $Path -Raw | ConvertFrom-Json
@@ -18,9 +50,11 @@ function Patch-Workflow([string]$Path) {
     $ownNumberNode = [pscustomobject]@{
         parameters = [pscustomobject]@{
             operation = 'executeQuery'
-            query = "SELECT EXISTS(`n    SELECT 1 FROM businesses b`n    WHERE regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(`$1, '[^0-9]', '', 'g')`n      AND b.deleted_at IS NULL`n) AS is_own_number;"
-            options = [pscustomobject]@{}
-            queryReplacement = '={{ $json.phone }}'
+            query = $guardQuery
+            options = [pscustomobject]@{
+                # queryReplacement must live INSIDE options for the n8n Postgres node
+                queryReplacement = "={{ `$json.phone }}, {{ (`$json.message || '').replace(/[^a-zA-Z0-9]+/g, '').toLowerCase() }}"
+            }
         }
         type = 'n8n-nodes-base.postgres'
         typeVersion = 2.7
@@ -36,7 +70,7 @@ function Patch-Workflow([string]$Path) {
                 options = [pscustomobject]@{ caseSensitive = $true; leftValue = ''; typeValidation = 'loose'; version = 3 }
                 conditions = @([pscustomobject]@{
                     id = & $guid
-                    leftValue = '={{ $json.is_own_number }}'
+                    leftValue = '={{ $json.should_block }}'
                     rightValue = $false
                     operator = [pscustomobject]@{ type = 'boolean'; operation = 'equals' }
                 })
@@ -95,4 +129,3 @@ function Patch-Workflow([string]$Path) {
 }
 
 Patch-Workflow $args[0]
-

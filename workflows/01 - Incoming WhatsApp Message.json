@@ -13,8 +13,10 @@
                       "type":  "n8n-nodes-base.webhook",
                       "typeVersion":  2.1,
                       "position":  [
-                                       -1040,
-                                       32
+                                       [
+                                           -1180,
+                                           300
+                                       ]
                                    ],
                       "id":  "fe7c1679-5b12-4522-b635-554a21508af0",
                       "name":  "Webhook",
@@ -99,8 +101,10 @@
                       "type":  "n8n-nodes-base.set",
                       "typeVersion":  3.5,
                       "position":  [
-                                       -864,
-                                       48
+                                       [
+                                           -960,
+                                           300
+                                       ]
                                    ],
                       "id":  "6abd29d6-6fee-4842-aaaa-0569e401cc7c",
                       "name":  "Normalize Payload"
@@ -112,8 +116,10 @@
                       "type":  "n8n-nodes-base.code",
                       "typeVersion":  2,
                       "position":  [
-                                       -672,
-                                       48
+                                       [
+                                           -740,
+                                           300
+                                       ]
                                    ],
                       "id":  "sanitize-inputs-node",
                       "name":  "Sanitize Inputs"
@@ -129,8 +135,10 @@
                       "type":  "n8n-nodes-base.respondToWebhook",
                       "typeVersion":  1.5,
                       "position":  [
-                                       160,
-                                       224
+                                       [
+                                           1900,
+                                           400
+                                       ]
                                    ],
                       "id":  "a62ccbb8-a33a-43b6-9d92-1ae3c898c6e6",
                       "name":  "Respond to Webhook"
@@ -165,8 +173,10 @@
                       "type":  "n8n-nodes-base.if",
                       "typeVersion":  2.3,
                       "position":  [
-                                       -608,
-                                       32
+                                       [
+                                           -300,
+                                           300
+                                       ]
                                    ],
                       "id":  "08847f8e-1f2e-48d3-bcb2-c4be7a79e544",
                       "name":  "Supported Event?"
@@ -201,8 +211,10 @@
                       "type":  "n8n-nodes-base.if",
                       "typeVersion":  2.3,
                       "position":  [
-                                       -400,
-                                       32
+                                       [
+                                           -80,
+                                           300
+                                       ]
                                    ],
                       "id":  "4e34b84b-87f7-441d-8c54-baab41159c6e",
                       "name":  "Incoming Message?"
@@ -218,8 +230,10 @@
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,
                       "position":  [
-                                       -144,
-                                       -16
+                                       [
+                                           580,
+                                           180
+                                       ]
                                    ],
                       "id":  "8cac48da-95b3-4634-8140-dbd1c91777ff",
                       "name":  "Upsert Contact",
@@ -241,8 +255,10 @@
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,
                       "position":  [
-                                       48,
-                                       -16
+                                       [
+                                           800,
+                                           180
+                                       ]
                                    ],
                       "id":  "e5917f5f-4178-4cd7-88c8-c53257de340c",
                       "name":  "Upsert Conversation",
@@ -264,8 +280,10 @@
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,
                       "position":  [
-                                       208,
-                                       -16
+                                       [
+                                           1020,
+                                           180
+                                       ]
                                    ],
                       "id":  "4a9fd90d-ab1f-4549-b453-a3cc0a1fd67b",
                       "name":  "Insert Message",
@@ -287,8 +305,10 @@
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,
                       "position":  [
-                                       -592,
-                                       320
+                                       [
+                                           1460,
+                                           80
+                                       ]
                                    ],
                       "id":  "98647ba8-b5fb-438c-a44f-8868ebd14e9d",
                       "name":  "Update Conversation",
@@ -329,8 +349,10 @@
                       "type":  "n8n-nodes-base.if",
                       "typeVersion":  2.3,
                       "position":  [
-                                       -928,
-                                       288
+                                       [
+                                           -520,
+                                           300
+                                       ]
                                    ],
                       "id":  "45438acd-7d6c-4e0d-a381-9d43dbec823d",
                       "name":  "Status Filter"
@@ -346,8 +368,10 @@
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,
                       "position":  [
-                                       -288,
-                                       288
+                                       [
+                                           1680,
+                                           80
+                                       ]
                                    ],
                       "id":  "46724137-8e8d-473b-955f-a1ae10a7e571",
                       "name":  "Insert Audit Log",
@@ -470,8 +494,10 @@
                       "type":  "n8n-nodes-base.executeWorkflow",
                       "typeVersion":  1.3,
                       "position":  [
-                                       -80,
-                                       336
+                                       [
+                                           1900,
+                                           80
+                                       ]
                                    ],
                       "id":  "1bde1ac4-48b2-4c00-a639-66b2fbce4fe3",
                       "name":  "Call \u0027Workflow 2 - AI Brain\u0027"
@@ -479,19 +505,20 @@
                   {
                       "parameters":  {
                                          "operation":  "executeQuery",
-                                         "query":  "SELECT EXISTS(\n    SELECT 1 FROM businesses b\n    WHERE regexp_replace(b.whatsapp_phone, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) = regexp_replace($1, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027)\n      AND b.deleted_at IS NULL\n) AS is_own_number;",
+                                         "query":  "WITH target AS (\n    SELECT cv.id AS conversation_id\n    FROM contacts c\n    JOIN conversations cv ON cv.contact_id = c.id AND cv.channel = \u0027whatsapp\u0027\n    WHERE c.phone = $1\n    ORDER BY cv.last_message_at DESC NULLS LAST\n    LIMIT 1\n),\necho AS (\n    SELECT EXISTS(\n        SELECT 1\n        FROM messages m\n        WHERE m.conversation_id = (SELECT conversation_id FROM target)\n          AND m.direction = \u0027outgoing\u0027\n          AND m.created_at \u003e NOW() - INTERVAL \u002715 minutes\u0027\n          AND length($2) \u003e 0\n          AND lower(regexp_replace(coalesce(m.text_body, \u0027\u0027), \u0027[^a-zA-Z0-9]+\u0027, \u0027\u0027, \u0027g\u0027)) = $2\n    ) AS is_echo\n),\nown AS (\n    SELECT EXISTS(\n        SELECT 1 FROM businesses b\n        WHERE regexp_replace(b.whatsapp_phone, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) = regexp_replace($1, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027)\n          AND b.deleted_at IS NULL\n    ) AS is_own_number\n)\nSELECT own.is_own_number, echo.is_echo, (own.is_own_number OR echo.is_echo) AS should_block\nFROM own CROSS JOIN echo;",
                                          "options":  {
-
-                                                     },
-                                         "queryReplacement":  "={{ $json.phone }}"
+                                                         "queryReplacement":  "={{ $json.phone }}, {{ ($json.message || \u0027\u0027).replace(/[^a-zA-Z0-9]+/g, \u0027\u0027).toLowerCase() }}"
+                                                     }
                                      },
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,
                       "position":  [
-                                       16,
-                                       224
+                                       [
+                                           140,
+                                           300
+                                       ]
                                    ],
-                      "id":  "6cd03dc0-5001-414a-a816-b8b1d21a7c22",
+                      "id":  "b2d06ff3-044c-4fce-bba2-423d58615a5b",
                       "name":  "Own Number Check",
                       "credentials":  {
                                           "postgres":  {
@@ -511,8 +538,8 @@
                                                                         },
                                                             "conditions":  [
                                                                                {
-                                                                                   "id":  "a79ca119-2e4c-41e1-bc3f-ba4fcb2aa10c",
-                                                                                   "leftValue":  "={{ $json.is_own_number }}",
+                                                                                   "id":  "4ffbe81a-a3df-477b-b1fa-0a507e3de680",
+                                                                                   "leftValue":  "={{ $json.should_block }}",
                                                                                    "rightValue":  false,
                                                                                    "operator":  {
                                                                                                     "type":  "boolean",
@@ -530,10 +557,12 @@
                       "type":  "n8n-nodes-base.if",
                       "typeVersion":  2.3,
                       "position":  [
-                                       224,
-                                       224
+                                       [
+                                           360,
+                                           300
+                                       ]
                                    ],
-                      "id":  "83862c53-efe4-4e68-bfce-235ea1c45c75",
+                      "id":  "86be315f-7345-470f-a9c6-6d7d97abdd12",
                       "name":  "From Our Number?"
                   },
                   {
@@ -547,7 +576,7 @@
                                                                         },
                                                             "conditions":  [
                                                                                {
-                                                                                   "id":  "e5ce7a9e-7938-4404-b211-1397ee6e81e8",
+                                                                                   "id":  "d26ad1d9-2694-429a-bbca-f69fb4036ea8",
                                                                                    "leftValue":  "={{ Boolean($(\u0027Insert Message\u0027).first().json.id) }}",
                                                                                    "rightValue":  true,
                                                                                    "operator":  {
@@ -567,10 +596,12 @@
                       "type":  "n8n-nodes-base.if",
                       "typeVersion":  2.3,
                       "position":  [
-                                       432,
-                                       48
+                                       [
+                                           1240,
+                                           180
+                                       ]
                                    ],
-                      "id":  "a7e0413a-4a75-4521-a587-ff7c83ecb013",
+                      "id":  "ccd0ece0-1c2d-4047-87db-42ccd41234d9",
                       "name":  "Fresh Message?"
                   }
               ],
