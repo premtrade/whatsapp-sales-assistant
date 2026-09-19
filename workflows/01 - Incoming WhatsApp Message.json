@@ -1,634 +1,798 @@
-{
-  "name": "01 - Incoming WhatsApp Message",
-  "nodes": [
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "waha/messages",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        -1040,
-        32
-      ],
-      "id": "fe7c1679-5b12-4522-b635-554a21508af0",
-      "name": "Webhook",
-      "webhookId": "0f0e7983-9c8c-4939-9a83-6c43e2ce9f93"
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "f65aaec1-81d1-43bc-80b5-3d962e67eafb",
-              "name": "event",
-              "value": "={{ String($json.body.event || '').toLowerCase() === 'message.any' ? 'message' : String($json.body.event || '').toLowerCase() }}",
-              "type": "string"
-            },
-            {
-              "id": "1fd24149-38f1-446a-b18b-25631342af1b",
-              "name": "phone",
-              "value": "={{ String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
-              "type": "string"
-            },
-            {
-              "id": "tenant-phone-assignment",
-              "name": "business_phone",
-              "value": "={{ String($json.body.payload.to || $json.body.payload._data?.to || $json.body.to || $json.body.session || 'default') }}",
-              "type": "string"
-            },
-            {
-              "id": "chat-id-assignment",
-              "name": "chat_id",
-              "value": "={{ String($json.body.payload.from || '') }}",
-              "type": "string"
-            },
-            {
-              "id": "81e5b4e9-4de3-4831-a566-ee3d25eeb035",
-              "name": "message",
-              "value": "={{$json.body.payload.body}}",
-              "type": "string"
-            },
-            {
-              "id": "5b6a1563-7010-4be4-b684-8eac4e96722d",
-              "name": "message_id",
-              "value": "={{$json.body.payload._data?.id?._serialized || $json.body.payload.id || ''}}",
-              "type": "string"
-            },
-            {
-              "id": "124eb81e-db7e-437e-9acc-931c3b170677",
-              "name": "customer_name",
-              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"Unknown\" }}",
-              "type": "string"
-            },
-            {
-              "id": "ff18259c-9968-4cc7-84b3-5bc30ec3fcfd",
-              "name": "timestamp",
-              "value": "={{$json.body.payload._data?.t || $json.body.payload.timestamp || $json.body.timestamp || ''}}",
-              "type": "string"
-            },
-            {
-              "id": "30339aaf-2b4e-485c-9c8b-3e82a1800340",
-              "name": "fromMe",
-              "value": "={{$json.body.payload.fromMe}}",
-              "type": "boolean"
-            },
-            {
-              "id": "b555576e-ed58-4fcc-91a0-23c54eac3db7",
-              "name": "hasMedia",
-              "value": "={{$json.body.payload.hasMedia}}",
-              "type": "boolean"
-            },
-            {
-              "id": "7aaa4b98-6e0d-4efa-83c1-e8cea5d5dccc",
-              "name": "source",
-              "value": "whatsapp",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        -864,
-        48
-      ],
-      "id": "6abd29d6-6fee-4842-aaaa-0569e401cc7c",
-      "name": "Normalize Payload"
-    },
-    {
-      "parameters": {
-        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -672,
-        48
-      ],
-      "id": "sanitize-inputs-node",
-      "name": "Sanitize Inputs"
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "{\n  \"status\": \"received\"\n}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        160,
-        224
-      ],
-      "id": "a62ccbb8-a33a-43b6-9d92-1ae3c898c6e6",
-      "name": "Respond to Webhook"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "088a54e1-a89f-4a4b-8a9c-90ff20d7a263",
-              "leftValue": "={{ $json.event }}",
-              "rightValue": "message",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -608,
-        32
-      ],
-      "id": "08847f8e-1f2e-48d3-bcb2-c4be7a79e544",
-      "name": "Supported Event?"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "64403737-4431-4f5d-b2e1-7a406e4009ce",
-              "leftValue": "={{ $json.fromMe }}",
-              "rightValue": "false",
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "looseTypeValidation": true,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -400,
-        32
-      ],
-      "id": "4e34b84b-87f7-441d-8c54-baab41159c6e",
-      "name": "Incoming Message?"
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-         "query": "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, 'whatsapp'\n    FROM businesses b\n    WHERE (regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR b.waha_session_name = $3)\n      AND b.deleted_at IS NULL\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
-        "options": {
-          "queryReplacement": "={{ $json.phone }}, {{ $json.customer_name }}, {{ $json.business_phone }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        -144,
-        -16
-      ],
-      "id": "8cac48da-95b3-4634-8140-dbd1c91777ff",
-      "name": "Upsert Contact",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO conversations (business_id, contact_id, channel, status, last_message_at)\nSELECT business_id, id, 'whatsapp', 'active', NOW()\nFROM contacts\nWHERE id = $1::uuid\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id, business_id;",
-        "options": {
-          "queryReplacement": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        48,
-        -16
-      ],
-      "id": "e5917f5f-4178-4cd7-88c8-c53257de340c",
-      "name": "Upsert Conversation",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, $2, 'incoming', 'customer', 'text', $3::text, jsonb_build_object('event', $4, 'phone', $5, 'customer_name', $6, 'timestamp', $7, 'hasMedia', $8)\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
-        "options": {
-          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        208,
-        -16
-      ],
-      "id": "4a9fd90d-ab1f-4549-b453-a3cc0a1fd67b",
-      "name": "Insert Message",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1\nRETURNING id;",
-        "options": {
-          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        -592,
-        320
-      ],
-      "id": "98647ba8-b5fb-438c-a44f-8868ebd14e9d",
-      "name": "Update Conversation",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "is-real-message",
-              "leftValue": "={{ Boolean($json.message) && !String($json.chat_id || '').startsWith('status@broadcast') }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -928,
-        288
-      ],
-      "id": "45438acd-7d6c-4e0d-a381-9d43dbec823d",
-      "name": "Status Filter"
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (\n    entity_type, entity_id, action, performed_by,\n    performed_by_type, description, new_values, metadata\n)\nVALUES (\n    'conversation', $1, 'message_received', NULL,\n    'system', 'Incoming WhatsApp message received', $2::jsonb,\n    jsonb_build_object('source', 'whatsapp', 'workflow', 'Webhook 1')\n)\nRETURNING id;",
-        "options": {
-          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ JSON.stringify($(\"Normalize Payload\").first().json) }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        -288,
-        288
-      ],
-      "id": "46724137-8e8d-473b-955f-a1ae10a7e571",
-      "name": "Insert Audit Log",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "value": "Workflow 2 - AI Brain",
-          "mode": "name"
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "conversation_id": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}",
-            "contact_id": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}",
-            "phone": "={{ $(\"Normalize Payload\").first().json.phone }}",
-            "chat_id": "={{ $(\"Normalize Payload\").first().json.chat_id }}",
-            "business_id": "={{ $(\"Upsert Contact\").first().json.business_id }}",
-            "customer_name": "={{ $(\"Sanitize Inputs\").first().json.customer_name }}",
-            "message": "={{ $(\"Sanitize Inputs\").first().json.message }}",
-            "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
-            "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
-            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}",
-            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "conversation_id",
-              "displayName": "conversation_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "contact_id",
-              "displayName": "contact_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "phone",
-              "displayName": "phone",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "customer_name",
-              "displayName": "customer_name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "message",
-              "displayName": "message",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "message_id",
-              "displayName": "message_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "hasMedia",
-              "displayName": "hasMedia",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "boolean",
-              "removed": false
-            },
-            {
-              "id": "timestamp",
-              "displayName": "timestamp",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.3,
-      "position": [
-        -80,
-        336
-      ],
-      "id": "1bde1ac4-48b2-4c00-a639-66b2fbce4fe3",
-      "name": "Call 'Workflow 2 - AI Brain'"
-    }
-  ],
-  "pinData": {},
-  "connections": {
-    "Webhook": {
-      "main": [
-        [
-          {
-            "node": "Normalize Payload",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Payload": {
-      "main": [
-        [
-          {
-            "node": "Sanitize Inputs",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Sanitize Inputs": {
-      "main": [
-        [
-          {
-            "node": "Status Filter",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Supported Event?": {
-      "main": [
-        [
-          {
-            "node": "Incoming Message?",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Upsert Contact": {
-      "main": [
-        [
-          {
-            "node": "Upsert Conversation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Incoming Message?": {
-      "main": [
-        [
-          {
-            "node": "Upsert Contact",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Upsert Conversation": {
-      "main": [
-        [
-          {
-            "node": "Insert Message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Insert Message": {
-      "main": [
-        [
-          {
-            "node": "Update Conversation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Conversation": {
-      "main": [
-        [
-          {
-            "node": "Insert Audit Log",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Status Filter": {
-      "main": [
-        [
-          {
-            "node": "Supported Event?",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Insert Audit Log": {
-      "main": [
-        [
-          {
-            "node": "Call 'Workflow 2 - AI Brain'",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Call 'Workflow 2 - AI Brain'": {
-      "main": [
-        []
-      ]
-    }
-  },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": false
-  },
-  "versionId": "915fb283-449c-429c-902e-71acb79ea611",
-  "meta": {
-    "instanceId": "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
-  },
-  "nodeGroups": [],
-  "id": "ynVA2DaOLPRxENc3",
-  "tags": []
+﻿{
+    "name":  "01 - Incoming WhatsApp Message",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "waha/messages",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       -1040,
+                                       32
+                                   ],
+                      "id":  "fe7c1679-5b12-4522-b635-554a21508af0",
+                      "name":  "Webhook",
+                      "webhookId":  "0f0e7983-9c8c-4939-9a83-6c43e2ce9f93"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "f65aaec1-81d1-43bc-80b5-3d962e67eafb",
+                                                                                     "name":  "event",
+                                                                                     "value":  "={{ String($json.body.event || \u0027\u0027).toLowerCase() === \u0027message.any\u0027 ? \u0027message\u0027 : String($json.body.event || \u0027\u0027).toLowerCase() }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1fd24149-38f1-446a-b18b-25631342af1b",
+                                                                                     "name":  "phone",
+                                                                                     "value":  "={{ String($json.body.payload.from || \u0027\u0027).split(\u0027@\u0027)[0].replace(/^\\+/, \u0027\u0027) }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "tenant-phone-assignment",
+                                                                                     "name":  "business_phone",
+                                                                                     "value":  "={{ String($json.body.payload.to || $json.body.payload._data?.to || $json.body.to || $json.body.session || \u0027default\u0027) }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "chat-id-assignment",
+                                                                                     "name":  "chat_id",
+                                                                                     "value":  "={{ String($json.body.payload.from || \u0027\u0027) }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "81e5b4e9-4de3-4831-a566-ee3d25eeb035",
+                                                                                     "name":  "message",
+                                                                                     "value":  "={{$json.body.payload.body}}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "5b6a1563-7010-4be4-b684-8eac4e96722d",
+                                                                                     "name":  "message_id",
+                                                                                     "value":  "={{$json.body.payload._data?.id?._serialized || $json.body.payload.id || \u0027\u0027}}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "124eb81e-db7e-437e-9acc-931c3b170677",
+                                                                                     "name":  "customer_name",
+                                                                                     "value":  "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"Unknown\" }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "ff18259c-9968-4cc7-84b3-5bc30ec3fcfd",
+                                                                                     "name":  "timestamp",
+                                                                                     "value":  "={{$json.body.payload._data?.t || $json.body.payload.timestamp || $json.body.timestamp || \u0027\u0027}}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "30339aaf-2b4e-485c-9c8b-3e82a1800340",
+                                                                                     "name":  "fromMe",
+                                                                                     "value":  "={{$json.body.payload.fromMe}}",
+                                                                                     "type":  "boolean"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "b555576e-ed58-4fcc-91a0-23c54eac3db7",
+                                                                                     "name":  "hasMedia",
+                                                                                     "value":  "={{$json.body.payload.hasMedia}}",
+                                                                                     "type":  "boolean"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "7aaa4b98-6e0d-4efa-83c1-e8cea5d5dccc",
+                                                                                     "name":  "source",
+                                                                                     "value":  "whatsapp",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.5,
+                      "position":  [
+                                       -864,
+                                       48
+                                   ],
+                      "id":  "6abd29d6-6fee-4842-aaaa-0569e401cc7c",
+                      "name":  "Normalize Payload"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const item = $input.first()?.json || {};\nconst sanitize = (str) =\u003e typeof str === \u0027string\u0027 ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, \u0027\u0027) : str;\nconst messageId = item.message_id || \u0027xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx\u0027.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === \u0027x\u0027 ? r : (r \u0026 0x3 | 0x8); return v.toString(16); });\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -672,
+                                       48
+                                   ],
+                      "id":  "sanitize-inputs-node",
+                      "name":  "Sanitize Inputs"
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "{\n  \"status\": \"received\"\n}",
+                                         "options":  {
+                                                         "responseCode":  200
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       160,
+                                       224
+                                   ],
+                      "id":  "a62ccbb8-a33a-43b6-9d92-1ae3c898c6e6",
+                      "name":  "Respond to Webhook"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "088a54e1-a89f-4a4b-8a9c-90ff20d7a263",
+                                                                                   "leftValue":  "={{ $json.event }}",
+                                                                                   "rightValue":  "message",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "equals",
+                                                                                                    "name":  "filter.operator.equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -608,
+                                       32
+                                   ],
+                      "id":  "08847f8e-1f2e-48d3-bcb2-c4be7a79e544",
+                      "name":  "Supported Event?"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "64403737-4431-4f5d-b2e1-7a406e4009ce",
+                                                                                   "leftValue":  "={{ $json.fromMe }}",
+                                                                                   "rightValue":  "false",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -400,
+                                       32
+                                   ],
+                      "id":  "4e34b84b-87f7-441d-8c54-baab41159c6e",
+                      "name":  "Incoming Message?"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, \u0027whatsapp\u0027\n    FROM businesses b\n    WHERE (regexp_replace(b.whatsapp_phone, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) = regexp_replace(split_part($3, \u0027@\u0027, 1), \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) OR b.waha_session_name = $3)\n      AND b.deleted_at IS NULL\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ $json.phone }}, {{ $json.customer_name }}, {{ $json.business_phone }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       -144,
+                                       -16
+                                   ],
+                      "id":  "8cac48da-95b3-4634-8140-dbd1c91777ff",
+                      "name":  "Upsert Contact",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO conversations (business_id, contact_id, channel, status, last_message_at)\nSELECT business_id, id, \u0027whatsapp\u0027, \u0027active\u0027, NOW()\nFROM contacts\nWHERE id = $1::uuid\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id, business_id;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       48,
+                                       -16
+                                   ],
+                      "id":  "e5917f5f-4178-4cd7-88c8-c53257de340c",
+                      "name":  "Upsert Conversation",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, $2, \u0027incoming\u0027, \u0027customer\u0027, \u0027text\u0027, $3::text, jsonb_build_object(\u0027event\u0027, $4, \u0027phone\u0027, $5, \u0027customer_name\u0027, $6, \u0027timestamp\u0027, $7, \u0027hasMedia\u0027, $8)\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       208,
+                                       -16
+                                   ],
+                      "id":  "4a9fd90d-ab1f-4549-b453-a3cc0a1fd67b",
+                      "name":  "Insert Message",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1\nRETURNING id;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       -592,
+                                       320
+                                   ],
+                      "id":  "98647ba8-b5fb-438c-a44f-8868ebd14e9d",
+                      "name":  "Update Conversation",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "is-real-message",
+                                                                                   "leftValue":  "={{ Boolean($json.message) \u0026\u0026 !String($json.chat_id || \u0027\u0027).startsWith(\u0027status@broadcast\u0027) }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -928,
+                                       288
+                                   ],
+                      "id":  "45438acd-7d6c-4e0d-a381-9d43dbec823d",
+                      "name":  "Status Filter"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO audit_logs (\n    entity_type, entity_id, action, performed_by,\n    performed_by_type, description, new_values, metadata\n)\nVALUES (\n    \u0027conversation\u0027, $1, \u0027message_received\u0027, NULL,\n    \u0027system\u0027, \u0027Incoming WhatsApp message received\u0027, $2::jsonb,\n    jsonb_build_object(\u0027source\u0027, \u0027whatsapp\u0027, \u0027workflow\u0027, \u0027Webhook 1\u0027)\n)\nRETURNING id;",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ JSON.stringify($(\"Normalize Payload\").first().json) }}"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       -288,
+                                       288
+                                   ],
+                      "id":  "46724137-8e8d-473b-955f-a1ae10a7e571",
+                      "name":  "Insert Audit Log",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "workflowId":  {
+                                                            "__rl":  true,
+                                                            "value":  "Workflow 2 - AI Brain",
+                                                            "mode":  "name"
+                                                        },
+                                         "workflowInputs":  {
+                                                                "mappingMode":  "defineBelow",
+                                                                "value":  {
+                                                                              "conversation_id":  "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}",
+                                                                              "contact_id":  "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}",
+                                                                              "phone":  "={{ $(\"Normalize Payload\").first().json.phone }}",
+                                                                              "chat_id":  "={{ $(\"Normalize Payload\").first().json.chat_id }}",
+                                                                              "business_id":  "={{ $(\"Upsert Contact\").first().json.business_id }}",
+                                                                              "customer_name":  "={{ $(\"Sanitize Inputs\").first().json.customer_name }}",
+                                                                              "message":  "={{ $(\"Sanitize Inputs\").first().json.message }}",
+                                                                              "timestamp":  "={{ $(\"Normalize Payload\").first().json.timestamp }}",
+                                                                              "hasMedia":  "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
+                                                                              "message_id":  "={{ $(\u0027Sanitize Inputs\u0027).first().json.message_id }}",
+                                                                              "session":  "={{ $(\u0027Upsert Contact\u0027).first().json.waha_session_name || \u0027default\u0027 }}"
+                                                                          },
+                                                                "matchingColumns":  [
+
+                                                                                    ],
+                                                                "schema":  [
+                                                                               {
+                                                                                   "id":  "conversation_id",
+                                                                                   "displayName":  "conversation_id",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string"
+                                                                               },
+                                                                               {
+                                                                                   "id":  "contact_id",
+                                                                                   "displayName":  "contact_id",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string"
+                                                                               },
+                                                                               {
+                                                                                   "id":  "phone",
+                                                                                   "displayName":  "phone",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string"
+                                                                               },
+                                                                               {
+                                                                                   "id":  "customer_name",
+                                                                                   "displayName":  "customer_name",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string"
+                                                                               },
+                                                                               {
+                                                                                   "id":  "message",
+                                                                                   "displayName":  "message",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string"
+                                                                               },
+                                                                               {
+                                                                                   "id":  "message_id",
+                                                                                   "displayName":  "message_id",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string",
+                                                                                   "removed":  false
+                                                                               },
+                                                                               {
+                                                                                   "id":  "hasMedia",
+                                                                                   "displayName":  "hasMedia",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "boolean",
+                                                                                   "removed":  false
+                                                                               },
+                                                                               {
+                                                                                   "id":  "timestamp",
+                                                                                   "displayName":  "timestamp",
+                                                                                   "required":  false,
+                                                                                   "defaultMatch":  false,
+                                                                                   "display":  true,
+                                                                                   "canBeUsedToMatch":  true,
+                                                                                   "type":  "string",
+                                                                                   "removed":  false
+                                                                               }
+                                                                           ],
+                                                                "attemptToConvertTypes":  false,
+                                                                "convertFieldsToString":  true
+                                                            },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.executeWorkflow",
+                      "typeVersion":  1.3,
+                      "position":  [
+                                       -80,
+                                       336
+                                   ],
+                      "id":  "1bde1ac4-48b2-4c00-a639-66b2fbce4fe3",
+                      "name":  "Call \u0027Workflow 2 - AI Brain\u0027"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "SELECT EXISTS(\n    SELECT 1 FROM businesses b\n    WHERE regexp_replace(b.whatsapp_phone, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) = regexp_replace($1, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027)\n      AND b.deleted_at IS NULL\n) AS is_own_number;",
+                                         "options":  {
+
+                                                     },
+                                         "queryReplacement":  "={{ $json.phone }}"
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.7,
+                      "position":  [
+                                       16,
+                                       224
+                                   ],
+                      "id":  "6cd03dc0-5001-414a-a816-b8b1d21a7c22",
+                      "name":  "Own Number Check",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "tOjZeRRL1hW2zbUk",
+                                                           "name":  "Postgres account"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "a79ca119-2e4c-41e1-bc3f-ba4fcb2aa10c",
+                                                                                   "leftValue":  "={{ $json.is_own_number }}",
+                                                                                   "rightValue":  false,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       224,
+                                       224
+                                   ],
+                      "id":  "83862c53-efe4-4e68-bfce-235ea1c45c75",
+                      "name":  "From Our Number?"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "e5ce7a9e-7938-4404-b211-1397ee6e81e8",
+                                                                                   "leftValue":  "={{ Boolean($(\u0027Insert Message\u0027).first().json.id) }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "looseTypeValidation":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       432,
+                                       48
+                                   ],
+                      "id":  "a7e0413a-4a75-4521-a587-ff7c83ecb013",
+                      "name":  "Fresh Message?"
+                  }
+              ],
+    "pinData":  {
+
+                },
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Normalize Payload",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Normalize Payload":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Sanitize Inputs",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Sanitize Inputs":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Status Filter",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Supported Event?":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Incoming Message?",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "Respond to Webhook",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Upsert Contact":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Upsert Conversation",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Incoming Message?":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Own Number Check",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ],
+                                                               [
+                                                                   {
+                                                                       "node":  "Respond to Webhook",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Upsert Conversation":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Insert Message",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Insert Message":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Fresh Message?",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Update Conversation":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Insert Audit Log",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Status Filter":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Supported Event?",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ],
+                                                           [
+                                                               {
+                                                                   "node":  "Respond to Webhook",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Insert Audit Log":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Call \u0027Workflow 2 - AI Brain\u0027",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  },
+                                                                  {
+                                                                      "node":  "Respond to Webhook",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Call \u0027Workflow 2 - AI Brain\u0027":  {
+                                                                       "main":  [
+                                                                                    [
+
+                                                                                    ]
+                                                                                ]
+                                                                   },
+                        "Own Number Check":  {
+                                                 "main":  [
+                                                              {
+                                                                  "node":  "From Our Number?",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                             },
+                        "From Our Number?":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Upsert Contact",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "Respond to Webhook",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Fresh Message?":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Update Conversation",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ],
+                                                            [
+                                                                {
+                                                                    "node":  "Respond to Webhook",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           }
+                    },
+    "active":  true,
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate",
+                     "availableInMCP":  false
+                 },
+    "versionId":  "915fb283-449c-429c-902e-71acb79ea611",
+    "meta":  {
+                 "instanceId":  "9d6294969b4aab7398d348c183a1270c2919bd6d1536617edc180779bb05a94f"
+             },
+    "nodeGroups":  [
+
+                   ],
+    "id":  "ynVA2DaOLPRxENc3",
+    "tags":  [
+
+             ]
 }
