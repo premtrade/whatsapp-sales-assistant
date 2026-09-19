@@ -31,11 +31,11 @@ export function QuotesPage() {
         title="Quotes"
         subtitle="Track and manage customer quotes"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="input w-auto"
+              className="input w-full sm:w-auto"
             >
               <option value="">All Statuses</option>
               <option value="draft">Draft</option>
@@ -45,7 +45,7 @@ export function QuotesPage() {
               <option value="expired">Expired</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <SearchInput
                 value={search}
                 onChange={setSearch}
@@ -63,8 +63,8 @@ export function QuotesPage() {
         ) : quotes.length === 0 ? (
           <EmptyState icon={<NoDataIcon />} title="No quotes found" description="Quotes will appear here when created." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-0">
+            <table className="w-full min-w-[560px]">
               <thead>
                 <tr className="border-b border-surface-100">
                   <th className="table-header">Quote #</th>
@@ -116,7 +116,7 @@ export function QuotesPage() {
       {selectedQuote && (
         <Modal isOpen={!!selectedQuote} onClose={() => setSelectedQuote(null)} title={`Quote ${selectedQuote.quote_number}`} size="lg">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-medium text-surface-400">Customer</p>
                 <p className="text-sm text-surface-800">{selectedQuote.contact?.display_name || 'Unknown'}</p>
@@ -159,8 +159,8 @@ export function QuotesPage() {
                 <p className="text-sm text-surface-700">{selectedQuote.notes}</p>
               </div>
             )}
-            <div className="flex justify-end pt-4">
-              <button onClick={() => setSelectedQuote(null)} className="btn-secondary">Close</button>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
+              <button onClick={() => setSelectedQuote(null)} className="btn-secondary touch-target w-full sm:w-auto">Close</button>
             </div>
           </div>
         </Modal>

@@ -48,8 +48,9 @@ export function DashboardPage() {
       {statsLoading ? (
         <LoadingState type="card" count={6} />
       ) : stats ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
           <MetricCard
+            className="p-4 sm:p-5"
             title="Active Conversations"
             value={stats.conversations.active}
             onClick={() => navigate('/inbox')}
@@ -112,7 +113,7 @@ export function DashboardPage() {
       ) : null}
 
       {/* Conversation Activity Chart */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         <div className="card p-5">
           <h3 className="text-sm font-semibold text-surface-800 mb-4">Conversation Activity (30 days)</h3>
           {statsLoading ? (

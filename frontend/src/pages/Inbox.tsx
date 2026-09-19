@@ -35,15 +35,15 @@ export function InboxPage() {
     <div className="animate-fade-in">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-surface-900">Inbox</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900">Inbox</h1>
           <p className="text-sm text-surface-500 mt-0.5">Manage customer conversations</p>
         </div>
       </div>
 
       <div className="card overflow-hidden">
-        <div className="flex h-[calc(100vh-12rem)]">
+        <div className="flex h-[calc(100dvh-13rem)] sm:h-[calc(100vh-12rem)]">
           {/* Left: Conversation List */}
-          <div className="w-full max-w-sm border-r border-surface-200 flex flex-col">
+          <div className="w-full sm:max-w-sm sm:border-r border-surface-200 flex flex-col min-w-0">
             {/* Search & Filters */}
             <div className="p-3 border-b border-surface-100 space-y-2">
               <SearchInput
@@ -80,7 +80,7 @@ export function InboxPage() {
                   <button
                     key={conv.id}
                     onClick={() => navigate(`/inbox/${conv.id}`)}
-                    className="w-full px-4 py-3 flex items-start gap-3 hover:bg-surface-50 transition-colors text-left border-b border-surface-50"
+                    className="touch-target w-full px-4 py-3 flex items-start gap-3 hover:bg-surface-50 active:bg-surface-100 transition-colors text-left border-b border-surface-50"
                   >
                     <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-semibold shrink-0">
                       {conv.contact?.display_name?.charAt(0) || conv.contact?.phone?.charAt(0) || '?'}
@@ -108,7 +108,7 @@ export function InboxPage() {
           </div>
 
           {/* Empty state for no selected conversation */}
-          <div className="flex-1 hidden lg:flex items-center justify-center bg-surface-50">
+          <div className="flex-1 min-h-[180px] hidden sm:flex items-center justify-center bg-surface-50">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mx-auto mb-4">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">

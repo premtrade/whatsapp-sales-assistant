@@ -20,9 +20,10 @@ const navigation = [
 interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
+  onNavigate?: () => void
 }
 
-export function Sidebar({ isOpen, onToggle }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const { staff, logout } = useAuth()
@@ -50,14 +51,15 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
     <>
       {/* Mobile backdrop - only show when mobile and sidebar open */}
       {isMobile && isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40" onClick={onToggle} />
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onToggle} aria-hidden="true" />
       )}
 
       {/* Sidebar */}
       <aside
+        aria-hidden={!isDesktop() && !isOpen ? true : undefined}
         className={`
           fixed inset-y-0 left-0 z-50 flex flex-col bg-surface-950 border-r border-surface-800 transition-all duration-200 ease-in-out
-          ${isDesktop() ? (collapsed ? 'w-16' : 'w-60') : isOpen ? 'translate-x-0 w-64' : '-translate-x-full'}
+          ${isDesktop() ? (collapsed ? 'w-16' : 'w-60') : isOpen ? 'translate-x-0 w-[85vw] max-w-72' : '-translate-x-full w-[85vw] max-w-72'}
           ${isDesktop() ? '' : 'transform transition-transform duration-200'}
         `}
       >
@@ -84,6 +86,9 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             <NavLink
               key={item.name}
               to={item.href}
+              onClick={() => {
+                if (!isDesktop()) onNavigate?.()
+              }}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-100 ${
                   isActive

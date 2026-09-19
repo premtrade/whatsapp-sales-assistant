@@ -67,12 +67,22 @@ export function LeadsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <PageHeader
         title="Sales Pipeline"
         subtitle="Track leads through your sales process"
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <div className="flex sm:hidden items-center gap-4 mr-auto">
+              <div className="text-left">
+                <p className="text-[11px] text-surface-400">Active</p>
+                <p className="text-base font-semibold text-surface-800 tabular-nums">{totalPipelineValue}</p>
+              </div>
+              <div className="text-left">
+                <p className="text-[11px] text-surface-400">Qualified</p>
+                <p className="text-base font-semibold text-warning-600 tabular-nums">{qualifiedLeads}</p>
+              </div>
+            </div>
             <div className="hidden sm:flex items-center gap-4 mr-4">
               <div className="text-right">
                 <p className="text-xs text-surface-400">Active Leads</p>
@@ -83,10 +93,11 @@ export function LeadsPage() {
                 <p className="text-lg font-semibold text-warning-600">{qualifiedLeads}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 bg-surface-100 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-surface-100 rounded-lg p-0.5 ml-auto sm:ml-0">
               <button
                 onClick={() => setView('pipeline')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                aria-pressed={view === 'pipeline'}
+                className={`touch-target px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   view === 'pipeline' ? 'bg-white text-surface-800 shadow-sm' : 'text-surface-500'
                 }`}
               >
@@ -94,7 +105,8 @@ export function LeadsPage() {
               </button>
               <button
                 onClick={() => setView('list')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                aria-pressed={view === 'list'}
+                className={`touch-target px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   view === 'list' ? 'bg-white text-surface-800 shadow-sm' : 'text-surface-500'
                 }`}
               >
@@ -112,11 +124,11 @@ export function LeadsPage() {
           <EmptyState icon={<NoDataIcon />} title="No leads yet" description="Leads will appear here when customers start conversations." />
         </div>
       ) : view === 'pipeline' ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="flex sm:grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 sm:pb-0">
           {leadStages.map((stage) => {
             const stageConversations = conversations.filter((c) => c.status === stage.id)
             return (
-              <div key={stage.id} className="card flex flex-col">
+              <div key={stage.id} className="card flex flex-col min-w-[78vw] sm:min-w-0 snap-start">
                 <div className="px-4 py-3 border-b border-surface-100">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
@@ -139,7 +151,7 @@ export function LeadsPage() {
                         <button
                           key={conv.id}
                           onClick={() => navigate(`/inbox/${conv.id}`)}
-                          className="w-full p-3 rounded-lg border border-surface-100 hover:border-primary-200 hover:bg-primary-50/30 transition-colors text-left group"
+                          className="touch-target w-full p-3 rounded-lg border border-surface-100 hover:border-primary-200 hover:bg-primary-50/30 active:bg-primary-50 transition-colors text-left group"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">

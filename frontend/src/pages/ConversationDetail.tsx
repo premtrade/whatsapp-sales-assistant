@@ -83,7 +83,7 @@ export function ConversationDetailPage() {
   const contact = conversation?.contact
 
   return (
-    <div className="animate-fade-in h-[calc(100vh-8rem)]">
+    <div className="animate-fade-in h-[calc(100dvh-9rem)] sm:h-[calc(100vh-8rem)]">
       <div className="card overflow-hidden h-full flex">
         {/* Center: Conversation Thread */}
         <div className="flex-1 flex flex-col min-w-0">
@@ -168,28 +168,55 @@ export function ConversationDetailPage() {
           </div>
 
           {/* Message Input */}
-          <form onSubmit={handleSend} className="px-4 py-3 border-t border-surface-200 flex items-center gap-2 shrink-0 bg-white">
+          <form onSubmit={handleSend} className="px-3 py-3 sm:px-4 border-t border-surface-200 flex items-center gap-2 shrink-0 bg-white safe-area-bottom">
             <input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1 px-4 py-2.5 text-sm border border-surface-200 rounded-lg bg-surface-50 text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-colors"
+              autoComplete="off"
+              enterKeyHint="send"
+              className="flex-1 min-w-0 px-4 py-2.5 text-base sm:text-sm border border-surface-200 rounded-full bg-surface-50 text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-colors"
             />
             <button
               type="submit"
               disabled={!newMessage.trim() || sendMutation.isPending}
-              className="px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="Send message"
+              className="touch-target shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {sendMutation.isPending ? 'Sending...' : 'Send'}
+              {sendMutation.isPending ? (
+                <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden="true" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              )}
             </button>
           </form>
         </div>
 
-        {/* Right: Customer Context Panel */}
+        {/* Right: Customer Context Panel — inline on desktop, slide-over drawer on mobile */}
         {showContext && (
-          <div className="w-80 border-l border-surface-200 overflow-y-auto scrollbar-thin hidden lg:block shrink-0">
-            <div className="p-4 space-y-5">
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+              onClick={() => setShowContext(false)}
+              aria-hidden="true"
+            />
+            <div className="fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm border-l border-surface-200 bg-white overflow-y-auto scrollbar-thin lg:static lg:z-auto lg:w-80 lg:max-w-none lg:block shrink-0 animate-slide-in">
+              <div className="sticky top-0 flex items-center justify-between bg-white/95 backdrop-blur px-4 py-3 border-b border-surface-100 lg:hidden">
+                <p className="text-sm font-semibold text-surface-800">Customer context</p>
+                <button
+                  onClick={() => setShowContext(false)}
+                  aria-label="Close customer context"
+                  className="touch-target p-2 -m-1 text-surface-500 hover:text-surface-800"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            <div className="p-4 pb-6 space-y-5">
               {/* Customer Info */}
               <div>
                 <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Customer</h3>
@@ -294,31 +321,32 @@ export function ConversationDetailPage() {
               </div>
 
               {/* Actions */}
-              <div>
+              <div className="pb-2">
                 <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Actions</h3>
                 <div className="space-y-2">
                   <button
                     onClick={() => statusMutation.mutate('waiting_agent')}
-                    className="w-full px-3 py-2 text-xs font-medium text-surface-700 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors text-left"
+                    className="touch-target w-full px-3 py-2.5 text-xs font-medium text-surface-700 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors text-left"
                   >
                     Mark as Waiting
                   </button>
                   <button
                     onClick={() => statusMutation.mutate('closed')}
-                    className="w-full px-3 py-2 text-xs font-medium text-surface-700 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors text-left"
+                    className="touch-target w-full px-3 py-2.5 text-xs font-medium text-surface-700 bg-surface-100 hover:bg-surface-200 rounded-lg transition-colors text-left"
                   >
                     Mark Resolved
                   </button>
                   <button
                     onClick={() => navigate(`/customers/${contact?.id}`)}
-                    className="w-full px-3 py-2 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors text-left"
+                    className="touch-target w-full px-3 py-2.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors text-left"
                   >
                     View Customer Profile
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -332,7 +360,7 @@ function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div className={`flex ${isIncoming ? 'justify-start' : 'justify-end'} mb-2`}>
-      <div className={`max-w-[75%] ${isIncoming ? 'order-2' : 'order-1'}`}>
+      <div className={`max-w-[88%] sm:max-w-[75%] ${isIncoming ? 'order-2' : 'order-1'}`}>
         {/* Sender label */}
         <div className={`flex items-center gap-1.5 mb-1 ${isIncoming ? 'justify-start' : 'justify-end'}`}>
           {isAi && (

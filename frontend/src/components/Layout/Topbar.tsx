@@ -51,7 +51,7 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
       </div>
 
       {/* Search */}
-      <div className="flex-1 max-w-xl" ref={searchRef}>
+      <div className="flex-1 min-w-0 max-w-xl" ref={searchRef}>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg className="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,12 +59,15 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
             </svg>
           </div>
           <input
-            type="text"
+            type="search"
+            inputMode="search"
+            autoComplete="off"
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true) }}
             onFocus={() => setSearchOpen(true)}
-            placeholder="Search conversations, customers, quotes..."
-            className="w-full pl-10 pr-4 py-2 text-sm border border-surface-200 rounded-lg bg-surface-50 text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-colors"
+            placeholder="Search…"
+            aria-label="Search conversations, customers, quotes"
+            className="w-full min-w-0 pl-10 pr-9 py-2.5 text-base sm:text-sm border border-surface-200 rounded-lg bg-surface-50 text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-colors"
           />
           {searchQuery && (
             <button
@@ -90,7 +93,7 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-3 ml-4">
+      <div className="flex items-center gap-1.5 sm:gap-3 ml-2 sm:ml-4 shrink-0">
         {/* Connection status */}
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-50">
           <span className={`w-2 h-2 rounded-full ${statusColor} ${isConnected ? 'animate-pulse' : ''}`} />
@@ -98,7 +101,7 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
         </div>
 
         {/* Notifications */}
-        <button className="relative p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors">
+        <button aria-label="Notifications" className="touch-target relative p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
@@ -109,7 +112,9 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
         <div className="relative">
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 p-1.5 hover:bg-surface-100 rounded-lg transition-colors"
+            className="flex items-center gap-2 p-1.5 hover:bg-surface-100 rounded-lg transition-colors touch-target"
+            aria-label="Account menu"
+            aria-expanded={showProfileMenu}
           >
             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-xs font-semibold">
               {staff?.display_name?.charAt(0) || staff?.first_name?.charAt(0) || 'U'}
