@@ -224,7 +224,7 @@
                                          "operation":  "executeQuery",
                                          "query":  "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, \u0027whatsapp\u0027\n    FROM businesses b\n    WHERE (regexp_replace(b.whatsapp_phone, \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) = regexp_replace(split_part($3, \u0027@\u0027, 1), \u0027[^0-9]\u0027, \u0027\u0027, \u0027g\u0027) OR b.waha_session_name = $3)\n      AND b.deleted_at IS NULL\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
                                          "options":  {
-                                                         "queryReplacement":  "={{ $json.phone }}, {{ $json.customer_name }}, {{ $json.business_phone }}"
+                                                         "queryReplacement":  "={{ $(\u0027Sanitize Inputs\u0027).first().json.phone }}, {{ $(\u0027Sanitize Inputs\u0027).first().json.customer_name }}, {{ $(\u0027Sanitize Inputs\u0027).first().json.business_phone }}"
                                                      }
                                      },
                       "type":  "n8n-nodes-base.postgres",
