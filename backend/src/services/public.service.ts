@@ -1,4 +1,5 @@
 import { query } from '../utils/database';
+import jwt from 'jsonwebtoken';
 import { hashPassword } from './auth.service';
 import { createBusiness, getBusinessBySlug, getBusinessByWhatsAppPhone, Business } from './business.service';
 import { NotFoundError, ConflictError, BadRequestError } from '../utils/errors';
@@ -158,7 +159,6 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
     }
   }
 
-  const jwt = require('jsonwebtoken');
   const token = jwt.sign(
     {
       userId: staff.id,

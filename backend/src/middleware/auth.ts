@@ -46,7 +46,7 @@ export const authenticate = async (
     const userRole = (decoded.role as string) || dbUser.role || '';
 
     let effectiveTenantId = dbUser.business_id || tokenBusinessId;
-    let impersonated = false;
+    const impersonated = false;
 
     if (userRole === 'super_admin' && headerTenantId) {
       // Verify the target tenant exists

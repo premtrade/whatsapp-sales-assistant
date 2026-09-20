@@ -93,12 +93,16 @@ export async function createAuditLog(
   userAgent?: string,
   businessId?: string
 ): Promise<void> {
-  try {
-    const resolvedTenant = businessId || (metadata?.business_id as string) || (metadata?.tenantId as string) || null;
-    if (!resolvedTenant) {
-      throw new BadRequestError('businessId is required for audit logging');
-    }
+  // Validate tenant BEFORE the try/catch: a missing businessId is a programming
+  // error and must propagate to the caller (and its test), while DB/runtime
+  // failures inside try are logged and swallowed so audit failures never break
+  // the request flow.
+  const resolvedTenant = businessId || (metadata?.business_id as string) || (metadata?.tenantId as string) || null;
+  if (!resolvedTenant) {
+    throw new BadRequestError('businessId is required for audit logging');
+  }
 
+  try {
     await query(
       `INSERT INTO audit_logs (entity_type, action, performed_by, performed_by_type, description, old_values, new_values, metadata, ip_address, user_agent, business_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -118,6 +122,7 @@ export async function createAuditLog(
     );
   } catch (error) {
     logger.error('Failed to create audit log', { error });
-    // Don't throw the error to avoid breaking the request due to audit logging failure
+    // Genuine DB failures are logged and swallowed so audit logging never
+    // breaks the request flow.
   }
 }
