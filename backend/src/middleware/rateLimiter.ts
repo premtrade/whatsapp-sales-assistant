@@ -7,6 +7,8 @@ export const apiRateLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  // Health checks must never be rate-limited — uptime monitors poll frequently
+  skip: (req) => req.path === '/health',
   handler: (req, res) => {
     logger.warn('Rate limit exceeded', {
       ip: req.ip,
