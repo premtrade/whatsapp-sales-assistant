@@ -11,6 +11,10 @@ env:
   IMAGE_BACKEND: ${{ github.repository }}-backend
   IMAGE_FRONTEND: ${{ github.repository }}-frontend
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   lint:
     name: Lint
