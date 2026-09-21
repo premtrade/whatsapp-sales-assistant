@@ -203,7 +203,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
 
     environment:
       WHATSAPP_DEFAULT_ENGINE: NOWEB

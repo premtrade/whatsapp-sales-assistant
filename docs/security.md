@@ -46,6 +46,30 @@
 
 ## 4. WAHA Security
 
+### Network exposure (multi-tenant deployments)
+
+WAHA must **never** be reachable from the public internet. All internal callers
+(backend, n8n) reach WAHA over the private Docker network at `http://waha:3000`,
+so the host port binding exists only for operator dashboard access:
+
+- `docker-compose.yml` binds `127.0.0.1:3001:3000` (localhost-only)
+- `docker-compose.prod.yml` binds `127.0.0.1:3000:3000` (localhost-only)
+
+To open the WAHA dashboard from your workstation, use an SSH tunnel instead of a
+public port:
+
+```
+ssh -L 3001:127.0.0.1:3001 root@<droplet-ip>
+# then open http://localhost:3001
+```
+
+Note: `businesses.waha_session_name` (e.g. `waha-<slug>`) is the per-tenant
+session. The backend resolves it for every send (`sendWahaText`) and for
+self-service QR linking (`POST /api/whatsapp/connect`, `GET /api/whatsapp/status`
+auto-provisions the session). Do not route tenant traffic through the global
+`default` session.
+
+
 ### API Key Protection
 - `WAHA_API_KEY` is passed via n8n's `$env.WAHA_API_KEY` expression, never hardcoded.
 - The WAHA dashboard credentials (`WAHA_USERNAME`, `WAHA_PASSWORD`) should be strong.

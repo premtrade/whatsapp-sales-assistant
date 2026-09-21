@@ -1,6 +1,7 @@
 import { config } from '../config';
 import { getSettingByKey, getSettings } from './settings.service';
 import { getBusinessById } from './business.service';
+import { getWahaSessionInfo, ensureWahaSession } from './waha.service';
 import logger from '../utils/logger';
 
 interface WAHASessionResponse {
@@ -54,6 +55,10 @@ async function resolveWahaSession(tenantId: string): Promise<string> {
   } catch {
     return config.waha.session || 'default';
   }
+}
+
+export async function getTenantWahaSession(tenantId: string): Promise<string> {
+  return resolveWahaSession(tenantId);
 }
 
 export async function getWhatsAppConfig(tenantId: string): Promise<WhatsAppConfig> {
@@ -141,35 +146,48 @@ export async function getWhatsAppStatus(tenantId: string): Promise<WhatsAppStatu
   const businessNameSetting = await getSettingByKey('whatsapp_business_name', tenantId).catch(() => null);
   const businessIdSetting = await getSettingByKey('whatsapp_business_id', tenantId).catch(() => null);
 
+  const session = await resolveWahaSession(tenantId);
+
   let connected = false;
   let qrCode: string | undefined;
+  let info = await getWahaSessionInfo(session).catch(() => null);
 
-  try {
-    const baseUrl = `http://${config.waha.host}:${config.waha.port}`;
-    const session = await resolveWahaSession(tenantId);
-
-    const sessionRes = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(session)}`, {
-      headers: { 'X-Api-Key': config.waha.apiKey },
-    });
-
-    if (sessionRes.ok) {
-      const sessionData = await sessionRes.json() as WAHASessionResponse;
-      connected = sessionData.status === 'WORKING';
-      if (sessionData.qr) {
-        qrCode = sessionData.qr;
-      }
+  // Self-service provisioning: if the tenant's session does not exist yet in
+  // WAHA, create + start it so the QR flow can proceed without operator help.
+  if (!info) {
+    try {
+      info = await ensureWahaSession(session);
+      logger.info('Auto-provisioned WAHA session for tenant', { tenantId, session });
+    } catch (error) {
+      logger.warn('Failed to auto-provision WAHA session', { tenantId, session, error });
     }
-  } catch (error) {
-    logger.warn('Failed to fetch WAHA session status', { error });
+  }
+
+  if (info) {
+    connected = info.status === 'WORKING';
+    if (info.qr) {
+      qrCode = info.qr;
+    }
   }
 
   return {
     connected,
-    session: await resolveWahaSession(tenantId),
+    session,
     phoneNumber: phoneNumberSetting?.setting_value || '',
     businessName: businessNameSetting?.setting_value || '',
     qrCode,
   };
+}
+
+export async function connectWhatsAppSession(tenantId: string): Promise<WhatsAppStatus> {
+  const session = await resolveWahaSession(tenantId);
+  try {
+    await ensureWahaSession(session);
+    logger.info('WhatsApp connect requested for tenant', { tenantId, session });
+  } catch (error) {
+    logger.error('Failed to ensure WAHA session on connect', { tenantId, session, error });
+  }
+  return getWhatsAppStatus(tenantId);
 }
 
 export async function testWhatsAppConnection(tenantId: string): Promise<{ success: boolean; message: string }> {

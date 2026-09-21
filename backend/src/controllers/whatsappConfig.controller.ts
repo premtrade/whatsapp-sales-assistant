@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getWhatsAppConfig, getWhatsAppStatus, testWhatsAppConnection } from '../services/whatsappConfig.service';
+import { getWhatsAppConfig, getWhatsAppStatus, testWhatsAppConnection, connectWhatsAppSession } from '../services/whatsappConfig.service';
 
 function getTenantId(req: Request): string {
   const user = (req as any).user;
@@ -18,6 +18,12 @@ export const getWhatsAppStatusController = async (req: Request, res: Response): 
   const tenantId = getTenantId(req);
   const status = await getWhatsAppStatus(tenantId);
   res.json({ success: true, data: status });
+};
+
+export const connectWhatsAppSessionController = async (req: Request, res: Response): Promise<void> => {
+  const tenantId = getTenantId(req);
+  const status = await connectWhatsAppSession(tenantId);
+  res.json({ success: true, data: status, message: status.connected ? 'WhatsApp connected' : 'Scan the QR code in WhatsApp to link this device' });
 };
 
 export const testWhatsAppConnectionController = async (req: Request, res: Response): Promise<void> => {

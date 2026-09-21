@@ -1,6 +1,49 @@
 import fs from 'fs';
 import { config } from '../config';
 
+function wahaBaseUrl(): string {
+  return `http://${config.waha.host}:${config.waha.port}`;
+}
+
+function wahaHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { 'X-Api-Key': config.waha.apiKey, ...extra };
+}
+
+export interface WahaSessionInfo {
+  status: string;
+  qr?: string;
+}
+
+export async function getWahaSessionInfo(session: string): Promise<WahaSessionInfo | null> {
+  const res = await fetch(`${wahaBaseUrl()}/api/sessions/${encodeURIComponent(session)}`, {
+    headers: wahaHeaders(),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as WahaSessionInfo;
+  return { status: data.status, qr: data.qr };
+}
+
+/**
+ * Creates and starts a WAHA session if it does not already exist.
+ * Idempotent: an existing session is left untouched.
+ */
+export async function ensureWahaSession(session: string): Promise<WahaSessionInfo | null> {
+  const existing = await getWahaSessionInfo(session);
+  if (existing) return existing;
+
+  const res = await fetch(`${wahaBaseUrl()}/api/sessions/start`, {
+    method: 'POST',
+    headers: wahaHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name: session }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create WAHA session '${session}': ${res.status}`);
+  }
+
+  // Session was just created — fetch its status (should be SCAN_ME/QR)
+  return getWahaSessionInfo(session);
+}
+
 export async function sendWahaDocument(params: {
   session: string;
   chatId: string;

@@ -4,6 +4,8 @@ import { config } from '../config';
 import logger from '../utils/logger';
 import { Message } from '../types';
 import { emitNewMessage, emitDashboardStatsUpdated } from '../websocketServer';
+import { sendWahaText } from './waha.service';
+import { getBusinessById } from './business.service';
 
 interface ConversationRow {
   contact_id: string;
@@ -75,7 +77,7 @@ export async function sendMessage(
 
   logger.info('Message sent by staff', { conversationId, messageId: message.id, staffId });
 
-  await triggerWahaWebhook(conversationId, contact.phone, textBody, metadata);
+  await triggerWahaWebhook(conversationId, contact.phone, textBody, metadata, conversation.business_id);
 
   // Emit real-time events with tenantId
   const tenantId = conversation.business_id;
@@ -89,28 +91,26 @@ async function triggerWahaWebhook(
   conversationId: string,
   phone: string,
   textBody: string,
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
+  businessId: string
 ): Promise<void> {
   try {
-    const wahaUrl = `http://${config.waha.host}:${config.waha.port}/api/sessions/${config.waha.session || 'default'}/messages`;
+    // Resolve the tenant's own WhatsApp session so replies always come from
+    // the correct business number (never the global/default session).
+    let session = config.waha.session || 'default';
+    try {
+      const business = await getBusinessById(businessId);
+      session = business.waha_session_name || session;
+    } catch (err) {
+      logger.warn('Falling back to default WAHA session', { conversationId, businessId, error: err });
+    }
 
-    await fetch(wahaUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': config.waha.apiKey,
-      },
-      body: JSON.stringify({
-        chatId: phone,
-        text: textBody,
-        metadata: {
-          ...metadata,
-          conversationId,
-        },
-      }),
-    });
+    // WAHA chatIds are JIDs: normalize bare phones to <phone>@c.us
+    const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
 
-    logger.info('WAHA webhook triggered', { conversationId, phone });
+    await sendWahaText({ session, chatId, text: textBody });
+
+    logger.info('WAHA message sent', { conversationId, phone, session });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to trigger WAHA webhook', { conversationId, error: errorMessage });
