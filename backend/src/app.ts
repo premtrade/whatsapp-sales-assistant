@@ -60,6 +60,8 @@ app.use('/storage', express.static('/app/storage'));
 app.use(apiRateLimiter);
 
 app.use('/health', healthRoutes);
+// Alias so Vercel's /api/:path* rewrite can reach health as /api/health
+app.use('/api/health', healthRoutes);
 
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);

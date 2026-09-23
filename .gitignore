@@ -119,3 +119,27 @@ traefik/letsencrypt/
 .tmp/
 tmp/
 *.bak
+
+# ----------------------------------------------------------------------------
+# Local debug / export artifacts (never commit - may contain secrets)
+# ----------------------------------------------------------------------------
+credrefs.txt
+creds-dec.json
+local-creds.json
+login.json
+docker-build-log.txt
+facts-out.txt
+facts2-out.txt
+facts3-out.txt
+n8n_wf_backup_before_guards.sql
+workflows/live/n8n-all-credentials.json
+scripts/credrefs.ps1
+scripts/facts.ps1
+scripts/facts2.ps1
+scripts/facts3.ps1
+scripts/_tmp_*
+scripts/__pycache__/
+test_*.js
+test_*.json
+repro.js
+verify_endpoints.js

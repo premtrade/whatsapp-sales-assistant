@@ -219,7 +219,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
-      url: https://${{ vars.TRAEFIK_DOMAIN }}
+      url: https://waflo.vercel.app
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -232,9 +232,32 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script: |
+            set -e
             cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "==> Pulling latest code..."
             git pull origin main
-            docker compose pull
-            docker compose up -d --build
-            docker compose exec -T postgres psql -U ${{ secrets.POSTGRES_USER }} -d ${{ secrets.POSTGRES_DB }} -v ON_ERROR_STOP=1 -c "SELECT 1;"
-            echo "Deployment completed."
+
+            echo "==> Rebuilding and restarting containers..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull --quiet || true
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            echo "==> Waiting for services to be healthy..."
+            sleep 15
+
+            echo "==> Running any pending DB migrations..."
+            chmod +x scripts/run-migrations.sh
+            # run-migrations.sh uses schema_migrations(migration_name) and covers
+            # both database/schema/*.sql and database/migrations/*.sql
+            DB_HOST=127.0.0.1 DB_PORT=5432 \
+              DB_USER=${{ secrets.POSTGRES_USER }} DB_NAME=${{ secrets.POSTGRES_DB }} \
+              PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              bash scripts/run-migrations.sh || echo "migration runner failed - check logs"
+
+            echo "==> Reloading nginx..."
+            sudo nginx -t && sudo systemctl reload nginx || true
+
+            echo "==> Verifying health..."
+            curl -sf http://localhost:${{ secrets.BACKEND_PORT || 4000 }}/health || (echo "Backend health check failed!" && exit 1)
+
+            echo "==> Deployment complete!"
