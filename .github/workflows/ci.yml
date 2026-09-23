@@ -239,8 +239,14 @@ jobs:
             git pull origin main
 
             echo "==> Rebuilding and restarting containers..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull --quiet || true
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+            # NOTE: do NOT pass -f docker-compose.prod.yml here. Compose *merges*
+            # port lists across -f files, so base "5432:5432" + prod
+            # "127.0.0.1:5432:5432" tries to bind the same host port twice
+            # and fails with "address already in use". The base file is what
+            # the droplet already runs; prod port-lockdown needs !reset tags
+            # before it can be layered on top.
+            docker compose pull --quiet || true
+            docker compose up -d --build --remove-orphans
 
             echo "==> Waiting for services to be healthy..."
             sleep 15
