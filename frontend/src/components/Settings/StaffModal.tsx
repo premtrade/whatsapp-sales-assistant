@@ -14,7 +14,7 @@ export interface StaffFormData {
   last_name: string
   email: string
   phone: string
-  role: 'admin' | 'manager' | 'sales' | 'support' | 'technician'
+  role: 'super_admin' | 'admin' | 'manager' | 'sales' | 'support' | 'technician'
   timezone: string
 }
 

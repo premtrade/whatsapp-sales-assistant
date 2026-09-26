@@ -13,6 +13,10 @@
       "destination": "http://206.189.179.60/health"
     },
     {
+      "source": "/ws",
+      "destination": "http://206.189.179.60/ws"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

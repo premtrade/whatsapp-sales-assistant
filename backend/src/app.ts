@@ -30,6 +30,9 @@ import systemHealthRoutes from './routes/systemHealth.routes';
 import { healthRoutes } from './routes/health.routes';
 import webhookRoutes from './routes/webhook.routes';
 import publicRoutes from './routes/public.routes';
+import subscriptionRoutes from './routes/subscription.routes';
+import ownerRoutes from './routes/owner.routes';
+import billingRoutes from './routes/billing.routes';
 import { ApiResponse } from './types';
 
 const app: Application = express();
@@ -85,6 +88,9 @@ app.use('/api/staff', staffRoutes);
 
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/billing', subscriptionRoutes);
+app.use('/api/owner', ownerRoutes);
+app.use('/api/owner/billing', billingRoutes);
 app.use('/api/whatsapp', whatsappConfigRoutes);
 app.use('/api/system', systemHealthRoutes);
 

@@ -2,6 +2,7 @@ import { query } from '../utils/database';
 import jwt from 'jsonwebtoken';
 import { hashPassword } from './auth.service';
 import { createBusiness, getBusinessBySlug, getBusinessByWhatsAppPhone, Business } from './business.service';
+import { createTrial } from './subscription.service';
 import { NotFoundError, ConflictError, BadRequestError } from '../utils/errors';
 import logger from '../utils/logger';
 
@@ -117,8 +118,14 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
     waha_session_name: sessionName,
     currency: 'JMD',
     timezone: 'America/Jamaica',
-    status: 'active',
+    status: 'trialing',
   });
+
+  try {
+    await createTrial(business.id, 'starter');
+  } catch (error) {
+    logger.warn('Trial subscription init failed; migration backfill will cover tenant', { businessId: business.id, error });
+  }
 
   const passwordHash = await hashPassword(data.password);
 

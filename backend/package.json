@@ -30,6 +30,7 @@
     "pdfkit": "^0.15.0",
     "pg": "^8.13.1",
     "redis": "^4.7.0",
+    "stripe": "^17.7.0",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
     "ws": "^8.18.0",

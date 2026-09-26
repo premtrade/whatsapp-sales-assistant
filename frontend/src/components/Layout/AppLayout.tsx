@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import TrialBanner from '@/components/Billing/TrialBanner'
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -14,6 +15,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <Sidebar isOpen={isSidebarOpen} onToggle={toggleSidebar} onNavigate={closeSidebar} />
       <div className="lg:pl-60 transition-all duration-200">
         <Topbar isSidebarOpen={isSidebarOpen} onSidebarToggle={toggleSidebar} />
+        <TrialBanner />
         <main className="px-4 py-4 pb-24 sm:p-4 lg:p-6 lg:pb-6 max-w-[1600px] mx-auto">
           {children}
         </main>

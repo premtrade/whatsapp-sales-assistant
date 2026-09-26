@@ -4,6 +4,9 @@ import { validateWebhookSource, WebhookRequest } from '../middleware/webhookAuth
 import { webhookRateLimiter, createWebhookSourceRateLimiter } from '../middleware/rateLimiter';
 import { BadRequestError } from '../utils/errors';
 import logger from '../utils/logger';
+import { handleStripeWebhook } from '../services/stripe.service';
+import { requireFeatureLimit, incrementUsage } from '../services/subscription.service';
+import { PaymentRequiredError } from '../utils/errors';
 
 const router = Router();
 
@@ -129,6 +132,23 @@ router.post(
     const { event, tenantId } = parseResult.data;
     logger.info(`Received validated n8n event: ${event}`, { tenantId });
 
+    if (event === 'ai_reply') {
+      const businessId = (req.body.data && (req.body.data.business_id || req.body.data.businessId)) || tenantId;
+      if (businessId) {
+        try {
+          await requireFeatureLimit(businessId, 'ai_responses');
+          await incrementUsage(businessId, 'ai_responses');
+          logger.info('AI reply usage tracked', { businessId, event });
+        } catch (error) {
+          if (error instanceof PaymentRequiredError) {
+            logger.warn('AI reply quota exceeded', { businessId, error: error.message });
+          } else {
+            logger.error('Failed to track AI reply usage', { businessId, error: error instanceof Error ? error.message : 'Unknown error' });
+          }
+        }
+      }
+    }
+
     // Internal processing for n8n callbacks
     // Could trigger internal workflows, update state, etc.
 
@@ -141,4 +161,23 @@ router.post(
 );
 
 export default router;
+
+router.post(
+  '/stripe',
+  webhookRateLimiter,
+  async (req: WebhookRequest, res: Response): Promise<void> => {
+    const signature = (req.headers['stripe-signature'] as string) || '';
+    const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+    try {
+      await handleStripeWebhook(rawBody, signature);
+    } catch (error: any) {
+      if (error instanceof BadRequestError) {
+        res.status(400).json({ success: false, message: error.message });
+        return;
+      }
+      throw error;
+    }
+    res.status(200).json({ success: true, message: 'Webhook accepted' });
+  }
+);
 

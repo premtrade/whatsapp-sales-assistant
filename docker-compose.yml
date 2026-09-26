@@ -67,8 +67,12 @@ services:
       - ./database/migrations/049_conversations_unique_contact_channel.sql:/docker-entrypoint-initdb.d/49_conversations_unique_contact_channel.sql
       - ./database/migrations/050_tenant_hardening.sql:/docker-entrypoint-initdb.d/50_tenant_hardening.sql
       - ./database/migrations/051_add_missing_business_id.sql:/docker-entrypoint-initdb.d/51_add_missing_business_id.sql
+      - ./database/migrations/052_add_pending_business_status.sql:/docker-entrypoint-initdb.d/52_add_pending_business_status.sql
+      - ./database/migrations/053_subscriptions_and_monetization.sql:/docker-entrypoint-initdb.d/53_subscriptions_and_monetization.sql
+      - ./database/migrations/054_expand_staff_constraints.sql:/docker-entrypoint-initdb.d/54_expand_staff_constraints.sql
 
-    networks:
+
+networks:
       - backend
 
     healthcheck:

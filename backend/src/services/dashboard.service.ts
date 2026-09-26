@@ -33,7 +33,7 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
     query<{ count: string; total: string }>(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM quotes WHERE business_id = $1`, [tenantId]),
     Promise.all([
       query<{ date: string; count: string }>(`SELECT DATE(created_at) as date, COUNT(*) as count FROM conversations WHERE business_id = $1 AND created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY date`, [tenantId]),
-      query<{ date: string; count: string }>(`SELECT DATE(created_at) as date, COUNT(*) as count FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.business_id = $1 AND m.created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY date`, [tenantId]),
+      query<{ date: string; count: string }>(`SELECT DATE(m.created_at) as date, COUNT(*) as count FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.business_id = $1 AND m.created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(m.created_at) ORDER BY date`, [tenantId]),
     ]),
     query<{ reason: string; count: string }>(`SELECT COALESCE(reason, 'Unspecified') as reason, COUNT(*) as count FROM handoffs WHERE business_id = $1 GROUP BY reason ORDER BY count DESC`, [tenantId]),
     (async () => {

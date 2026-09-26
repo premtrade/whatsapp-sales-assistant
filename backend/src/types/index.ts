@@ -150,6 +150,109 @@ export interface WSClient {
 }
 
 // Database entity types
+export interface PlanLimits {
+  ai_responses?: number;
+  staff_users?: number;
+  locations?: number;
+  whatsapp_numbers?: number;
+  [key: string]: number | undefined;
+}
+
+export interface PlanFeatures {
+  ai_responses?: boolean;
+  pdf_quotes?: boolean;
+  appointments?: boolean;
+  lead_scoring?: boolean;
+  knowledge_base?: boolean;
+  handoffs?: boolean;
+  multi_location?: boolean;
+  api_access?: boolean;
+  [key: string]: boolean | undefined;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  slug: string;
+  price_monthly: string | number;
+  price_yearly?: string | number | null;
+  currency: string;
+  features: PlanFeatures;
+  limits: PlanLimits;
+  sort_order: number;
+  is_active: boolean;
+  is_public: boolean;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type SubscriptionStatus =
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'expired'
+  | 'paused';
+
+export interface Subscription {
+  id: string;
+  business_id: string;
+  plan_id: string;
+  status: SubscriptionStatus;
+  current_period_start: Date;
+  current_period_end: Date;
+  trial_ends_at?: Date | null;
+  canceled_at?: Date | null;
+  grace_period_ends_at?: Date | null;
+  external_customer_id?: string | null;
+  external_subscription_id?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SubscriptionWithPlan extends Subscription {
+  plan: Plan;
+}
+
+export type UsageMetric =
+  | 'ai_responses'
+  | 'staff_users'
+  | 'locations'
+  | 'whatsapp_numbers';
+
+export interface UsageRecord {
+  id: string;
+  business_id: string;
+  subscription_id?: string | null;
+  metric: string;
+  used: number;
+  limit_value?: number | null;
+  period_start: Date | string;
+  period_end: Date | string;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
+
+export interface Payment {
+  id: string;
+  business_id: string;
+  subscription_id?: string | null;
+  amount: string | number;
+  currency: string;
+  status: PaymentStatus;
+  provider: string;
+  provider_payment_id?: string | null;
+  idempotency_key?: string | null;
+  paid_at?: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface Contact {
   id: string;
   business_id?: string;

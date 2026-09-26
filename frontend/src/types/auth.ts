@@ -12,7 +12,7 @@ export interface StaffUser {
   display_name: string
   email: string
   phone: string
-  role: 'admin' | 'manager' | 'sales' | 'support' | 'technician'
+  role: 'super_admin' | 'admin' | 'manager' | 'sales' | 'support' | 'technician'
   status: 'active' | 'inactive' | 'suspended'
   timezone: string
   metadata: Record<string, unknown>

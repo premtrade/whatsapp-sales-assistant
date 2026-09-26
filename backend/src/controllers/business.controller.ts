@@ -9,6 +9,8 @@ import {
   deleteBusiness,
   BusinessCreateRequest,
 } from '../services/business.service';
+import { createTrial } from '../services/subscription.service';
+import logger from '../utils/logger';
 
 export const listBusinesses = async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
@@ -70,6 +72,13 @@ export const createNewBusiness = async (req: Request, res: Response): Promise<vo
   }
 
   const business = await createBusiness(data);
+
+  try {
+    await createTrial(business.id, 'starter');
+  } catch (error) {
+    logger.warn('Trial subscription init failed for admin-created business', { businessId: business.id, error });
+  }
+
   res.status(201).json({
     success: true,
     data: business,

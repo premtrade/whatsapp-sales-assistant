@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage'
 import { LoginPage } from './pages/Login'
 import SignupPage from './pages/Signup'
 import SetupPage from './pages/Setup'
+import AcceptInvitePage from './pages/AcceptInvite'
 import { DashboardPage } from './pages/Dashboard'
 import { InboxPage } from './pages/Inbox'
 import { ConversationDetailPage } from './pages/ConversationDetail'
@@ -21,6 +22,9 @@ import { AnalyticsPage } from './pages/Analytics'
 import { ConversionFunnelPage } from './pages/ConversionFunnel'
 import { SettingsPage } from './pages/Settings'
 import { LeadPipelinePage } from './pages/LeadPipeline'
+import PlansPage from './pages/Plans'
+import OwnerDashboardPage from './pages/OwnerDashboard'
+import BillingPage from './pages/Billing'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated, loading } = useAuth()
@@ -44,6 +48,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/setup" element={<SetupPage />} />
+      <Route path="/accept-invite" element={<AcceptInvitePage />} />
       <Route
         path="/*"
         element={
@@ -67,6 +72,9 @@ export default function App() {
                 <Route path="/analytics/funnel" element={<ConversionFunnelPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/plans" element={<PlansPage />} />
+                <Route path="/owner" element={<OwnerDashboardPage />} />
+                <Route path="/billing" element={<BillingPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </AppLayout>

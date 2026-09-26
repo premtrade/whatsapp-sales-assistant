@@ -37,55 +37,33 @@ nginx -v
 git clone https://github.com/premtrade/whatsapp-sales-assistant.git
 cd whatsapp-sales-assistant
 
-# Create production environment file
+# Create production environment file from the template
 cp .env.example .env
 nano .env
 ```
 
+**Important:** The project root `.env` is the single source of truth for all passwords and secrets. Do not copy values from `docs/.env` — that file is only a documentation template. If the Postgres password in your `.env` differs from what is already running in Docker, Postgres will refuse connections.
+
 ## Step 3: Environment Variables
 
-Create `.env` with these production values:
+Fill in the root `.env` file with your production values. At minimum, change these placeholders:
 
 ```env
-# Application
-NODE_ENV=production
-PORT=4000
-FRONTEND_URL=https://waflo.com
-
-# Database
-DATABASE_URL=postgresql://waflo:YOUR_SECURE_PASSWORD@postgres:5432/waflo
-POSTGRES_USER=waflo
 POSTGRES_PASSWORD=YOUR_SECURE_PASSWORD
-POSTGRES_DB=waflo
-
-# Redis
-REDIS_URL=redis://redis:6379
-REDIS_PASSWORD=YOUR_SECURE_PASSWORD
-
-# JWT
+POSTGRES_DB=whatsapp_sales
+POSTGRES_USER=postgres
 JWT_SECRET=YOUR_SECURE_JWT_SECRET_MIN_32_CHARS
-
-# Gemini AI
 GEMINI_API_KEY=your_gemini_api_key
-
-# Groq LLM
 GROQ_API_KEY=your_groq_api_key
-
-# WhatsApp (WAHA)
-WAHA_API_URL=http://waha:3000
 WAHA_API_KEY=your_waha_api_key
-WHATSAPP_SESSION=default
-
-# Qdrant
-QDRANT_URL=http://qdrant:6333
-QDRANT_API_KEY=your_qdrant_api_key
-
-# n8n
-N8N_URL=http://n8n:5678
 N8N_API_KEY=your_n8n_api_key
-
-# Encryption
 ENCRYPTION_KEY=YOUR_SECURE_ENCRYPTION_KEY_32_CHARS
+```
+
+After editing `.env`, start services with:
+
+```bash
+docker compose up -d --build
 ```
 
 ## Step 4: Firewall Configuration

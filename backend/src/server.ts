@@ -5,6 +5,7 @@ import { config } from './config';
 import logger from './utils/logger';
 import { closePool } from './utils/database';
 import { initializeWebSocket } from './websocketServer';
+import { expireDueTrials } from './services/subscription.service';
 
 const server = createServer(app);
 const port = config.port;
@@ -15,6 +16,20 @@ server.listen(port, () => {
   logger.info(`Backend API server running on port ${port}`);
   logger.info(`Environment: ${config.env}`);
   logger.info(`WebSocket server available at ws://localhost:${port}/ws`);
+
+  const runTrialExpiry = async (): Promise<void> => {
+    try {
+      const expiredCount = await expireDueTrials();
+      if (expiredCount > 0) {
+        logger.info(`Trial expiry job completed`, { expiredCount });
+      }
+    } catch (error) {
+      logger.error('Trial expiry job failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  };
+
+  runTrialExpiry();
+  setInterval(runTrialExpiry, 60 * 60 * 1000);
 });
 
 server.on('error', (err) => {

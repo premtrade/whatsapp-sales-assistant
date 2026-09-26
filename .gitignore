@@ -143,3 +143,5 @@ test_*.js
 test_*.json
 repro.js
 verify_endpoints.js
+.vercel
+.env*

@@ -30,6 +30,13 @@ export class ForbiddenError extends AppError {
     super(message, 403, code);
   }
 }
+export class PaymentRequiredError extends AppError {
+  constructor(message = 'Payment required', code = 'PAYMENT_REQUIRED') {
+    super(message, 402, code);
+  }
+}
+
+
 
 export class NotFoundError extends AppError {
   constructor(message = 'Resource not found', code = 'NOT_FOUND') {

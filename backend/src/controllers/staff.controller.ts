@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { getStaffUsers, getStaffUserById, createStaffUser, updateStaffUser, updateStaffStatus, deleteStaffUser as deleteStaffUserService } from '../services/staff.service';
 import { createAuditLog } from '../services/audit.service';
+import { requireStaffSeat } from '../services/subscription.service';
 import { getPagination, getOptionalString } from '../utils/helpers';
 import { UserPayload, AuthenticatedRequest } from '../types';
 import { BadRequestError, ForbiddenError } from '../utils/errors';
@@ -14,12 +15,13 @@ const staffCreateSchema = z.object({
   role: z.enum(['admin', 'manager', 'sales', 'support', 'technician']).optional(),
   timezone: z.string().optional(),
   password: z.string().min(6).optional(),
+  status: z.enum(['active', 'inactive', 'suspended', 'invited']).optional(),
 });
 
 const staffUpdateSchema = staffCreateSchema.partial();
 
 const staffStatusSchema = z.object({
-  status: z.enum(['active', 'inactive', 'suspended']),
+  status: z.enum(['active', 'inactive', 'suspended', 'invited']),
 });
 
 function currentUser(req: Request): any {
@@ -57,6 +59,7 @@ export const getStaffUser = async (req: Request, res: Response): Promise<void> =
 
 export const createNewStaffUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const tenantId = getTenantId(req);
+  await requireStaffSeat(tenantId);
   const validated = staffCreateSchema.parse(req.body);
   const created = await createStaffUser(validated, tenantId);
   await createAuditLog('staff_user', 'staff.created', req.user?.id || null, 'staff', `Staff user '${created.email}' created`, undefined, { email: created.email }, { staffId: created.id }, req.ip!, req.get('user-agent')!, tenantId);

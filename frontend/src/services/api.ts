@@ -43,6 +43,9 @@ import type {
   WhatsAppTestResult,
   SystemHealthResponse,
   SystemMetrics,
+  Plan,
+  OwnerDashboardStats,
+  FinancialMetrics,
 } from '../types'
 
 const rawApiUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
@@ -419,7 +422,79 @@ export async function activateBusiness(id: string): Promise<any> {
   return response.data.data
 }
 
-// Staff
+// Subscription / Plans
+export async function getPlans(): Promise<Plan[]> {
+  const response = await api.get<{ success: boolean; data: Plan[] }>('/billing/plans')
+  return response.data.data
+}
+
+export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null } | null> {
+  const response = await api.get<{ success: boolean; data: any }>('/billing/subscription')
+  return response.data.data
+}
+
+export async function getSubscriptionHistory(): Promise<any[]> {
+  const response = await api.get<{ success: boolean; data: any[] }>('/billing/subscription/history')
+  return response.data.data
+}
+
+export async function getUsage(): Promise<Record<string, { used: number; limit: number | null }>> {
+  const response = await api.get<{ success: boolean; data: Record<string, { used: number; limit: number | null }> }>('/billing/usage')
+  return response.data.data
+}
+
+// Admin plan management
+export async function adminListPlans(): Promise<Plan[]> {
+  const response = await api.get<{ success: boolean; data: Plan[] }>('/billing/admin/plans')
+  return response.data.data
+}
+
+export async function adminGetPlan(id: string): Promise<Plan> {
+  const response = await api.get<{ success: boolean; data: Plan }>(`/billing/admin/plans/${id}`)
+  return response.data.data
+}
+
+export async function adminCreatePlan(data: Partial<Plan>): Promise<Plan> {
+  const response = await api.post<{ success: boolean; data: Plan }>('/billing/admin/plans', data)
+  return response.data.data
+}
+
+export async function adminUpdatePlan(id: string, data: Partial<Plan>): Promise<Plan> {
+  const response = await api.put<{ success: boolean; data: Plan }>(`/billing/admin/plans/${id}`, data)
+  return response.data.data
+}
+
+export async function adminDeletePlan(id: string): Promise<void> {
+  await api.delete(`/billing/admin/plans/${id}`)
+}
+
+// Billing
+export async function createCheckoutSession(data: { planSlug: string; successUrl: string; cancelUrl: string }): Promise<{ url: string }> {
+  const response = await api.post<{ success: boolean; data: { url: string } }>('/billing/checkout-session', data)
+  return response.data.data
+}
+
+export async function createCustomerPortalSession(data: { returnUrl: string }): Promise<{ url: string }> {
+  const response = await api.post<{ success: boolean; data: { url: string } }>('/billing/customer-portal', data)
+  return response.data.data
+}
+
+export async function getOwnerDashboard(): Promise<OwnerDashboardStats> {
+  const response = await api.get<{ success: boolean; data: OwnerDashboardStats }>('/owner/dashboard')
+  return response.data.data
+}
+
+export async function getFinancialMetrics(): Promise<FinancialMetrics> {
+  const response = await api.get<{ success: boolean; data: FinancialMetrics }>('/owner/billing/financials')
+  return response.data.data
+}
+
+// Invitations
+export async function acceptInvite(token: string, password: string): Promise<StaffUser> {
+  const response = await api.post<{ success: boolean; data: StaffUser }>('/staff/accept-invite', { token, password })
+  return response.data.data
+}
+
 export async function createStaffUser(data: { first_name: string; last_name: string; email: string; phone?: string | null; role?: string; timezone?: string; password?: string }): Promise<StaffUser> {
   const response = await api.post<{ success: boolean; data: StaffUser }>('/staff/users', data)
   return response.data.data

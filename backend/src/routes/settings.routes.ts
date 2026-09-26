@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { listSettings, getSetting, updateSettingController, createSettingController, exportSettingsController, importSettingsController } from '../controllers/settings.controller';
 import { authenticate, requireRole } from '../middleware/auth';
+import { requireActiveSubscription } from '../middleware/subscription';
 import { adminRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(requireActiveSubscription);
 
 // Admin-only routes with admin rate limiting
 router.get('/export', adminRateLimiter, exportSettingsController);

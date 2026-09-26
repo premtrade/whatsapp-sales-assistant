@@ -2,6 +2,7 @@ import { query } from '../utils/database';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors';
 import { StaffUser, PaginationQuery } from '../types';
 import { hashPassword } from './auth.service';
+import crypto from 'crypto';
 
 export interface StaffFilters extends PaginationQuery {
   search?: string;
@@ -27,7 +28,7 @@ export type StaffUpdateRequest = Partial<StaffCreateRequest>;
 export const STAFF_COLUMNS = `id, employee_number, first_name, last_name, 
 display_name, email, phone, role, status, timezone, metadata, created_at, updated_at, business_id`;
 export const VALID_ROLES = ['super_admin', 'admin', 'manager', 'sales', 'support', 'technician'];
-export const VALID_STATUSES = ['active', 'inactive', 'suspended'];
+export const VALID_STATUSES = ['active', 'inactive', 'suspended', 'invited'];
 
 export async function getStaffUsers(filters: StaffFilters): Promise<{
   data: StaffUser[];
@@ -110,12 +111,19 @@ export async function createStaffUser(data: StaffCreateRequest, tenantId: string
   const employeeNumber = `EMP${String(total + 1).padStart(3, '0')}`;
   const passwordHash = await hashPassword(data.password || `${firstName.toLowerCase()}123!`);
 
+  const metadata: Record<string, unknown> = {};
+  if (status === 'invited') {
+    const token = crypto.randomBytes(32).toString('hex');
+    metadata.invite_token = token;
+    metadata.invite_expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+
   try {
     const result = await query<StaffUser>(
-      `INSERT INTO staff_users (employee_number, first_name, last_name, email, phone, role, status, timezone, password_hash, business_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO staff_users (employee_number, first_name, last_name, email, phone, role, status, timezone, password_hash, business_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
        RETURNING ${STAFF_COLUMNS}`,
-      [employeeNumber, firstName, lastName, email, data.phone || null, role, status, data.timezone || 'America/Jamaica', passwordHash, tenantId]
+      [employeeNumber, firstName, lastName, email, data.phone || null, role, status, data.timezone || 'America/Jamaica', passwordHash, tenantId, JSON.stringify(metadata)]
     );
     const created = result.rows[0];
     if (!created) throw new BadRequestError('Failed to create staff user');
@@ -184,4 +192,31 @@ export async function deleteStaffUser(id: string, tenantId: string): Promise<voi
   await getStaffUserById(id, tenantId);
   // Delete the staff user
   await query(`DELETE FROM staff_users WHERE id = $1 AND business_id = $2`, [id, tenantId]);
+}
+
+export async function acceptInvitation(token: string, password: string): Promise<StaffUser> {
+  const result = await query<StaffUser>(
+    `SELECT ${STAFF_COLUMNS} FROM staff_users WHERE metadata->>'invite_token' = $1 AND status = 'invited' LIMIT 1`,
+    [token]
+  );
+  const user = result.rows[0];
+  if (!user) throw new BadRequestError('Invalid or expired invitation');
+
+  const expiresAt = user.metadata?.invite_expires_at as string | undefined;
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+    throw new BadRequestError('Invitation has expired');
+  }
+
+  const passwordHash = await hashPassword(password);
+  const metadata = { ...(user.metadata as Record<string, unknown>) };
+  delete metadata.invite_token;
+  delete metadata.invite_expires_at;
+
+  const updated = await query<StaffUser>(
+    `UPDATE staff_users SET password_hash=$1, status='active', metadata=$2::jsonb, updated_at=NOW() WHERE id=$3 RETURNING ${STAFF_COLUMNS}`,
+    [passwordHash, JSON.stringify(metadata), user.id]
+  );
+  const accepted = updated.rows[0];
+  if (!accepted) throw new BadRequestError('Failed to accept invitation');
+  return accepted;
 }
