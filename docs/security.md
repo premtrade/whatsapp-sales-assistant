@@ -76,8 +76,8 @@ auto-provisions the session). Do not route tenant traffic through the global
 - Enable WAHA session management and monitor for unauthorized QR code scans.
 
 ### HTTPS Enforcement
-- In production, expose WAHA, n8n, and other services behind a reverse proxy (Traefik) with TLS termination.
-- Use Let's Encrypt certificates via Traefik's built-in ACME support.
+- In production, nginx terminates TLS for the API and proxies to the containers; certificates come from Let's Encrypt via `certbot` (`scripts/setup-ssl.sh`, config in `docker/nginx/conf.d/waflo.conf`).
+- The dashboard is served by Vercel, which provides HTTPS for the frontend origin. `frontend/vercel.json` rewrites `/api`, `/health` and `/ws` to the Droplet so the browser never issues mixed-content requests.
 - Internal Docker network traffic uses HTTP (isolated by Docker bridge).
 - Database connections use SSL regardless of network location.
 
@@ -143,6 +143,6 @@ auto-provisions the session). Do not route tenant traffic through the global
 ## 8. Docker Security
 
 - All services run with non-root users where possible.
-- Sensitive directories (Traefik ACME, n8n data) use Docker named volumes.
+- Sensitive directories (Let's Encrypt certificates, n8n data) live on Docker named volumes or outside the web root.
 - Container images are pinned to specific versions in production (avoid `latest` tag).
 - Use Docker secrets for sensitive environment variables in Swarm mode.

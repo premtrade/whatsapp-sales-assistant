@@ -184,13 +184,22 @@ ORDER BY h.created_at ASC;
 ```powershell
 python scripts/embed_memory.py
 ```
+Use one embedding provider per table: `memory_embeddings` / `knowledge_chunks` are `vector(768)`, and
+vectors from a Hugging Face model are not comparable with vectors from Gemini (`EMBEDDING_MODEL`).
+After switching providers, re-embed every row — see the Model configuration section in `README.md`.
 
-### Check Qdrant Collection
+### Check pgvector Embeddings
 ```powershell
-.\scripts\init-qdrant.ps1
-# Or via API:
-Invoke-RestMethod -Uri "http://localhost:6333/collections/whatsapp_sales" -Method Get
+# Embedding columns live in PostgreSQL (migration 032_pgvector_embeddings.sql):
+#   knowledge_chunks.embedding vector(768)   + idx_chunks_embedding_hnsw
+#   memory_embeddings.embedding vector(768)  + idx_memory_embeddings_embedding_hnsw
+docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB -c "
+  select 'knowledge_chunks' as table_name, count(*) as rows, count(embedding) as embedded
+  from knowledge_chunks
+  union all
+  select 'memory_embeddings', count(*), count(embedding) from memory_embeddings;"
 ```
+No `init-qdrant.ps1` / collection step is needed anymore — Qdrant was removed when the stack moved to pgvector.
 
 ## 7. Emergency Procedures
 

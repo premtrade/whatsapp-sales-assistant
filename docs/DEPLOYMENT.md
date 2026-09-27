@@ -42,7 +42,7 @@ cp .env.example .env
 nano .env
 ```
 
-**Important:** The project root `.env` is the single source of truth for all passwords and secrets. Do not copy values from `docs/.env` — that file is only a documentation template. If the Postgres password in your `.env` differs from what is already running in Docker, Postgres will refuse connections.
+**Important:** The project root `.env` is the single source of truth for all passwords and secrets. `docs/env.production.example` is only a documentation template showing the production shape of that file — do not copy its placeholder values into a real deployment. If the Postgres password in your `.env` differs from what is already running in Docker, Postgres will refuse connections.
 
 ## Step 3: Environment Variables
 
@@ -236,3 +236,19 @@ docker compose restart
 - [ ] Regular backups configured
 - [ ] SSL certificates installed
 - [ ] Domain privacy enabled at registrar
+
+## Moving to a New Droplet IP
+
+The Droplet address cannot be read from an environment variable by `frontend/vercel.json` (Vercel
+does not interpolate env vars in `vercel.json`), so it is written literally. After a Droplet rebuild
+or IP change, update **all** of these — the dashboard fails silently (API calls 502) if any is missed:
+
+| File | What to change |
+| ---- | -------------- |
+| `frontend/vercel.json` | the three `rewrites[].destination` hosts (`/api`, `/health`, `/ws`) |
+| `scripts/setup-ssl.sh` | `DROPLET_IP` default (or export `DROPLET_IP=<new-ip>` before running it) |
+| `scripts/setup-vps-for-vercel.sh` | nginx `server_name` and the health-check/summary URLs |
+| `scripts/fix-droplet.sh` | the ssh/curl/`DEPLOY_HOST` hints echoed at the end |
+
+Then redeploy the frontend (`vercel --prod`) and reload nginx. `CORS_ORIGINS` in `.env` does not need
+the IP — it lists the frontend origins that are allowed to call the API.

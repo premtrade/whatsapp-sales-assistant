@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """
-scripts/embed_knowledge_groq.py - Embed knowledge chunks into PostgreSQL/pgvector using Groq API.
+scripts/embed_knowledge_groq.py - [DEPRECATED] Embed knowledge chunks via Groq API.
 
-Reads unembedded knowledge_chunks from PostgreSQL, generates embeddings
-using Groq's text-embedding-3-small model, and writes the vectors 
-directly to knowledge_chunks.embedding (pgvector).
+DEPRECATED - do not run against the current schema:
+  * Groq does not serve an embeddings endpoint, so `text-embedding-3-small`
+    (an OpenAI model name) resolves to nothing at
+    https://api.groq.com/openai/v1/embeddings.
+  * That model returns 1536-dimension vectors, while knowledge_chunks.embedding is
+    vector(768) since database/migrations/032_pgvector_embeddings.sql. Running this
+    script either fails on the API call or forces the column to the wrong dimension.
 
-Idempotent: safe to re-run - chunks already embedded are skipped.
+Supported embedding paths instead:
+  * knowledge uploads: backend/src/services/embedding.ts (Gemini gemini-embedding-001, 768 dims)
+  * bulk/offline re-embedding: python scripts/embed_knowledge_hf.py (HF_EMBED_MODEL, 768 dims)
+
+Set ALLOW_LEGACY_GROQ_EMBED=1 to run it anyway (at your own risk).
 
 Usage (from repo root):
     python scripts/embed_knowledge_groq.py
@@ -20,6 +28,15 @@ import os
 import sys
 import urllib.request
 import urllib.error
+
+if os.environ.get("ALLOW_LEGACY_GROQ_EMBED", "") != "1":
+    sys.stderr.write(
+        "embed_knowledge_groq.py is deprecated: Groq has no embeddings endpoint and its\n"
+        "1536-dim vectors do not fit knowledge_chunks.embedding (vector(768)).\n"
+        "Use the backend ingestion path (Gemini) or scripts/embed_knowledge_hf.py.\n"
+        "Set ALLOW_LEGACY_GROQ_EMBED=1 to override.\n"
+    )
+    sys.exit(1)
 
 import psycopg2
 

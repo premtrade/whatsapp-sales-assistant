@@ -4,7 +4,7 @@ import { KnowledgeFilters, KnowledgeDocument, KnowledgeChunk } from '../types';
 import logger from '../utils/logger';
 import { extractTextFromBuffer, isMimeTypeSupported } from './textExtractor';
 import { chunkText, TextChunk } from './chunker';
-import { generateEmbeddingsBatch, formatEmbeddingForPgVector } from './embedding';
+import { generateEmbeddingsBatch, formatEmbeddingForPgVector, EMBEDDING_MODEL } from './embedding';
 import crypto from 'crypto';
 
 function buildWhereClause(filters: KnowledgeFilters): { where: string; params: unknown[] } {
@@ -328,7 +328,7 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
       await query(
         `INSERT INTO knowledge_chunks (document_id, chunk_number, chunk_text, token_count, embedding, embedding_model, metadata)
          VALUES ($1, $2, $3, $4, $5::vector, $6, $7)`,
-        [doc.id, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, 'text-embedding-004', metadata]
+        [doc.id, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, metadata]
       );
     }
 

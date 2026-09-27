@@ -1,7 +1,7 @@
 import { config } from '../config';
 import logger from '../utils/logger';
 
-const EMBEDDING_MODEL = 'gemini-embedding-001';
+export const EMBEDDING_MODEL = config.ai.embeddingModel;
 const EMBEDDING_DIMENSION = 768;
 
 function getGeminiApiKey(): string {

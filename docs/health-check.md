@@ -25,11 +25,17 @@ redis-cli -a $env:REDIS_PASSWORD ping
 ```
 Expected output: `PONG`
 
-### Qdrant
+### pgvector (semantic search)
+
+Vector search runs inside PostgreSQL — there is no separate Qdrant service to poll. Verify the
+extension is installed and that embeddings exist:
+
+```powershell
+docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB -c "select extname, extversion from pg_extension where extname = 'vector';"
+docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB -c "select count(*) filter (where embedding is not null) as chunks_with_vectors from knowledge_chunks;"
 ```
-GET http://localhost:6333/healthz
-```
-Expected response: `200 OK` with `{"status":"ok"}`
+
+Expected: a `vector` extension row, and a non-zero vector count once knowledge has been ingested.
 
 ### WAHA
 ```
@@ -147,12 +153,13 @@ Write-Host ""
 
 # HTTP endpoints
 Test-HttpEndpoint -Url "http://localhost:5678/healthz" -Name "n8n"
-Test-HttpEndpoint -Url "http://localhost:6333/healthz" -Name "Qdrant"
 Test-HttpEndpoint -Url "http://localhost:3000/api/health" -Name "WAHA"
+Test-HttpEndpoint -Url "http://localhost:4000/health" -Name "Backend API"
 
 # Command checks
 Test-Command -Command { redis-cli -a $env:REDIS_PASSWORD ping } -Name "Redis"
 Test-Command -Command { pg_isready -U $env:POSTGRES_USER } -Name "PostgreSQL"
+Test-Command -Command { docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB -tAc "select 1 from pg_extension where extname = 'vector'" } -Name "pgvector"
 
 Write-Host ""
 Write-Host "=== Summary ===" -ForegroundColor Cyan

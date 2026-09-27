@@ -1,1 +1,0 @@
-SELECT data FROM execution_data WHERE "executionId" = 142;

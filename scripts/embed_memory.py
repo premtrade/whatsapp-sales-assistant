@@ -59,7 +59,10 @@ PG_DB = ENV.get("POSTGRES_DB", "whatsapp_sales")
 PG_PASSWORD = ENV.get("POSTGRES_PASSWORD", "")
 
 HF_API_KEY = ENV.get("HUGGINGFACE_API_KEY", "")
-HF_MODEL = ENV.get("HF_EMBED_MODEL", "sentence-transformers/distilbert-base-nli-mean-tokens")
+# Default must match scripts/embed_knowledge_hf.py and the pgvector column width
+# (knowledge_chunks.embedding / memory_embeddings.embedding are vector(768)).
+# The previous default, distilbert-base-nli-mean-tokens, returns 384 dims and was rejected by Postgres.
+HF_MODEL = ENV.get("HF_EMBED_MODEL", "BAAI/bge-base-en-v1.5")
 EMBED_DIMS = int(ENV.get("EMBED_DIMS", "768"))
 
 

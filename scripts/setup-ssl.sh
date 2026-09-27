@@ -13,7 +13,7 @@ err()  { echo -e "${RED}[ERR]${NC} $1"; exit 1; }
 
 DOMAIN="${1:-waflo.com}"
 EMAIL="${2:-premtrade12@yahoo.com}"
-DROPLET_IP="206.189.179.60"
+DROPLET_IP="${DROPLET_IP:-206.189.179.60}"   # override: DROPLET_IP=1.2.3.4 ./scripts/setup-ssl.sh
 REPO_DIR="${REPO_DIR:-/root/whatsapp-sales-assistant}"
 
 echo "================================================"

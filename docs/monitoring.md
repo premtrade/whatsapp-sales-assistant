@@ -9,7 +9,8 @@
 | n8n | `http://localhost:5678/healthz` | n8n health check |
 | Postgres | `pg_isready -U postgres` | PostgreSQL readiness |
 | Redis | `redis-cli ping` | Redis connectivity |
-| Qdrant | `http://localhost:6333/healthz` | Qdrant health check |
+| pgvector | `SELECT 1 FROM pg_extension WHERE extname = 'vector'` | Vector search inside PostgreSQL (no separate service) |
+| Backend API | `http://localhost:4000/health` | Backend health |
 | WAHA | `http://localhost:3000/api/health` | WAHA API health |
 
 ### Database Health Check Query
@@ -29,9 +30,9 @@ $services = @{
     "n8n" = "http://localhost:5678/healthz"
     "postgres" = "pg_isready -U postgres"
     "redis" = "redis-cli ping"
-    "qdrant" = "http://localhost:6333/healthz"
     "waha" = "http://localhost:3000/api/health"
 }
+# pgvector has no HTTP endpoint (it is a PostgreSQL extension) - check it with the SQL query above.
 
 foreach ($service in $services.Keys) {
     try {

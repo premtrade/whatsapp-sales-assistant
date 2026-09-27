@@ -1,0 +1,23 @@
+# =============================================================================
+# Python helper scripts in scripts/ (developer utilities only)
+# =============================================================================
+# The application itself runs on Node/Docker; nothing in backend/ or frontend/
+# needs Python. These packages are only for the knowledge/memory embedding and
+# database utilities in this folder, e.g.:
+#
+#   python -m venv .venv
+#   .venv\Scripts\activate        # Windows   (source .venv/bin/activate on *nix)
+#   pip install -r scripts/requirements.txt
+#   python scripts/embed_knowledge_hf.py          # re-embeds knowledge_chunks (HF, 768 dims)
+#   python scripts/embed_memory.py                # re-embeds memory_embeddings
+#   python scripts/import_workflows.py --help     # n8n workflow importer
+#
+# All scripts read credentials from the repository-root .env file (never commit it).
+# =============================================================================
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.1
+requests>=2.31.0
+
+# Only needed by the one-off legacy migration scripts/migrate_qdrant_to_pgvector.py
+# (Qdrant was removed from the stack; the target service no longer exists in compose)
+# qdrant-client>=1.7.0

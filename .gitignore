@@ -108,10 +108,11 @@ waha-data/
 waha-sessions/
 
 # -----------------------------------------------------------------------------
-# Traefik
+# TLS / reverse proxy (nginx + certbot on the Droplet)
 # -----------------------------------------------------------------------------
-traefik/acme.json
-traefik/letsencrypt/
+acme.json
+letsencrypt/
+docker/nginx/certs/
 
 # -----------------------------------------------------------------------------
 # Misc
@@ -127,6 +128,10 @@ credrefs.txt
 creds-dec.json
 local-creds.json
 login.json
+*.bak
+*.bak[0-9]*
+*.orig
+*.rej
 docker-build-log.txt
 facts-out.txt
 facts2-out.txt
@@ -138,10 +143,26 @@ scripts/facts.ps1
 scripts/facts2.ps1
 scripts/facts3.ps1
 scripts/_tmp_*
+scripts/_import_dir*/
 scripts/__pycache__/
 test_*.js
 test_*.json
+test_*.ps1
+test_*.txt
+test-*.json
 repro.js
+create_test_file.js
 verify_endpoints.js
+fix_phone_format.ps1
+query.sql
+/apply-migrations.ps1
+.vercel/
 .vercel
 .env*
+
+# ----------------------------------------------------------------------------
+# Tracked templates that must survive the .env* ignore rules above
+# ----------------------------------------------------------------------------
+!.env.example
+!.env.*.example
+

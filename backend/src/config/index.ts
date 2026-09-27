@@ -28,6 +28,10 @@ export interface Config {
   gemini: {
     apiKey: string;
   };
+  ai: {
+    defaultModel: string;
+    embeddingModel: string;
+  };
 }
 
 function getEnv(name: string, defaultValue?: string): string {
@@ -100,5 +104,11 @@ export const config: Config = {
   },
   gemini: {
     apiKey: getEnv('GEMINI_API_KEY', ''),
+  },
+  ai: {
+    // Must stay in sync with the model configured on the n8n 'Workflow 2 - AI Brain' Groq node.
+    defaultModel: getEnv('AI_DEFAULT_MODEL', 'qwen/qwen3.8-27b'),
+    // Must stay in sync with backend/src/services/embedding.ts and the pgvector column dimension.
+    embeddingModel: getEnv('EMBEDDING_MODEL', 'gemini-embedding-001'),
   },
 };

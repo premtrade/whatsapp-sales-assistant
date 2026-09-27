@@ -1,5 +1,6 @@
 import { query } from '../utils/database';
 import jwt from 'jsonwebtoken';
+import { config } from '../config';
 import { hashPassword } from './auth.service';
 import { createBusiness, getBusinessBySlug, getBusinessByWhatsAppPhone, Business } from './business.service';
 import { createTrial } from './subscription.service';
@@ -40,7 +41,7 @@ export interface PublicSignupResponse {
 
 const DEFAULT_SETTINGS: Array<{ key: string; value: string; dataType: string; description?: string }> = [
   { key: 'whatsapp_api_version', value: 'v18.0', dataType: 'string', description: 'WhatsApp API version' },
-  { key: 'ai_model', value: 'llama-3.3-70b-versatile', dataType: 'string', description: 'Default AI model' },
+  { key: 'ai_model', value: config.ai.defaultModel, dataType: 'string', description: 'Default AI model' },
   { key: 'message_limit', value: '1000', dataType: 'integer', description: 'WhatsApp messages per 24h' },
   { key: 'webhook_url', value: '', dataType: 'string', description: 'n8n webhook URL' },
   { key: 'ai_prompt', value: '', dataType: 'string', description: 'Custom AI prompt/instructions' },
