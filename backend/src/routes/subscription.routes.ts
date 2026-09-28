@@ -15,6 +15,7 @@ import {
 import { createCheckoutSession, createCustomerPortalSession } from '../services/stripe.service';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/auth';
+import logger from '../utils/logger';
 import { AuthenticatedRequest, Plan } from '../types';
 
 const router = Router();
@@ -55,14 +56,25 @@ router.delete('/admin/plans/:id', requireRole('super_admin'), async (req, res: R
   res.json({ success: true, message: 'Plan deactivated' });
 });
 
+// GET /subscription — wrapped as { subscription, trialDaysLeft } to match
+// frontend getSubscription(). Never 500s: billing-table issues (e.g. 053 not
+// applied on an env) must not break every page via TrialBanner.
 router.get('/subscription', async (req, res: Response): Promise<void> => {
   const businessId = tid(req as AuthenticatedRequest);
   if (!businessId) {
-    res.json({ success: true, data: null });
+    res.json({ success: true, data: { subscription: null, trialDaysLeft: null } });
     return;
   }
-  const sub = await getActiveSubscription(businessId);
-  res.json({ success: true, data: sub ? { ...sub, trialDaysLeft: trialDaysLeft(sub) } : null });
+  try {
+    const sub = await getActiveSubscription(businessId);
+    res.json({ success: true, data: { subscription: sub, trialDaysLeft: trialDaysLeft(sub) } });
+  } catch (error) {
+    logger.warn('Subscription lookup failed, returning null subscription', {
+      businessId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.json({ success: true, data: { subscription: null, trialDaysLeft: null } });
+  }
 });
 
 router.get('/subscription/history', async (req, res: Response): Promise<void> => {
