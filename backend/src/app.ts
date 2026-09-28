@@ -75,33 +75,56 @@ app.use('/api/health', healthRoutes);
 
 app.use(apiRateLimiter);
 
-app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
 
 app.use('/api/conversations', conversationRoutes);
+app.use('/conversations', conversationRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/contacts', contactRoutes);
 app.use('/api/handoffs', handoffRoutes);
+app.use('/handoffs', handoffRoutes);
 app.use('/api/quotes', quoteRoutes);
+app.use('/quotes', quoteRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/appointments', appointmentRoutes);
 app.use('/api/knowledge', knowledgeRoutes);
+app.use('/knowledge', knowledgeRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/messages', messageRoutes);
 app.use('/api/stats', dashboardRoutes);
+app.use('/stats', dashboardRoutes);
 app.use('/api/audit-logs', auditRoutes);
+app.use('/audit-logs', auditRoutes);
 app.use('/api/lead-scores', leadScoreRoutes);
+app.use('/lead-scores', leadScoreRoutes);
 app.use('/api/follow-ups', followUpRoutes);
+app.use('/follow-ups', followUpRoutes);
 app.use('/api/conversations', conversationNoteRoutes);
+app.use('/conversations', conversationNoteRoutes);
 app.use('/api/quick-replies', quickReplyRoutes);
+app.use('/quick-replies', quickReplyRoutes);
 app.use('/api/businesses', businessRoutes);
+app.use('/businesses', businessRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/settings', settingsRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/staff', staffRoutes);
 
 app.use('/api/webhooks', webhookRoutes);
+app.use('/webhooks', webhookRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/public', publicRoutes);
 app.use('/api/billing', subscriptionRoutes);
+app.use('/billing', subscriptionRoutes);
 app.use('/api/owner', ownerRoutes);
+app.use('/owner', ownerRoutes);
 app.use('/api/owner/billing', billingRoutes);
+app.use('/owner/billing', billingRoutes);
 app.use('/api/whatsapp', whatsappConfigRoutes);
+app.use('/whatsapp', whatsappConfigRoutes);
 app.use('/api/system', systemHealthRoutes);
+app.use('/system', systemHealthRoutes);
 
 app.get('/', (_req: Request, res: Response<ApiResponse>): void => {
   res.json({
