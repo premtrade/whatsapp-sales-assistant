@@ -1,14 +1,35 @@
 import rateLimit from 'express-rate-limit';
+import { Request } from 'express';
 import { config } from '../config';
 import logger from '../utils/logger';
 
+/**
+ * IPv6-safe IP normalization for rate-limit keys.
+ * express-rate-limit v7.5.x (installed) does not export ipKeyGenerator,
+ * so we inline the same /56-subnet handling for IPv6 here.
+ */
+function safeIpKey(req: Request): string {
+  const ip = req.ip ?? 'unknown';
+  if (ip.includes(':')) {
+    // IPv6: bucket by /56-equivalent prefix so one device rotating
+    // interface identifiers can't dodge the limiter, while distinct
+    // users on different prefixes don't share a bucket.
+    const parts = ip.split(':').filter((p) => p.length > 0);
+    return parts.slice(0, 4).join(':') || ip;
+  }
+  return ip;
+}
+
 export const apiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
-  // Health checks must never be rate-limited — uptime monitors poll frequently
-  skip: (req) => req.path === '/health',
+  // Health checks must never be rate-limited — uptime monitors poll frequently.
+  // NOTE: this limiter is mounted globally (app.use(apiRateLimiter)), so for a
+  // request to /api/health, req.path is '/api/health' (not '/health'). Match
+  // both, plus req.originalUrl as a fallback.
+  skip: (req) => req.path === '/health' || req.path === '/api/health' || req.originalUrl.startsWith('/health') || req.originalUrl.startsWith('/api/health'),
   handler: (req, res) => {
     logger.warn('Rate limit exceeded', {
       ip: req.ip,
@@ -24,10 +45,22 @@ export const apiRateLimiter = rateLimit({
 
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  // 50 failed attempts per 15 min per (IP + email) bucket. The old
+  // `max: 10` keyed only by IP blocked *everyone* behind the same
+  // nginx/Vercel egress IP after 10 failures — the exact 429 storm seen on /api/auth/login.
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
+  // Successful logins don't count — only failed attempts burn the budget,
+  // so normal users never trip this by logging in/out during the day.
   skipSuccessfulRequests: true,
+  // Key by IP + email so one attacker's failures don't lock out other users
+  // sharing the same egress IP. safeIpKey() keeps IPv6 subnets handled safely.
+  keyGenerator: (req) => {
+    const rawEmail = (req.body as { email?: unknown } | undefined)?.email;
+    const email = typeof rawEmail === 'string' ? rawEmail.toLowerCase().trim() : 'no-email';
+    return `${safeIpKey(req)}:${email}`;
+  },
   handler: (req, res) => {
     logger.warn('Auth rate limit exceeded', {
       ip: req.ip,

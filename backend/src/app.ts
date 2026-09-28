@@ -37,6 +37,12 @@ import { ApiResponse } from './types';
 
 const app: Application = express();
 
+// Trust proxy chain: client -> Vercel edge (rewrite) -> nginx -> Express.
+// Required so req.ip reflects the real client IP from X-Forwarded-For.
+// Must be a number (not `true`) to satisfy express-rate-limit's
+// ERR_ERL_PERMISSIVE_TRUST_PROXY validation.
+app.set('trust proxy', 2);
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
@@ -60,11 +66,14 @@ app.use(express.urlencoded({ type: ['application/x-www-form-urlencoded'], extend
 
 app.use('/storage', express.static('/app/storage'));
 
-app.use(apiRateLimiter);
-
+// Health endpoints BEFORE the global limiter so monitoring/docker
+// healthchecks can never burn the rate-limit budget (skip in the
+// limiter itself is kept as defense-in-depth).
 app.use('/health', healthRoutes);
 // Alias so Vercel's /api/:path* rewrite can reach health as /api/health
 app.use('/api/health', healthRoutes);
+
+app.use(apiRateLimiter);
 
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
