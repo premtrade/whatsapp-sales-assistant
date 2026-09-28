@@ -47,6 +47,12 @@ jest.mock('../config', () => ({
     gemini: {
       apiKey: '',
     },
+    ai: {
+      // public.service seeds settings.ai_model from config.ai.defaultModel;
+      // keep this mock in sync with the Config interface in src/config/index.ts.
+      defaultModel: 'test-ai-model',
+      embeddingModel: 'test-embedding-model',
+    },
   },
 }));
 

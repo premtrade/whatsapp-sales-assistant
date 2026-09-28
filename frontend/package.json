@@ -6,20 +6,26 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck:api": "tsc -p api/tsconfig.json",
+    "verify:ws": "node scripts/verify-ws-relay.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",
+    "@vercel/functions": "^3.9.9",
     "axios": "^1.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^6.26.2",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.26",

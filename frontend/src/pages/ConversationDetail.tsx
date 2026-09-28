@@ -13,7 +13,7 @@ export function ConversationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { subscribe } = useWebSocket()
+  const { subscribe, isConnected } = useWebSocket()
   const [newMessage, setNewMessage] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [showContext, setShowContext] = useState(true)
@@ -23,6 +23,8 @@ export function ConversationDetailPage() {
     queryKey: ['conversations', id],
     queryFn: () => getConversation(id!),
     enabled: !!id,
+    // Poll while the realtime socket is down so the thread still updates.
+    refetchInterval: isConnected ? false : 8_000,
   })
 
   const { data: customerFacts } = useQuery({

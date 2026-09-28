@@ -13,11 +13,13 @@ import { useEffect } from 'react'
 export function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { subscribe } = useWebSocket()
+  const { subscribe, isConnected } = useWebSocket()
 
   const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
+    // Poll while the realtime socket is down (Vercel relay recycled, flaky network, ...).
+    refetchInterval: isConnected ? false : 10_000,
   })
 
   const { data: recentConversations } = useQuery({
