@@ -637,14 +637,14 @@ export default function LandingPage() {
             <Link to="/signup" className="btn-primary py-3 px-8 text-base">
               Get Started Free
             </Link>
-            <a href="mailto:hello@waflo.com" className="btn-secondary py-3 px-8 text-base bg-transparent border-surface-600 text-white hover:bg-surface-800">
+            <a href="mailto:premtrade_ja@outlook.com" className="btn-secondary py-3 px-8 text-base bg-transparent border-surface-600 text-white hover:bg-surface-800">
               Talk to Our Team
             </a>
           </div>
           <p className="mt-6 text-sm text-surface-400">
             Questions? Email us at{' '}
-            <a href="mailto:hello@waflo.com" className="text-primary-400 hover:text-primary-300">
-              hello@waflo.com
+            <a href="mailto:premtrade_ja@outlook.com" className="text-primary-400 hover:text-primary-300">
+              premtrade_ja@outlook.com
             </a>
           </p>
         </div>
