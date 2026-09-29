@@ -4,7 +4,10 @@ import { getAdminUsers, updateAdminUser, deleteAdminUser } from '@/services/api'
 import type { StaffUser } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 
-interface UserRow extends StaffUser {}
+interface UserRow extends StaffUser {
+  businessId?: string
+  created_at?: string
+}
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<UserRow[]>([])
@@ -145,7 +148,7 @@ export default function UserManagementPage() {
                     </td>
                     <td className="px-4 py-3 text-surface-300 font-mono text-xs">{user.employee_number}</td>
                     <td className="px-4 py-3 text-surface-300 text-xs">{user.businessId || '-'}</td>
-                    <td className="px-4 py-3 text-surface-300">{new Date(user.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-surface-300">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {editingId === user.id ? (
