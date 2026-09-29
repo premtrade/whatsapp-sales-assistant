@@ -1,6 +1,7 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { getOwnerDashboardStats, getFinancialMetrics } from '../services/owner.service';
 import { authenticate, requireOwnerAccess } from '../middleware/auth';
+import { AuthenticatedRequest } from '../types';
 import { query } from '../utils/database';
 import logger from '../utils/logger';
 
@@ -51,7 +52,7 @@ router.get('/users/:id', authenticate, requireOwnerAccess, async (req, res: Resp
   }
 });
 
-router.put('/users/:id', authenticate, requireOwnerAccess, async (req, res: Response): Promise<void> => {
+router.put('/users/:id', authenticate, requireOwnerAccess, async (req: Request, res: Response): Promise<void> => {
   try {
     const { role, status } = req.body;
     const updates: string[] = [];
@@ -86,7 +87,7 @@ router.put('/users/:id', authenticate, requireOwnerAccess, async (req, res: Resp
       return;
     }
 
-    logger.info('User updated by owner', { userId: req.params.id, updatedBy: req.user?.id });
+    logger.info('User updated by owner', { userId: req.params.id, updatedBy: (req as AuthenticatedRequest).user?.id });
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('Failed to update user', { error });
@@ -104,7 +105,7 @@ router.delete('/users/:id', authenticate, requireOwnerAccess, async (req, res: R
       res.status(404).json({ success: false, error: 'User not found' });
       return;
     }
-    logger.info('User deleted by owner', { userId: req.params.id, deletedBy: req.user?.id });
+    logger.info('User deleted by owner', { userId: req.params.id, deletedBy: (req as AuthenticatedRequest).user?.id });
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     logger.error('Failed to delete user', { error });
@@ -160,7 +161,7 @@ router.post('/subscriptions/:id/cancel', authenticate, requireOwnerAccess, async
       res.status(404).json({ success: false, error: 'Subscription not found' });
       return;
     }
-    logger.info('Subscription canceled by owner', { subscriptionId: req.params.id, canceledBy: req.user?.id });
+    logger.info('Subscription canceled by owner', { subscriptionId: req.params.id, canceledBy: (req as AuthenticatedRequest).user?.id });
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('Failed to cancel subscription', { error });
@@ -178,7 +179,7 @@ router.post('/subscriptions/:id/activate', authenticate, requireOwnerAccess, asy
       res.status(404).json({ success: false, error: 'Subscription not found' });
       return;
     }
-    logger.info('Subscription activated by owner', { subscriptionId: req.params.id, activatedBy: req.user?.id });
+    logger.info('Subscription activated by owner', { subscriptionId: req.params.id, activatedBy: (req as AuthenticatedRequest).user?.id });
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('Failed to activate subscription', { error });
@@ -214,7 +215,7 @@ router.put('/api-config', authenticate, requireOwnerAccess, async (req, res: Res
       );
       results.push(result.rows[0]);
     }
-    logger.info('API config updated by owner', { updatedBy: req.user?.id });
+    logger.info('API config updated by owner', { updatedBy: (req as AuthenticatedRequest).user?.id });
     res.json({ success: true, data: results });
   } catch (error) {
     logger.error('Failed to update API config', { error });
@@ -250,7 +251,7 @@ router.put('/settings', authenticate, requireOwnerAccess, async (req, res: Respo
       );
       results.push(result.rows[0]);
     }
-    logger.info('Settings updated by owner', { updatedBy: req.user?.id });
+    logger.info('Settings updated by owner', { updatedBy: (req as AuthenticatedRequest).user?.id });
     res.json({ success: true, data: results });
   } catch (error) {
     logger.error('Failed to update settings', { error });
