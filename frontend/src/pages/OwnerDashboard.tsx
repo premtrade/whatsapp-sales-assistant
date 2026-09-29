@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { getOwnerDashboard, getFinancialMetrics } from '@/services/api'
 import type { OwnerDashboardStats, FinancialMetrics } from '@/types'
@@ -55,6 +56,25 @@ export default function OwnerDashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-surface-100">Platform Overview</h1>
         <p className="text-sm text-surface-400">Welcome back, {staff?.first_name || 'owner'}. Here's what's happening across WAFLO.</p>
+        
+        {/* Owner Navigation */}
+        <div className="mt-4 flex space-x-4">
+          <Link to="/owner/users" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
+            Users
+          </Link>
+          <Link to="/owner/subscriptions" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
+            Subscriptions
+          </Link>
+          <Link to="/owner/api-config" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
+            API Config
+          </Link>
+          <Link to="/owner/settings" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
+            Settings
+          </Link>
+          <Link to="/billing" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
+            Billing
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

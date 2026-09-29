@@ -555,4 +555,59 @@ export async function clearSystemCache(): Promise<{ success: boolean; message: s
   return response.data
 }
 
+// Admin Owner Endpoints
+export async function getAdminUsers(): Promise<StaffUser[]> {
+  const response = await api.get<{ success: boolean; data: StaffUser[] }>('/admin/users')
+  return response.data.data
+}
+
+export async function getAdminUser(id: string): Promise<StaffUser> {
+  const response = await api.get<{ success: boolean; data: StaffUser }>(`/admin/users/${id}`)
+  return response.data.data
+}
+
+export async function updateAdminUser(id: string, data: { role?: string; status?: string }): Promise<StaffUser> {
+  const response = await api.put<{ success: boolean; data: StaffUser }>(`/admin/users/${id}`, data)
+  return response.data.data
+}
+
+export async function deleteAdminUser(id: string): Promise<void> {
+  await api.delete(`/admin/users/${id}`)
+}
+
+export async function getAdminSubscriptions(): Promise<any[]> {
+  const response = await api.get<{ success: boolean; data: any[] }>('/admin/subscriptions')
+  return response.data.data
+}
+
+export async function cancelSubscription(id: string): Promise<any> {
+  const response = await api.post<{ success: boolean; data: any }>(`/admin/subscriptions/${id}/cancel`)
+  return response.data.data
+}
+
+export async function activateSubscription(id: string): Promise<any> {
+  const response = await api.post<{ success: boolean; data: any }>(`/admin/subscriptions/${id}/activate`)
+  return response.data.data
+}
+
+export async function getAdminApiConfig(): Promise<Record<string, string>> {
+  const response = await api.get<{ success: boolean; data: Record<string, string> }>('/admin/api-config')
+  return response.data.data
+}
+
+export async function updateAdminApiConfig(configs: Record<string, string>): Promise<any> {
+  const response = await api.put<{ success: boolean; data: any }>('/admin/api-config', { configs })
+  return response.data.data
+}
+
+export async function getAdminSettings(): Promise<Record<string, string>> {
+  const response = await api.get<{ success: boolean; data: Record<string, string> }>('/admin/settings')
+  return response.data.data
+}
+
+export async function updateAdminSettings(settings: Record<string, string>): Promise<any> {
+  const response = await api.put<{ success: boolean; data: any }>('/admin/settings', { settings })
+  return response.data.data
+}
+
 

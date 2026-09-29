@@ -192,3 +192,14 @@ export function getTenantId(req: any): string {
   }
   return tenantId;
 }
+
+export function requireOwnerAccess(req: any, _res: any, next: any): void {
+  if (!req.user) {
+    throw new UnauthorizedError('Authentication required');
+  }
+  const userRole = req.user.role;
+  const isOwnerRole = ['super_admin', 'admin'].includes(userRole);
+  if (!isOwnerRole) {
+    throw new ForbiddenError('Owner access required. Need super_admin or admin role.');
+  }
+}

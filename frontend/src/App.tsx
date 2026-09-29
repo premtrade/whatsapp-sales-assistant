@@ -24,6 +24,10 @@ import { SettingsPage } from './pages/Settings'
 import { LeadPipelinePage } from './pages/LeadPipeline'
 import PlansPage from './pages/Plans'
 import OwnerDashboardPage from './pages/OwnerDashboard'
+import UserManagementPage from './pages/UserManagement'
+import SubscriptionManagementPage from './pages/SubscriptionManagement'
+import ApiConfigurationPage from './pages/ApiConfiguration'
+import GlobalSettingsPage from './pages/GlobalSettings'
 import BillingPage from './pages/Billing'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -74,6 +78,10 @@ export default function App() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/plans" element={<PlansPage />} />
                 <Route path="/owner" element={<OwnerDashboardPage />} />
+                <Route path="/owner/users" element={<UserManagementPage />} />
+                <Route path="/owner/subscriptions" element={<SubscriptionManagementPage />} />
+                <Route path="/owner/api-config" element={<ApiConfigurationPage />} />
+                <Route path="/owner/settings" element={<GlobalSettingsPage />} />
                 <Route path="/billing" element={<BillingPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>

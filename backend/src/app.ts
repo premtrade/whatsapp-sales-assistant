@@ -32,6 +32,7 @@ import webhookRoutes from './routes/webhook.routes';
 import publicRoutes from './routes/public.routes';
 import subscriptionRoutes from './routes/subscription.routes';
 import ownerRoutes from './routes/owner.routes';
+import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
 import { ApiResponse } from './types';
 
@@ -119,6 +120,8 @@ app.use('/api/billing', subscriptionRoutes);
 app.use('/billing', subscriptionRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/owner', ownerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/admin', adminRoutes);
 app.use('/api/owner/billing', billingRoutes);
 app.use('/owner/billing', billingRoutes);
 app.use('/api/whatsapp', whatsappConfigRoutes);
