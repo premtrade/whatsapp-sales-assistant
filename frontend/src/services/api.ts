@@ -485,7 +485,7 @@ export async function getOwnerDashboard(): Promise<OwnerDashboardStats> {
 }
 
 export async function getFinancialMetrics(): Promise<FinancialMetrics> {
-  const response = await api.get<{ success: boolean; data: FinancialMetrics }>('/owner/billing/financials')
+  const response = await api.get<{ success: boolean; data: FinancialMetrics }>('/owner/financials')
   return response.data.data
 }
 

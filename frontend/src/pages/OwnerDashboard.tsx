@@ -19,7 +19,10 @@ export default function OwnerDashboardPage() {
         ])
         setStats(dashboardData)
         setFinancials(financialData)
-      } catch {
+      } catch (err) {
+        // ErrorState shows on !stats; surface the cause to the user + console.
+        // eslint-disable-next-line no-console
+        console.error('Owner dashboard load failed', err)
         toast.error('Failed to load owner dashboard')
       } finally {
         setLoading(false)
