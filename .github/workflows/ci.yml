@@ -236,7 +236,7 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
 
             echo "==> Pulling latest code..."
-            git pull origin main
+            git -c core.fileMode=false pull --ff-only origin main
 
             echo "==> Rebuilding and restarting containers..."
             # NOTE: do NOT pass -f docker-compose.prod.yml here. Compose *merges*
@@ -252,7 +252,6 @@ jobs:
             sleep 15
 
             echo "==> Running any pending DB migrations..."
-            chmod +x scripts/run-migrations.sh
             # run-migrations.sh uses schema_migrations(migration_name) and covers
             # both database/schema/*.sql and database/migrations/*.sql
             POSTGRES_HOST=127.0.0.1 \
