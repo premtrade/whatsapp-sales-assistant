@@ -30,6 +30,7 @@ import type {
   AuditLogListParams,
   Setting,
   SettingsUpdateRequest,
+  MessageTemplate,
   ApiError,
   LeadScore,
   LeadScoreListParams,
@@ -399,6 +400,58 @@ export async function getWhatsAppStatus(): Promise<WhatsAppStatus> {
 export async function testWhatsAppConnection(): Promise<WhatsAppTestResult> {
   const response = await api.post<{ success: boolean; data: WhatsAppTestResult }>('/whatsapp/test-connection')
   return response.data.data
+}
+
+export async function updateWhatsAppConfig(data: {
+  phoneNumber?: string;
+  businessName?: string;
+  businessId?: string;
+  webhookUrl?: string;
+  apiVersion?: string;
+  messageLimit?: string;
+}): Promise<WhatsAppConfig> {
+  const response = await api.patch<{ success: boolean; data: WhatsAppConfig }>('/whatsapp/config', data)
+  return response.data.data
+}
+
+// Message Templates
+export async function getMessageTemplates(category?: string): Promise<MessageTemplate[]> {
+  const url = category ? `/message-templates?category=${encodeURIComponent(category)}` : '/message-templates'
+  const response = await api.get<{ success: boolean; data: MessageTemplate[] }>(url)
+  return response.data.data
+}
+
+export async function createMessageTemplate(data: {
+  name: string
+  category: string
+  description?: string | null
+  subject?: string | null
+  body: string
+  variables?: string[]
+  language?: string
+  is_active?: boolean
+}): Promise<MessageTemplate> {
+  const response = await api.post<{ success: boolean; data: MessageTemplate }>('/message-templates', data)
+  return response.data.data
+}
+
+export async function updateMessageTemplate(id: string, data: {
+  name?: string
+  category?: string
+  description?: string | null
+  subject?: string | null
+  body?: string
+  variables?: string[]
+  language?: string
+  is_active?: boolean
+}): Promise<MessageTemplate> {
+  const response = await api.patch<{ success: boolean; data: MessageTemplate }>(`/message-templates/${id}`, data)
+  return response.data.data
+}
+
+export async function deleteMessageTemplate(id: string): Promise<{ success: boolean; message: string }> {
+  const response = await api.delete<{ success: boolean; message: string }>(`/message-templates/${id}`)
+  return response.data
 }
 
 // Public signup

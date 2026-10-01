@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { query } from '../utils/database';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 import logger from '../utils/logger';
-import { getActiveSubscription, getPlanById, clearSubCache } from './subscription.service';
+import { getActiveSubscription, getPlanById, getPlanBySlug, clearSubCache } from './subscription.service';
 import type { Plan } from '../types';
 
 let stripeClient: Stripe | null = null;
@@ -24,7 +24,7 @@ export async function createCheckoutSession(businessId: string, planSlug: string
   const sub = await getActiveSubscription(businessId);
   if (!sub) throw new NotFoundError('No active subscription');
 
-  const plan = await getPlanById(sub.plan_id);
+  const plan = await getPlanBySlug(planSlug);
 
   const businessResult = await query<{ id: string; name: string; email: string | null }>(
     `SELECT id, name, email FROM businesses WHERE id = $1 LIMIT 1`,
@@ -38,7 +38,10 @@ export async function createCheckoutSession(businessId: string, planSlug: string
   let customerId = sub.external_customer_id || undefined;
   if (!customerId && business.email) {
     const matches = await stripe.customers.list({ email: business.email, limit: 1 });
-    customerId = matches.data[0]?.id || undefined;
+    const existing = matches.data[0];
+    if (existing && existing.metadata?.businessId === businessId) {
+      customerId = existing.id;
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: business.email,
@@ -100,6 +103,21 @@ export async function createCustomerPortalSession(businessId: string, returnUrl:
   return { url: session.url };
 }
 
+export async function cancelStripeSubscription(stripeSubscriptionId: string): Promise<void> {
+  const stripe = getStripe();
+  await stripe.subscriptions.cancel(stripeSubscriptionId);
+}
+
+export async function resumeStripeSubscription(stripeSubscriptionId: string): Promise<void> {
+  const stripe = getStripe();
+  const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+  if (subscription.status === 'canceled' || subscription.cancel_at_period_end) {
+    await stripe.subscriptions.update(stripeSubscriptionId, {
+      cancel_at_period_end: false,
+    });
+  }
+}
+
 export async function handleStripeWebhook(payload: unknown, signature: string): Promise<void> {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -132,11 +150,13 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
         return;
       }
 
+      const planId = planSlug ? await getPlanBySlug(planSlug).then(p => p.id).catch(() => null) : null;
+
       await query(
         `UPDATE subscriptions
-         SET status='active', external_subscription_id=$1, external_customer_id=$2, metadata=metadata||$3::jsonb, updated_at=NOW()
-         WHERE id=$4`,
-        [stripeSubscriptionId, stripeCustomerId || null, JSON.stringify({ stripeSessionId: session.id, planSlug }), subscriptionId]
+         SET status='active', plan_id=COALESCE($1, plan_id), external_subscription_id=$2, external_customer_id=$3, metadata=metadata||$4::jsonb, updated_at=NOW()
+         WHERE id=$5`,
+        [planId, stripeSubscriptionId, stripeCustomerId || null, JSON.stringify({ stripeSessionId: session.id, planSlug }), subscriptionId]
       );
       clearSubCache(businessId);
       break;
@@ -202,8 +222,8 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
       const customerId = (invoice.customer as string) || undefined;
       if (!customerId) return;
 
-      const subResult = await query<{ id: string; business_id: string }>(
-        `SELECT id, business_id FROM subscriptions WHERE external_customer_id=$1 LIMIT 1`,
+      const subResult = await query<{ id: string; business_id: string; status: string }>(
+        `SELECT id, business_id, status FROM subscriptions WHERE external_customer_id=$1 LIMIT 1`,
         [customerId]
       );
       const subRow = subResult.rows[0];
@@ -223,6 +243,14 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
           JSON.stringify({ invoiceNumber: invoice.number, hostedInvoiceUrl: invoice.hosted_invoice_url }),
         ]
       );
+
+      if (subRow.status === 'past_due') {
+        await query(
+          `UPDATE subscriptions SET status='active', metadata=metadata||$1::jsonb, updated_at=NOW() WHERE id=$2`,
+          [JSON.stringify({ lastPaymentFailureResolved: invoice.id, resolvedAt: new Date().toISOString() }), subRow.id]
+        );
+        clearSubCache(subRow.business_id);
+      }
       break;
     }
 

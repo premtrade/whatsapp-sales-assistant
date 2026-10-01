@@ -29,6 +29,9 @@ import SubscriptionManagementPage from './pages/SubscriptionManagement'
 import ApiConfigurationPage from './pages/ApiConfiguration'
 import GlobalSettingsPage from './pages/GlobalSettings'
 import BillingPage from './pages/Billing'
+import { AuditLogsPage } from './pages/AuditLogs'
+import { RequireOwnerAccess } from './components/Auth/RequireOwnerAccess'
+import { RequireBusinessAdmin } from './components/Auth/RequireBusinessAdmin'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated, loading } = useAuth()
@@ -76,13 +79,14 @@ export default function App() {
                 <Route path="/analytics/funnel" element={<ConversionFunnelPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/plans" element={<PlansPage />} />
-                <Route path="/owner" element={<OwnerDashboardPage />} />
-                <Route path="/owner/users" element={<UserManagementPage />} />
-                <Route path="/owner/subscriptions" element={<SubscriptionManagementPage />} />
-                <Route path="/owner/api-config" element={<ApiConfigurationPage />} />
-                <Route path="/owner/settings" element={<GlobalSettingsPage />} />
-                <Route path="/billing" element={<BillingPage />} />
+                <Route path="/plans" element={<RequireOwnerAccess><PlansPage /></RequireOwnerAccess>} />
+                <Route path="/owner" element={<RequireOwnerAccess><OwnerDashboardPage /></RequireOwnerAccess>} />
+                <Route path="/owner/users" element={<RequireOwnerAccess><UserManagementPage /></RequireOwnerAccess>} />
+                <Route path="/owner/subscriptions" element={<RequireOwnerAccess><SubscriptionManagementPage /></RequireOwnerAccess>} />
+                <Route path="/owner/api-config" element={<RequireOwnerAccess><ApiConfigurationPage /></RequireOwnerAccess>} />
+                <Route path="/owner/settings" element={<RequireOwnerAccess><GlobalSettingsPage /></RequireOwnerAccess>} />
+                <Route path="/billing" element={<RequireBusinessAdmin><BillingPage /></RequireBusinessAdmin>} />
+                <Route path="/audit-logs" element={<RequireOwnerAccess><AuditLogsPage /></RequireOwnerAccess>} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </AppLayout>

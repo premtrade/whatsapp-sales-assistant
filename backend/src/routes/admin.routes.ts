@@ -4,6 +4,9 @@ import { authenticate, requireOwnerAccess } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
 import { query } from '../utils/database';
 import logger from '../utils/logger';
+import { getActiveSubscription, clearSubCache } from '../services/subscription.service';
+import { cancelStripeSubscription, resumeStripeSubscription } from '../services/stripe.service';
+import { validateSettingValue } from '../services/settings.service';
 
 const router = Router();
 
@@ -114,17 +117,25 @@ router.delete('/users/:id', authenticate, requireOwnerAccess, async (req, res: R
 });
 
 // Subscription Oversight
-router.get('/subscriptions', authenticate, requireOwnerAccess, async (_req, res: Response): Promise<void> => {
+router.get('/subscriptions', authenticate, requireOwnerAccess, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const offset = (page - 1) * limit;
+
     const result = await query(`
       SELECT s.id, s.business_id, s.plan_id, s.status, s.current_period_start, s.current_period_end,
-             s.trial_ends_at, s.canceled_at, s.external_subscription_id, s.metadata,
+             s.trial_ends_at, s.canceled_at, s.external_subscription_id, s.metadata, s.created_at,
+             b.name as business_name, b.slug as business_slug,
              p.name as plan_name, p.price_monthly, p.currency
       FROM subscriptions s
+      LEFT JOIN businesses b ON b.id = s.business_id
       LEFT JOIN plans p ON p.id = s.plan_id
       ORDER BY s.created_at DESC
-    `);
-    res.json({ success: true, data: result.rows });
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    res.json({ success: true, data: result.rows, meta: { page, limit } });
   } catch (error) {
     logger.error('Failed to fetch subscriptions', { error });
     res.status(500).json({ success: false, error: 'Failed to fetch subscriptions' });
@@ -151,36 +162,50 @@ router.get('/subscriptions/:id', authenticate, requireOwnerAccess, async (req, r
   }
 });
 
-router.post('/subscriptions/:id/cancel', authenticate, requireOwnerAccess, async (req, res: Response): Promise<void> => {
+router.post('/subscriptions/:id/cancel', authenticate, requireOwnerAccess, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const result = await query(
-      `UPDATE subscriptions SET status = 'canceled', canceled_at = NOW() WHERE id = $1 RETURNING *`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0) {
+    const subResult = await query(`SELECT id, business_id, external_subscription_id FROM subscriptions WHERE id = $1`, [req.params.id]);
+    if (subResult.rows.length === 0) {
       res.status(404).json({ success: false, error: 'Subscription not found' });
       return;
     }
-    logger.info('Subscription canceled by owner', { subscriptionId: req.params.id, canceledBy: (req as AuthenticatedRequest).user?.id });
-    res.json({ success: true, data: result.rows[0] });
+    const sub = subResult.rows[0]!;
+    await query(`UPDATE subscriptions SET status = 'canceled', canceled_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`, [req.params.id]);
+    if (sub.external_subscription_id) {
+      try {
+        await cancelStripeSubscription(sub.external_subscription_id);
+      } catch (stripeError: any) {
+        logger.warn('Failed to cancel Stripe subscription', { subscriptionId: sub.external_subscription_id, error: stripeError?.message });
+      }
+    }
+    clearSubCache(sub.business_id);
+    logger.info('Subscription canceled by owner', { subscriptionId: req.params.id, canceledBy: req.user?.id });
+    res.json({ success: true, message: 'Subscription canceled' });
   } catch (error) {
     logger.error('Failed to cancel subscription', { error });
     res.status(500).json({ success: false, error: 'Failed to cancel subscription' });
   }
 });
 
-router.post('/subscriptions/:id/activate', authenticate, requireOwnerAccess, async (req, res: Response): Promise<void> => {
+router.post('/subscriptions/:id/activate', authenticate, requireOwnerAccess, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const result = await query(
-      `UPDATE subscriptions SET status = 'active', canceled_at = NULL WHERE id = $1 RETURNING *`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0) {
+    const subResult = await query(`SELECT id, business_id, external_subscription_id FROM subscriptions WHERE id = $1`, [req.params.id]);
+    if (subResult.rows.length === 0) {
       res.status(404).json({ success: false, error: 'Subscription not found' });
       return;
     }
-    logger.info('Subscription activated by owner', { subscriptionId: req.params.id, activatedBy: (req as AuthenticatedRequest).user?.id });
-    res.json({ success: true, data: result.rows[0] });
+    const sub = subResult.rows[0]!;
+    await query(`UPDATE subscriptions SET status = 'active', canceled_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *`, [req.params.id]);
+    if (sub.external_subscription_id) {
+      try {
+        await resumeStripeSubscription(sub.external_subscription_id);
+      } catch (stripeError: any) {
+        logger.warn('Failed to resume Stripe subscription', { subscriptionId: sub.external_subscription_id, error: stripeError?.message });
+      }
+    }
+    clearSubCache(sub.business_id);
+    logger.info('Subscription activated by owner', { subscriptionId: req.params.id, activatedBy: req.user?.id });
+    res.json({ success: true, message: 'Subscription activated' });
   } catch (error) {
     logger.error('Failed to activate subscription', { error });
     res.status(500).json({ success: false, error: 'Failed to activate subscription' });
@@ -227,10 +252,15 @@ router.put('/api-config', authenticate, requireOwnerAccess, async (req, res: Res
 router.get('/settings', authenticate, requireOwnerAccess, async (_req, res: Response): Promise<void> => {
   try {
     const result = await query(
-      `SELECT setting_key, setting_value, data_type, description FROM settings ORDER BY setting_key`
+      `SELECT setting_key, setting_value, data_type, description, is_system FROM settings WHERE is_system = true ORDER BY setting_key`
     );
     const settings = result.rows.reduce((acc: any, row: any) => {
-      acc[row.setting_key] = row.setting_value;
+      acc[row.setting_key] = {
+        value: row.setting_value,
+        dataType: row.data_type,
+        description: row.description,
+        isSystem: row.is_system,
+      };
       return acc;
     }, {});
     res.json({ success: true, data: settings });
@@ -240,22 +270,29 @@ router.get('/settings', authenticate, requireOwnerAccess, async (_req, res: Resp
   }
 });
 
-router.put('/settings', authenticate, requireOwnerAccess, async (req, res: Response): Promise<void> => {
+router.put('/settings', authenticate, requireOwnerAccess, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { settings } = req.body;
-    const results = [];
+    const settings = (req.body as Record<string, string>).settings ?? {};
+    const results: any[] = [];
     for (const [key, value] of Object.entries(settings)) {
+      const existing = await query(
+        `SELECT data_type FROM settings WHERE setting_key = $1 AND is_system = true LIMIT 1`,
+        [key]
+      );
+      const dataType = existing.rows[0]?.data_type || 'string';
+      validateSettingValue(dataType, typeof value === 'string' ? value : String(value));
       const result = await query(
-        `UPDATE settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2 RETURNING *`,
-        [value as string, key]
+        `UPDATE settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2 AND is_system = true RETURNING *`,
+        [typeof value === 'string' ? value : String(value), key]
       );
       results.push(result.rows[0]);
     }
-    logger.info('Settings updated by owner', { updatedBy: (req as AuthenticatedRequest).user?.id });
+    logger.info('Settings updated by owner', { updatedBy: req.user?.id });
     res.json({ success: true, data: results });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to update settings', { error });
-    res.status(500).json({ success: false, error: 'Failed to update settings' });
+    const message = error?.message || 'Failed to update settings';
+    res.status(400).json({ success: false, error: message });
   }
 });
 

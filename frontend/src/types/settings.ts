@@ -1,5 +1,6 @@
 export interface Setting {
   id: string
+  business_id?: string
   setting_key: string
   setting_value: string | null
   data_type: 'string' | 'integer' | 'decimal' | 'boolean' | 'json'
@@ -20,4 +21,21 @@ export interface CompanySettings {
 export interface SettingsUpdateRequest {
   setting_key: string
   setting_value: string
+}
+
+export interface MessageTemplate {
+  id: string
+  business_id: string
+  name: string
+  category: string
+  description: string | null
+  subject: string | null
+  body: string
+  variables: string[]
+  language: string
+  is_active: boolean
+  usage_count: number
+  created_at: string
+  updated_at: string
+  last_used_at: string | null
 }

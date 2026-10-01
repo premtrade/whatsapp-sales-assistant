@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useCallback } from 'react'
 
 interface ModalProps {
   isOpen: boolean
@@ -8,24 +8,63 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
+function getFocusableElements(container: HTMLElement | null): HTMLElement[] {
+  if (!container) return []
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter(el => el.offsetParent !== null)
+}
+
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
+  const previousActiveElement = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
+    if (!isOpen) return
+
+    previousActiveElement.current = document.activeElement as HTMLElement | null
+
+    const firstFocusable = getFocusableElements(modalRef.current)
+    if (firstFocusable.length > 0) {
+      firstFocusable[0].focus()
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         onClose()
+        return
+      }
+
+      if (event.key === 'Tab') {
+        const focusable = getFocusableElements(modalRef.current)
+        if (focusable.length === 0) return
+
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+
+        if (event.shiftKey) {
+          if (document.activeElement === first || !modalRef.current?.contains(document.activeElement)) {
+            event.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last || !modalRef.current?.contains(document.activeElement)) {
+            event.preventDefault()
+            first.focus()
+          }
+        }
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'hidden'
-    }
+    document.addEventListener('keydown', handleKeyDown)
+    document.body.style.overflow = 'hidden'
 
     return () => {
-      document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = 'unset'
+      previousActiveElement.current?.focus()
     }
   }, [isOpen, onClose])
 

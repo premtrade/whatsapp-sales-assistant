@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { getSystemHealth, getSystemMetrics } from '@/services/api'
+import { useState, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getSystemHealth, getSystemMetrics, clearSystemCache as clearCacheApi, exportSettings as exportSettingsApi, importSettings as importSettingsApi, getAuditLogs } from '@/services/api'
 import { LoadingState } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
 import toast from 'react-hot-toast'
@@ -8,6 +8,9 @@ import toast from 'react-hot-toast'
 export function SystemHealth() {
   const [isClearing, setIsClearing] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
 
   const { data: health, isLoading, error, refetch } = useQuery({
     queryKey: ['system-health'],
@@ -19,6 +22,94 @@ export function SystemHealth() {
     queryKey: ['system-metrics'],
     queryFn: getSystemMetrics,
   })
+
+  const { data: auditLogs } = useQuery({
+    queryKey: ['audit-logs', { entity_type: 'settings', limit: 5 }],
+    queryFn: () => getAuditLogs({ entity_type: 'settings', limit: 5 }),
+  })
+
+  const clearCacheMutation = useMutation({
+    mutationFn: clearCacheApi,
+    onSuccess: (result) => {
+      toast.success(result.message || 'Cache cleared successfully')
+      setIsClearing(false)
+    },
+    onError: () => {
+      toast.error('Failed to clear cache')
+      setIsClearing(false)
+    },
+  })
+
+  const exportMutation = useMutation({
+    mutationFn: exportSettingsApi,
+    onSuccess: (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `config-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Configuration exported')
+      setIsExporting(false)
+    },
+    onError: () => {
+      toast.error('Failed to export configuration')
+      setIsExporting(false)
+    },
+  })
+
+  const importMutation = useMutation({
+    mutationFn: ({ content }: { content: string }) => importSettingsApi(JSON.parse(content)),
+    onSuccess: (result) => {
+      toast.success(`Import complete: ${result.updated} updated, ${result.failed} failed`)
+      setIsImporting(false)
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+    onError: () => {
+      toast.error('Failed to import configuration')
+      setIsImporting(false)
+    },
+  })
+
+  const handleClearCache = () => {
+    setIsClearing(true)
+    clearCacheMutation.mutate()
+  }
+
+  const handleExport = () => {
+    setIsExporting(true)
+    exportMutation.mutate()
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsImporting(true)
+    try {
+      const content = await file.text()
+      importMutation.mutate({ content })
+    } catch {
+      toast.error('Invalid file format')
+      setIsImporting(false)
+    }
+    e.target.value = ''
+  }
+
+  if (isLoading) {
+    return <LoadingState type="card" count={4} />
+  }
+
+  if (error) {
+    return <EmptyState icon={<NoDataIcon />} title="Failed to load system health" description="Please try again later." />
+  }
+
+  const services = health?.services || []
+  const overall = health?.overall || 'operational'
 
   const statusDot: Record<string, string> = {
     operational: 'bg-success-500',
@@ -37,33 +128,6 @@ export function SystemHealth() {
     degraded: 'Degraded Performance',
     down: 'Major Outage',
   }
-
-  const handleClearCache = () => {
-    setIsClearing(true)
-    setTimeout(() => {
-      setIsClearing(false)
-      toast.success('Cache cleared successfully')
-    }, 1500)
-  }
-
-  const handleExport = () => {
-    setIsExporting(true)
-    setTimeout(() => {
-      setIsExporting(false)
-      toast.success('Configuration exported')
-    }, 1200)
-  }
-
-  if (isLoading) {
-    return <LoadingState type="card" count={4} />
-  }
-
-  if (error) {
-    return <EmptyState icon={<NoDataIcon />} title="Failed to load system health" description="Please try again later." />
-  }
-
-  const services = health?.services || []
-  const overall = health?.overall || 'operational'
 
   return (
     <div className="space-y-6">
@@ -92,7 +156,7 @@ export function SystemHealth() {
           ))}
         </div>
       </div>
-      {metrics && (
+      {metrics ? (
         <div className="card p-4">
           <h4 className="text-sm font-semibold text-surface-800 mb-3">System Metrics</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -134,6 +198,11 @@ export function SystemHealth() {
             </div>
           </div>
         </div>
+      ) : (
+        <div className="card p-4">
+          <h4 className="text-sm font-semibold text-surface-800 mb-3">System Metrics</h4>
+          <EmptyState icon={<NoDataIcon />} title="Metrics unavailable" description="System metrics are not available right now." />
+        </div>
       )}
       <div className="card p-4">
         <h4 className="text-sm font-semibold text-surface-800 mb-1">Maintenance</h4>
@@ -145,27 +214,28 @@ export function SystemHealth() {
           <button onClick={handleExport} disabled={isExporting} className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50">
             {isExporting ? 'Exporting...' : 'Export Configuration'}
           </button>
-          <button onClick={() => toast('Import dialog coming from your backup file')} className="btn-secondary text-xs px-3 py-1.5">
-            Import Configuration
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
+          <button onClick={handleImportClick} disabled={isImporting} className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50">
+            {isImporting ? 'Importing...' : 'Import Configuration'}
           </button>
         </div>
       </div>
       <div className="card p-4">
         <h4 className="text-sm font-semibold text-surface-800 mb-3">Recent Configuration Changes</h4>
         <div className="space-y-2">
-          {[
-            { action: 'Updated ai_response_delay', by: 'Admin', time: '2 hours ago' },
-            { action: 'Changed business_hours', by: 'Manager', time: 'Yesterday' },
-            { action: 'Enabled auto_reply', by: 'Admin', time: '3 days ago' },
-          ].map((log, i) => (
-            <div key={i} className="flex items-center justify-between py-2 border-b border-surface-50 last:border-0">
-              <div>
-                <p className="text-sm text-surface-800 font-mono">{log.action}</p>
-                <p className="text-xs text-surface-400">by {log.by}</p>
+          {auditLogs?.data?.length ? (
+            auditLogs.data.map((log) => (
+              <div key={log.id} className="flex items-center justify-between py-2 border-b border-surface-50 last:border-0">
+                <div>
+                  <p className="text-sm text-surface-800 font-mono">{log.description || log.action}</p>
+                  <p className="text-xs text-surface-400">by {log.performed_by || 'System'}</p>
+                </div>
+                <span className="text-xs text-surface-400">{new Date(log.created_at).toLocaleString()}</span>
               </div>
-              <span className="text-xs text-surface-400">{log.time}</span>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sm text-surface-400">No recent changes</p>
+          )}
         </div>
       </div>
     </div>

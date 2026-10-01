@@ -177,6 +177,7 @@ export async function getFinancialMetrics(): Promise<FinancialMetrics> {
       `),
       query<{ count: string }>(`SELECT COUNT(*) as count FROM subscriptions WHERE status = 'canceled' AND updated_at >= NOW() - INTERVAL '30 days'`),
       query<{ count: string }>(`SELECT COUNT(*) as count FROM subscriptions WHERE status IN ('active', 'trialing', 'past_due')`),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM subscriptions WHERE status = 'trialing'`),
     ]);
 
     const mapStatus = (rows: { status: string; count: string }[]) => {
@@ -190,8 +191,10 @@ export async function getFinancialMetrics(): Promise<FinancialMetrics> {
     const currency = mrrResult.rows[0]?.currency || 'USD';
     const trialToPaid = parseInt(conversionsResult.rows[0]?.count || '0', 10);
     const canceled30 = parseInt(canceled30Result.rows[0]?.count || '0', 10);
-    const totalActive = (ss['active'] || 0) + (ss['trialing'] || 0) + (ss['past_due'] || 0);
+    const totalTrials = parseInt(totalSubsResult.rows[0]?.count || '0', 10);
+    const totalActive = (ss['active'] || 0) + (ss['trialing'] || 0);
     const churnRate = totalActive > 0 ? (canceled30 / totalActive) * 100 : 0;
+    const trialConversionRate = totalTrials > 0 ? (trialToPaid / totalTrials) * 100 : 0;
 
     return {
       revenue: {
@@ -214,7 +217,7 @@ export async function getFinancialMetrics(): Promise<FinancialMetrics> {
       },
       conversions: {
         trialToPaid,
-        trialConversionRate: trialToPaid > 0 ? 100 : 0,
+        trialConversionRate: Math.round(trialConversionRate * 100) / 100,
       },
       churn: {
         canceledLast30Days: canceled30,

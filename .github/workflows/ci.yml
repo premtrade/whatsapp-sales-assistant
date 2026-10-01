@@ -258,7 +258,7 @@ jobs:
             DB_HOST=127.0.0.1 DB_PORT=5432 \
               DB_USER=${{ secrets.POSTGRES_USER }} DB_NAME=${{ secrets.POSTGRES_DB }} \
               PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              bash scripts/run-migrations.sh || echo "migration runner failed - check logs"
+              bash scripts/run-migrations.sh
 
             echo "==> Reloading nginx..."
             sudo nginx -t && sudo systemctl reload nginx || true

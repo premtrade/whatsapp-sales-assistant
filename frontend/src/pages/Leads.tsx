@@ -182,11 +182,11 @@ export function LeadsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-surface-100">
-                  <th className="table-header">Customer</th>
-                  <th className="table-header">Phone</th>
-                  <th className="table-header">Stage</th>
-                  <th className="table-header hidden md:table-cell">Last Activity</th>
-                  <th className="table-header hidden md:table-cell">Lead Score</th>
+                  <th scope="col" className="table-header">Customer</th>
+                  <th scope="col" className="table-header">Phone</th>
+                  <th scope="col" className="table-header">Stage</th>
+                  <th scope="col" className="table-header hidden md:table-cell">Last Activity</th>
+                  <th scope="col" className="table-header hidden md:table-cell">Lead Score</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-50">

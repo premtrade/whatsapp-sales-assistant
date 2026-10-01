@@ -1,0 +1,52 @@
+﻿Pager usage is off.
+         section         
+-------------------------
+ === A. column types ===
+(1 row)
+
+    table_name    |   column_name   |        data_type         
+------------------+-----------------+--------------------------
+ workflow_entity  | active          | boolean
+ workflow_entity  | activeVersionId | character varying
+ workflow_entity  | connections     | json
+ workflow_entity  | createdAt       | timestamp with time zone
+ workflow_entity  | name            | character varying
+ workflow_entity  | nodes           | json
+ workflow_entity  | updatedAt       | timestamp with time zone
+ workflow_entity  | versionId       | character
+ workflow_history | connections     | json
+ workflow_history | createdAt       | timestamp with time zone
+ workflow_history | name            | character varying
+ workflow_history | nodes           | json
+ workflow_history | updatedAt       | timestamp with time zone
+ workflow_history | versionId       | character varying
+ workflow_history | workflowId      | character varying
+(15 rows)
+
+                   section                    
+----------------------------------------------
+ === B. credential bindings on live nodes ===
+(1 row)
+
+            wf            |           node            |                                creds                                 
+--------------------------+---------------------------+----------------------------------------------------------------------
+ 08 - AI Output Processor | Save Fact                 | {"postgres": {"id": "zriVLH3AKSAa8vCO", "name": "Postgres account"}}
+ 08 - AI Output Processor | Update Conversation Stage | {"postgres": {"id": "zriVLH3AKSAa8vCO", "name": "Postgres account"}}
+ 08 - AI Output Processor | Upsert Lead Score         | {"postgres": {"id": "zriVLH3AKSAa8vCO", "name": "Postgres account"}}
+ Workflow 2 - AI Brain    | Audit Log                 | {"postgres": {"id": "zriVLH3AKSAa8vCO", "name": "Postgres account"}}
+ Workflow 2 - AI Brain    | Groq Chat Model           | {"groqApi": {"id": "IoBo1z52d1p436lr", "name": "Groq account"}}
+ Workflow 2 - AI Brain    | Insert AI Message         | {"postgres": {"id": "zriVLH3AKSAa8vCO", "name": "Postgres account"}}
+ Workflow 2 - AI Brain    | Update Conversation       | {"postgres": {"id": "zriVLH3AKSAa8vCO", "name": "Postgres account"}}
+(7 rows)
+
+            section            
+-------------------------------
+ === C. history row counts ===
+(1 row)
+
+           name           | history_rows |       newest_history       
+--------------------------+--------------+----------------------------
+ 08 - AI Output Processor |            3 | 2026-09-30 22:06:03.628+00
+ Workflow 2 - AI Brain    |           20 | 2026-09-30 22:14:27.652+00
+(2 rows)
+

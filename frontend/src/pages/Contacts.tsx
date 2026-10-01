@@ -63,12 +63,12 @@ export function ContactsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-surface-100">
-                  <th className="table-header">Customer</th>
-                  <th className="table-header">Phone</th>
-                  <th className="table-header hidden md:table-cell">Company</th>
-                  <th className="table-header hidden lg:table-cell">Source</th>
-                  <th className="table-header">Status</th>
-                  <th className="table-header hidden sm:table-cell">Last Seen</th>
+                  <th scope="col" className="table-header">Customer</th>
+                  <th scope="col" className="table-header">Phone</th>
+                  <th scope="col" className="table-header hidden md:table-cell">Company</th>
+                  <th scope="col" className="table-header hidden lg:table-cell">Source</th>
+                  <th scope="col" className="table-header">Status</th>
+                  <th scope="col" className="table-header hidden sm:table-cell">Last Seen</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-50">

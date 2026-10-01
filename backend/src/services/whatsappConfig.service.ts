@@ -1,5 +1,5 @@
 import { config } from '../config';
-import { getSettingByKey, getSettings } from './settings.service';
+import { getSettingByKey, getSettings, updateSetting } from './settings.service';
 import { getBusinessById } from './business.service';
 import { getWahaSessionInfo, ensureWahaSession } from './waha.service';
 import logger from '../utils/logger';
@@ -141,6 +141,32 @@ export async function getWhatsAppConfig(tenantId: string): Promise<WhatsAppConfi
   };
 }
 
+export async function updateWhatsAppConfig(tenantId: string, data: {
+  phoneNumber?: string;
+  businessName?: string;
+  businessId?: string;
+  webhookUrl?: string;
+  apiVersion?: string;
+  messageLimit?: string;
+}): Promise<WhatsAppConfig> {
+  const updates = [
+    { key: 'whatsapp_phone_number', value: data.phoneNumber },
+    { key: 'whatsapp_business_name', value: data.businessName },
+    { key: 'whatsapp_business_id', value: data.businessId },
+    { key: 'whatsapp_webhook_url', value: data.webhookUrl },
+    { key: 'whatsapp_api_version', value: data.apiVersion },
+    { key: 'whatsapp_message_limit', value: data.messageLimit },
+  ] as const;
+
+  await Promise.all(
+    updates.map(({ key, value }) =>
+      updateSetting(key, value || '', tenantId).catch(() => null)
+    )
+  );
+
+  return getWhatsAppConfig(tenantId);
+}
+
 export async function getWhatsAppStatus(tenantId: string): Promise<WhatsAppStatus> {
   const phoneNumberSetting = await getSettingByKey('whatsapp_phone_number', tenantId).catch(() => null);
   const businessNameSetting = await getSettingByKey('whatsapp_business_name', tenantId).catch(() => null);
@@ -159,7 +185,7 @@ export async function getWhatsAppStatus(tenantId: string): Promise<WhatsAppStatu
       info = await ensureWahaSession(session);
       logger.info('Auto-provisioned WAHA session for tenant', { tenantId, session });
     } catch (error) {
-      logger.warn('Failed to auto-provision WAHA session', { tenantId, session, error });
+      logger.warn('Failed to auto-provision WAHA session for tenant', { tenantId, session, error });
     }
   }
 

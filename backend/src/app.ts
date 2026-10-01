@@ -25,6 +25,7 @@ import quickReplyRoutes from './routes/quickReply.routes';
 import businessRoutes from './routes/business.routes';
 import settingsRoutes from './routes/settings.routes';
 import staffRoutes from './routes/staff.routes';
+import messageTemplateRoutes from './routes/messageTemplate.routes';
 import whatsappConfigRoutes from './routes/whatsappConfig.routes';
 import systemHealthRoutes from './routes/systemHealth.routes';
 import { healthRoutes } from './routes/health.routes';
@@ -111,6 +112,8 @@ app.use('/api/settings', settingsRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/staff', staffRoutes);
+app.use('/api/message-templates', messageTemplateRoutes);
+app.use('/message-templates', messageTemplateRoutes);
 
 app.use('/api/webhooks', webhookRoutes);
 app.use('/webhooks', webhookRoutes);

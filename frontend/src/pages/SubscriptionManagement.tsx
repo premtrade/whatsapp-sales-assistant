@@ -76,14 +76,14 @@ export default function SubscriptionManagementPage() {
           <table className="w-full text-sm">
             <thead className="bg-surface-950 text-surface-400">
               <tr>
-                <th className="text-left px-4 py-3 font-medium">Business ID</th>
-                <th className="text-left px-4 py-3 font-medium">Plan</th>
-                <th className="text-left px-4 py-3 font-medium">Status</th>
-                <th className="text-left px-4 py-3 font-medium">Start Date</th>
-                <th className="text-left px-4 py-3 font-medium">End Date</th>
-                <th className="text-left px-4 py-3 font-medium">Trial Ends</th>
-                <th className="text-left px-4 py-3 font-medium">External ID</th>
-                <th className="text-left px-4 py-3 font-medium">Actions</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">Business ID</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">Plan</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">Status</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">Start Date</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">End Date</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">Trial Ends</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">External ID</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-800">

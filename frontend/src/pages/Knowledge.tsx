@@ -141,12 +141,12 @@ export function KnowledgePage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-surface-100">
-                  <th className="table-header">Title</th>
-                  <th className="table-header">Type</th>
-                  <th className="table-header">Status</th>
-                  <th className="table-header hidden md:table-cell">File</th>
-                  <th className="table-header hidden lg:table-cell">Language</th>
-                  <th className="table-header hidden sm:table-cell">Created</th>
+                  <th scope="col" className="table-header">Title</th>
+                  <th scope="col" className="table-header">Type</th>
+                  <th scope="col" className="table-header">Status</th>
+                  <th scope="col" className="table-header hidden md:table-cell">File</th>
+                  <th scope="col" className="table-header hidden lg:table-cell">Language</th>
+                  <th scope="col" className="table-header hidden sm:table-cell">Created</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-50">

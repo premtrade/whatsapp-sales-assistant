@@ -66,12 +66,12 @@ export function AppointmentsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-surface-100">
-                  <th className="table-header">Title</th>
-                  <th className="table-header">Customer</th>
-                  <th className="table-header">Start</th>
-                  <th className="table-header hidden md:table-cell">End</th>
-                  <th className="table-header hidden lg:table-cell">Location</th>
-                  <th className="table-header">Status</th>
+<th scope="col" className="table-header">Title</th>
+              <th scope="col" className="table-header">Customer</th>
+              <th scope="col" className="table-header">Start</th>
+              <th scope="col" className="table-header hidden md:table-cell">End</th>
+              <th scope="col" className="table-header hidden lg:table-cell">Location</th>
+              <th scope="col" className="table-header">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-50">

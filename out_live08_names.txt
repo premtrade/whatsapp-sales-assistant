@@ -1,0 +1,9 @@
+﻿When Executed by Another Workflow	n8n-nodes-base.executeWorkflowTrigger
+Prepare Facts	n8n-nodes-base.code
+Upsert Customer Fact	n8n-nodes-base.code
+Save Fact	n8n-nodes-base.postgres
+Upsert Lead Score	n8n-nodes-base.postgres
+Update Conversation Stage	n8n-nodes-base.postgres
+Should Escalate?	n8n-nodes-base.if
+Call Handoff Tool	n8n-nodes-base.executeWorkflow
+Format Output	n8n-nodes-base.code

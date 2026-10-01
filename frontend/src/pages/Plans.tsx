@@ -226,12 +226,12 @@ export default function PlansPage() {
         <table className="w-full text-sm">
           <thead className="bg-surface-950 text-surface-400">
             <tr>
-              <th className="text-left px-4 py-3 font-medium">Name</th>
-              <th className="text-left px-4 py-3 font-medium">Slug</th>
-              <th className="text-left px-4 py-3 font-medium">Monthly</th>
-              <th className="text-left px-4 py-3 font-medium">Yearly</th>
-              <th className="text-left px-4 py-3 font-medium">Status</th>
-              <th className="text-right px-4 py-3 font-medium">Actions</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium">Name</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium">Slug</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium">Monthly</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium">Yearly</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium">Status</th>
+              <th scope="col" className="text-right px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-800">

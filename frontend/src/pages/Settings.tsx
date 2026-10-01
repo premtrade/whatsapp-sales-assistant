@@ -43,7 +43,7 @@ export function SettingsPage() {
   const [settingSearch, setSettingSearch] = useState('')
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false)
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null)
-  const [confirmState, setConfirmState] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
+  const [confirmState, setConfirmState] = useState<{ title: string; message: string; onConfirm: () => void; variant?: 'danger' | 'warning' | 'info' } | null>(null)
   const queryClient = useQueryClient()
 
   const { data: settings, isLoading: settingsLoading, error: settingsError, refetch: refetchSettings } = useQuery({
@@ -68,6 +68,52 @@ export function SettingsPage() {
       toast.success(`"${variables.setting_key.replace(/_/g, ' ')}" updated`)
     },
     onError: () => toast.error('Failed to update setting'),
+  })
+
+  const createStaffMutation = useMutation({
+    mutationFn: (data: StaffFormData) => createStaffUser({
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email,
+      phone: data.phone,
+      role: data.role,
+      timezone: data.timezone,
+      password: data.password,
+    }),
+    onSuccess: () => {
+      toast.success('Staff member created')
+      setIsStaffModalOpen(false)
+      setEditingStaff(null)
+      refetchStaff()
+    },
+    onError: () => toast.error('Failed to create staff member'),
+  })
+
+  const updateStaffMutation = useMutation({
+    mutationFn: (data: StaffFormData) => updateStaffUser(editingStaff!.id, {
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email,
+      phone: data.phone,
+      role: data.role,
+      timezone: data.timezone,
+    }),
+    onSuccess: () => {
+      toast.success('Staff member updated')
+      setIsStaffModalOpen(false)
+      setEditingStaff(null)
+      refetchStaff()
+    },
+    onError: () => toast.error('Failed to update staff member'),
+  })
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: (id: string) => deleteStaffUser(id),
+    onSuccess: () => {
+      toast.success('Staff member deleted')
+      refetchStaff()
+    },
+    onError: () => toast.error('Failed to delete staff member'),
   })
 
   const tabs: { id: TabId; label: string; description: string }[] = [
@@ -109,11 +155,24 @@ export function SettingsPage() {
     updateMutation.mutate({ setting_key: key, setting_value: value })
   }
 
-  const handleSaveStaff = (_formData: StaffFormData) => {
-    toast.success(editingStaff ? 'Staff member updated' : 'Invitation sent to new staff member')
-    setIsStaffModalOpen(false)
-    setEditingStaff(null)
-    refetchStaff()
+  const handleSaveStaff = (formData: StaffFormData) => {
+    if (editingStaff) {
+      updateStaffMutation.mutate(formData)
+    } else {
+      createStaffMutation.mutate(formData)
+    }
+  }
+
+  const handleDeleteStaff = (user: StaffUser) => {
+    setConfirmState({
+      title: 'Delete staff member?',
+      message: `${user.display_name} will be permanently removed. This action cannot be undone.`,
+      variant: 'danger',
+      onConfirm: () => {
+        deleteStaffMutation.mutate(user.id)
+        setConfirmState(null)
+      },
+    })
   }
 
   const handleToggleStaffStatus = (user: StaffUser) => {
@@ -229,6 +288,7 @@ export function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <select value={staffRoleFilter} onChange={(e) => setStaffRoleFilter(e.target.value)} className="input w-auto text-sm">
                     <option value="">All Roles</option>
+                    <option value="super_admin">Super Admin</option>
                     <option value="admin">Admin</option>
                     <option value="manager">Manager</option>
                     <option value="sales">Sales</option>
@@ -263,12 +323,12 @@ export function SettingsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-surface-100 bg-surface-50/50">
-                        <th className="table-header">Name</th>
-                        <th className="table-header">Email</th>
-                        <th className="table-header hidden md:table-cell">Phone</th>
-                        <th className="table-header">Role</th>
-                        <th className="table-header">Status</th>
-                        <th className="table-header text-right">Actions</th>
+                        <th scope="col" className="table-header">Name</th>
+                        <th scope="col" className="table-header">Email</th>
+                        <th scope="col" className="table-header hidden md:table-cell">Phone</th>
+                        <th scope="col" className="table-header">Role</th>
+                        <th scope="col" className="table-header">Status</th>
+                        <th scope="col" className="table-header text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-50">
@@ -296,6 +356,8 @@ export function SettingsPage() {
                               <button onClick={() => handleToggleStaffStatus(user)} className={`text-xs font-medium ${user.status === 'active' ? 'text-danger-600 hover:text-danger-700' : 'text-success-600 hover:text-success-700'}`}>
                                 {user.status === 'active' ? 'Deactivate' : 'Reactivate'}
                               </button>
+                              <span className="text-surface-200">|</span>
+                              <button onClick={() => handleDeleteStaff(user)} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete</button>
                             </div>
                           </td>
                         </tr>
@@ -346,14 +408,14 @@ export function SettingsPage() {
         staff={editingStaff}
         onClose={() => { setIsStaffModalOpen(false); setEditingStaff(null) }}
         onSave={handleSaveStaff}
-        isLoading={false}
+        isLoading={createStaffMutation.isPending || updateStaffMutation.isPending}
       />
 
       <ConfirmDialog
         isOpen={!!confirmState}
         title={confirmState?.title || ''}
         message={confirmState?.message || ''}
-        variant="warning"
+        variant={confirmState?.variant || 'warning'}
         onConfirm={() => confirmState?.onConfirm()}
         onCancel={() => setConfirmState(null)}
       />

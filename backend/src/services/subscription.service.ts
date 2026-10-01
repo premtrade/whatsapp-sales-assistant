@@ -190,7 +190,11 @@ export async function createTrial(businessId: string, slug = 'starter'): Promise
   if (existing) return existing;
   let plan: Plan;
   try { plan = await getPlanBySlug(slug); } catch { plan = await getPlanBySlug('starter'); }
-  await query(`INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end, trial_ends_at, metadata) VALUES ($1,$2,'trialing',NOW(),NOW()+($3||' days')::interval,NOW()+($3||' days')::interval,'{"notes":"Trial created"}'::jsonb) ON CONFLICT DO NOTHING`, [businessId, plan.id, String(TRIAL_DAYS)]);
+  try {
+    await query(`INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end, trial_ends_at, metadata) VALUES ($1,$2,'trialing',NOW(),NOW()+($3||' days')::interval,NOW()+($3||' days')::interval,'{"notes":"Trial created"}'::jsonb)`, [businessId, plan.id, String(TRIAL_DAYS)]);
+  } catch (err: any) {
+    logger.warn('Trial insert skipped', { businessId, err: err?.message });
+  }
   clearSubCache(businessId);
   const full = await getActiveSubscription(businessId);
   if (!full) throw new BadRequestError('Failed to create trial subscription');
@@ -235,8 +239,7 @@ export async function createTrialSubscription(
          NOW(), NOW() + make_interval(days => $3),
          NOW() + make_interval(days => $3),
          '{"source":"public-signup"}'::jsonb
-       )
-       ON CONFLICT DO NOTHING`,
+       )`,
       [businessId, plan.id, days]
     );
   } catch (err: any) {

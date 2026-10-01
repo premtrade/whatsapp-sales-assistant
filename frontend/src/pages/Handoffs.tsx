@@ -79,13 +79,13 @@ export function HandoffsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-surface-100">
-                  <th className="table-header">Customer</th>
-                  <th className="table-header">Reason</th>
-                  <th className="table-header">Requested By</th>
-                  <th className="table-header">Assigned To</th>
-                  <th className="table-header">Status</th>
-                  <th className="table-header hidden md:table-cell">Created</th>
-                  <th className="table-header">Actions</th>
+                  <th scope="col" className="table-header">Customer</th>
+                  <th scope="col" className="table-header">Reason</th>
+                  <th scope="col" className="table-header">Requested By</th>
+                  <th scope="col" className="table-header">Assigned To</th>
+                  <th scope="col" className="table-header">Status</th>
+                  <th scope="col" className="table-header hidden md:table-cell">Created</th>
+                  <th scope="col" className="table-header">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-50">

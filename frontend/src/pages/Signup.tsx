@@ -8,6 +8,55 @@ import type { Business } from '@/types'
 
 type SignupStep = 'details' | 'setup' | 'complete'
 
+type FormErrors = Partial<Record<keyof typeof defaults, string>>
+
+const defaults = {
+  businessName: '',
+  slug: '',
+  whatsappPhone: '',
+  ownerName: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+} as const
+
+function validateField(name: keyof typeof defaults, value: string | undefined, form: typeof defaults | Partial<typeof defaults>, slugAvailable?: boolean, phoneAvailable?: boolean): string {
+  const safeValue = value || ''
+  switch (name) {
+    case 'businessName':
+      if (!safeValue.trim()) return 'Business name is required'
+      if (safeValue.trim().length > 255) return 'Business name must be under 255 characters'
+      return ''
+    case 'slug':
+      if (!safeValue.trim()) return 'Slug is required'
+      if (safeValue.trim().length < 3) return 'Slug must be at least 3 characters'
+      if (safeValue.trim().length > 50) return 'Slug must be under 50 characters'
+      if (slugAvailable === false) return 'This slug is already taken'
+      return ''
+    case 'whatsappPhone':
+      if (!safeValue.trim()) return 'WhatsApp phone is required'
+      if (phoneAvailable === false) return 'This WhatsApp phone is already registered'
+      return ''
+    case 'ownerName':
+      if (!safeValue.trim()) return 'Your full name is required'
+      return ''
+    case 'email':
+      if (!safeValue.trim()) return 'Email is required'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeValue)) return 'Enter a valid email address'
+      return ''
+    case 'password':
+      if (!safeValue) return 'Password is required'
+      if (safeValue.length < 8) return 'Password must be at least 8 characters'
+      return ''
+    case 'confirmPassword':
+      if (!safeValue) return 'Please confirm your password'
+      if (safeValue !== form.password) return 'Passwords do not match'
+      return ''
+    default:
+      return ''
+  }
+}
+
 export default function SignupPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -15,39 +64,48 @@ export default function SignupPage() {
   const [step, setStep] = useState<SignupStep>('details')
   const [business, setBusiness] = useState<Business | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const [form, setForm] = useState({
-    businessName: '',
-    slug: '',
-    whatsappPhone: '',
-    ownerName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  })
+  const [form, setForm] = useState(defaults)
+  const [touched, setTouched] = useState<Partial<Record<keyof typeof defaults, boolean>>>({})
+  const [errors, setErrors] = useState<FormErrors>({})
 
   const slugCheck = useQuery({
     queryKey: ['slug-availability', form.slug],
     queryFn: () => checkSlugAvailability(form.slug),
-    enabled: form.slug.length >= 3,
+    enabled: form.slug.trim().length >= 3,
   })
 
   const phoneCheck = useQuery({
     queryKey: ['phone-availability', form.whatsappPhone],
     queryFn: () => checkPhoneAvailability(form.whatsappPhone),
-    enabled: form.whatsappPhone.length >= 7,
+    enabled: form.whatsappPhone.trim().length >= 7,
   })
 
-  useEffect(() => {
-    if (slugCheck.data?.available === false) {
-      toast.error('This slug is already taken')
-    }
-  }, [slugCheck.data?.available])
+  const validate = (partial?: Partial<typeof form>) => {
+    const current = partial || form
+    const next: FormErrors = {}
+    ;(['businessName', 'slug', 'whatsappPhone', 'ownerName', 'email', 'password', 'confirmPassword'] as const).forEach((field) => {
+      const message = validateField(field, current[field], current, slugCheck.data?.available, phoneCheck.data?.available)
+      if (message) next[field] = message
+    })
+    setErrors(next)
+    return next
+  }
 
   useEffect(() => {
-    if (phoneCheck.data?.available === false) {
+    validate()
+  }, [slugCheck.data?.available, phoneCheck.data?.available])
+
+  useEffect(() => {
+    if (slugCheck.data?.available === false && touched.slug) {
+      toast.error('This slug is already taken')
+    }
+  }, [slugCheck.data?.available, touched.slug])
+
+  useEffect(() => {
+    if (phoneCheck.data?.available === false && touched.whatsappPhone) {
       toast.error('This WhatsApp phone is already registered')
     }
-  }, [phoneCheck.data?.available])
+  }, [phoneCheck.data?.available, touched.whatsappPhone])
 
   const signupMutation = useMutation({
     mutationFn: publicSignup,
@@ -73,26 +131,36 @@ export default function SignupPage() {
     },
   })
 
+  const handleChange = (name: keyof typeof defaults, value: string) => {
+    setForm((prev) => ({ ...prev, [name]: value }))
+    if (touched[name]) {
+      validate({ ...form, [name]: value })
+    }
+  }
+
+  const handleBlur = (name: keyof typeof defaults) => {
+    setTouched((prev) => ({ ...prev, [name]: true }))
+    validate()
+  }
+
   const handleSignup = (e: FormEvent) => {
     e.preventDefault()
-    if (form.password !== form.confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
-    if (slugCheck.data?.available === false) {
-      toast.error('Please choose a different slug')
-      return
-    }
-    if (phoneCheck.data?.available === false) {
-      toast.error('Please choose a different WhatsApp phone')
+    const touchedFields = Object.keys(defaults).reduce<Partial<Record<keyof typeof defaults, boolean>>>((acc, key) => {
+      acc[key as keyof typeof defaults] = true
+      return acc
+    }, {})
+    setTouched(touchedFields)
+    const next = validate()
+    if (Object.keys(next).length > 0) {
+      toast.error('Please fix the errors above')
       return
     }
     signupMutation.mutate({
-      businessName: form.businessName,
-      slug: form.slug,
-      whatsappPhone: form.whatsappPhone,
-      ownerName: form.ownerName,
-      email: form.email,
+      businessName: form.businessName.trim(),
+      slug: form.slug.trim(),
+      whatsappPhone: form.whatsappPhone.trim(),
+      ownerName: form.ownerName.trim(),
+      email: form.email.trim(),
       password: form.password,
     })
   }
@@ -151,45 +219,88 @@ export default function SignupPage() {
           <h1 className="text-3xl font-bold text-surface-900 mb-2">Get Started</h1>
           <p className="text-surface-500">Create your WhatsApp sales assistant in 30 seconds.</p>
         </div>
-        <form onSubmit={handleSignup} className="card p-6 space-y-4">
-          <div>
-            <label className="label">Business Name</label>
-            <input className="input" value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} required maxLength={255} />
-          </div>
-          <div>
-            <label className="label">Slug</label>
+        <form onSubmit={handleSignup} className="card p-6 space-y-4" noValidate>
+          <Field label="Business Name" error={touched.businessName ? errors.businessName : undefined}>
+            <input
+              className="input"
+              value={form.businessName}
+              onChange={(e) => handleChange('businessName', e.target.value)}
+              onBlur={() => handleBlur('businessName')}
+              required
+              maxLength={255}
+            />
+          </Field>
+          <Field label="Slug" error={touched.slug ? errors.slug : undefined}>
             <div className="relative">
-              <input className="input pr-16" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} required minLength={3} maxLength={50} />
+              <input
+                className="input pr-16"
+                value={form.slug}
+                onChange={(e) => handleChange('slug', e.target.value)}
+                onBlur={() => handleBlur('slug')}
+                required
+                minLength={3}
+                maxLength={50}
+              />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
                 {slugCheck.isFetching ? 'Checking...' : slugCheck.data?.available ? 'Available' : form.slug.length >= 3 ? 'Taken' : ''}
               </span>
             </div>
-          </div>
-          <div>
-            <label className="label">WhatsApp Phone</label>
+          </Field>
+          <Field label="WhatsApp Phone" error={touched.whatsappPhone ? errors.whatsappPhone : undefined}>
             <div className="relative">
-              <input className="input pr-16" value={form.whatsappPhone} onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })} required />
+              <input
+                className="input pr-16"
+                value={form.whatsappPhone}
+                onChange={(e) => handleChange('whatsappPhone', e.target.value)}
+                onBlur={() => handleBlur('whatsappPhone')}
+                required
+              />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
                 {phoneCheck.isFetching ? 'Checking...' : phoneCheck.data?.available ? 'Available' : form.whatsappPhone.length >= 7 ? 'Taken' : ''}
               </span>
             </div>
-          </div>
-          <div>
-            <label className="label">Your Full Name</label>
-            <input className="input" value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} required />
-          </div>
-          <div>
-            <label className="label">Email</label>
-            <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          </div>
-          <div>
-            <label className="label">Password</label>
-            <input type="password" className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
-          </div>
-          <div>
-            <label className="label">Confirm Password</label>
-            <input type="password" className="input" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} required minLength={8} />
-          </div>
+          </Field>
+          <Field label="Your Full Name" error={touched.ownerName ? errors.ownerName : undefined}>
+            <input
+              className="input"
+              value={form.ownerName}
+              onChange={(e) => handleChange('ownerName', e.target.value)}
+              onBlur={() => handleBlur('ownerName')}
+              required
+            />
+          </Field>
+          <Field label="Email" error={touched.email ? errors.email : undefined}>
+            <input
+              type="email"
+              className="input"
+              value={form.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              onBlur={() => handleBlur('email')}
+              required
+            />
+          </Field>
+          <Field label="Password" error={touched.password ? errors.password : undefined}>
+            <input
+              type="password"
+              className="input"
+              value={form.password}
+              onChange={(e) => handleChange('password', e.target.value)}
+              onBlur={() => handleBlur('password')}
+              required
+              minLength={8}
+            />
+          </Field>
+          <Field label="Confirm Password" error={touched.confirmPassword ? errors.confirmPassword : undefined}>
+            <input
+              type="password"
+              className="input"
+              value={form.confirmPassword}
+              onChange={(e) => handleChange('confirmPassword', e.target.value)}
+              onBlur={() => handleBlur('confirmPassword')}
+              required
+              minLength={8}
+            />
+          </Field>
           <button type="submit" disabled={signupMutation.isPending} className="btn btn-primary w-full">
             {signupMutation.isPending ? 'Creating Account...' : 'Create Account'}
           </button>
@@ -198,6 +309,16 @@ export default function SignupPage() {
           </p>
         </form>
       </div>
+    </div>
+  )
+}
+
+function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      {children}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   )
 }

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { getSubscription, createCustomerPortalSession } from '@/services/api'
+import { getSubscription, createCustomerPortalSession, createCheckoutSession } from '@/services/api'
 
 type SubscriptionStatus = {
   subscription: {
     id: string
     status: string
     trial_ends_at?: string | null
+    external_customer_id?: string | null
     plan?: {
       name: string
       slug: string
@@ -58,10 +59,21 @@ export default function TrialBanner() {
 
   const handleUpgrade = async () => {
     try {
-      const result = await createCustomerPortalSession({
-        returnUrl: window.location.origin + '/billing',
-      })
-      window.location.href = result.url
+      const subscription = data.subscription as SubscriptionStatus['subscription']
+      const hasCustomerId = !!subscription?.external_customer_id
+      if (hasCustomerId) {
+        const result = await createCustomerPortalSession({
+          returnUrl: window.location.origin + '/billing',
+        })
+        window.location.href = result.url
+      } else {
+        const result = await createCheckoutSession({
+          planSlug: 'professional',
+          successUrl: window.location.origin + '/billing?success=1',
+          cancelUrl: window.location.origin + '/billing?canceled=1',
+        })
+        window.location.href = result.url
+      }
     } catch (error) {
       toast.error('Unable to open billing portal')
     }

@@ -1,0 +1,72 @@
+﻿python : ERROR:  
+function jsonb_ar
+ray_elements(json
+) does not exist
+At line:1 char:1
++ python 
+scripts/q.py 
+--file scripts/_t
+mp_pre_patch.sql 
+2>&1 | Out-File 
+...
++ ~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryIn 
+   fo            
+  : NotSpecifi   
+ ed: (ERROR:     
+ functio...     
+does not exi    
+st:String) [    
+], RemoteExc    
+eption
+    + FullyQuali 
+   fiedErrorId   
+  : NativeComm   
+ andError
+ 
+LINE 2: FROM 
+workflow_entity 
+e, jsonb_array_el
+ements(e.nodes) n
+                 
+               ^
+HINT:  No 
+function matches 
+the given name 
+and argument 
+types. You might 
+need to add 
+explicit type 
+casts.
+Pager usage is off.
+                   section                   
+---------------------------------------------
+ === A. live ids / active / version sync ===
+(1 row)
+
+        id        |              name              | active | isArchived |              version_id              |          active_version_id           | entity_eq_history 
+------------------+--------------------------------+--------+------------+--------------------------------------+--------------------------------------+-------------------
+ u4Tr9g8w9QHS6hLb | 01 - Incoming WhatsApp Message | t      | f          | 80f979b4-f092-4f6f-9d32-7d1829d02bed | 80f979b4-f092-4f6f-9d32-7d1829d02bed | t
+ p4523bvMIFj10kAb | 08 - AI Output Processor       | t      | f          | 6972e433-1b34-4bd9-b302-7049c0028125 | 6972e433-1b34-4bd9-b302-7049c0028125 | t
+ TNtbiBQ81GA5i8CA | Workflow 2 - AI Brain          | t      | f          | 1c03a09b-9407-4b74-b14a-9b9fcca98fbb | 1c03a09b-9407-4b74-b14a-9b9fcca98fbb | t
+(3 rows)
+
+                     section                     
+-------------------------------------------------
+ === B. does repo id u6LzGPItprCnpd9U exist? ===
+(1 row)
+
+        id        |           name           | active 
+------------------+--------------------------+--------
+ p4523bvMIFj10kAb | 08 - AI Output Processor | t
+ TNtbiBQ81GA5i8CA | Workflow 2 - AI Brain    | t
+(2 rows)
+
+                   section                    
+----------------------------------------------
+ === C. credential bindings on live nodes ===
+(1 row)
+

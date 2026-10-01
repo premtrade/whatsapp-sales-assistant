@@ -12,11 +12,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-surface-50">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:bg-surface-900 focus:text-white focus:rounded-md">Skip to main content</a>
       <Sidebar isOpen={isSidebarOpen} onToggle={toggleSidebar} onNavigate={closeSidebar} />
       <div className="lg:pl-60 transition-all duration-200">
         <Topbar isSidebarOpen={isSidebarOpen} onSidebarToggle={toggleSidebar} />
         <TrialBanner />
-        <main className="px-4 py-4 pb-24 sm:p-4 lg:p-6 lg:pb-6 max-w-[1600px] mx-auto">
+        <main id="main" className="px-4 py-4 pb-24 sm:p-4 lg:p-6 lg:pb-6 max-w-[1600px] mx-auto">
           {children}
         </main>
         <MobileBottomNav />

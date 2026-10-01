@@ -16,6 +16,7 @@ export interface StaffFormData {
   phone: string
   role: 'super_admin' | 'admin' | 'manager' | 'sales' | 'support' | 'technician'
   timezone: string
+  password?: string
 }
 
 const defaultFormData: StaffFormData = {
@@ -25,9 +26,11 @@ const defaultFormData: StaffFormData = {
   phone: '',
   role: 'sales',
   timezone: 'UTC',
+  password: '',
 }
 
 const roles: { value: StaffFormData['role']; label: string }[] = [
+  { value: 'super_admin', label: 'Super Admin' },
   { value: 'admin', label: 'Admin' },
   { value: 'manager', label: 'Manager' },
   { value: 'sales', label: 'Sales' },
@@ -69,6 +72,7 @@ export function StaffModal({ isOpen, staff, onClose, onSave, isLoading }: StaffM
         phone: staff.phone || '',
         role: staff.role,
         timezone: staff.timezone || 'UTC',
+        password: '',
       })
     } else {
       setFormData(defaultFormData)
@@ -83,6 +87,8 @@ export function StaffModal({ isOpen, staff, onClose, onSave, isLoading }: StaffM
     if (!formData.email.trim()) newErrors.email = 'Email is required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Please enter a valid email'
     if (!formData.role) newErrors.role = 'Role is required'
+    if (!isEditing && !formData.password) newErrors.password = 'Password is required for new staff'
+    else if (formData.password && formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -132,6 +138,13 @@ export function StaffModal({ isOpen, staff, onClose, onSave, isLoading }: StaffM
                   <label className="block text-sm font-medium text-surface-700 mb-1">Phone</label>
                   <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} className="input" placeholder="+1 234 567 8900" />
                 </div>
+                {!isEditing && (
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-1">Password *</label>
+                    <input type="password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} className={`input ${errors.password ? 'border-danger-500' : ''}`} placeholder="Min 8 characters" />
+                    {errors.password && <p className="text-xs text-danger-600 mt-1">{errors.password}</p>}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Role *</label>
                   <select value={formData.role} onChange={(e) => handleChange('role', e.target.value as StaffFormData['role'])} className={`input ${errors.role ? 'border-danger-500' : ''}`}>

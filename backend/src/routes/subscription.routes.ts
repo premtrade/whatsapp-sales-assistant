@@ -18,6 +18,26 @@ import { requireRole } from '../middleware/auth';
 import logger from '../utils/logger';
 import { AuthenticatedRequest, Plan } from '../types';
 
+function isAllowedReturnUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('/')) return true;
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.host.toLowerCase();
+    const allowedHosts = (process.env.ALLOWED_RETURN_HOSTS || process.env.FRONTEND_PUBLIC_URL || process.env.VITE_FRONTEND_URL || '')
+      .split(',')
+      .map(h => h.trim().toLowerCase())
+      .filter(Boolean);
+    if (allowedHosts.length === 0) {
+      return host === 'localhost' || host === '127.0.0.1';
+    }
+    return allowedHosts.includes(host);
+  } catch {
+    return false;
+  }
+}
+
 const router = Router();
 
 router.get('/plans', async (_req, res: Response): Promise<void> => {
@@ -117,6 +137,10 @@ router.post('/checkout-session', async (req: AuthenticatedRequest, res: Response
     res.status(400).json({ success: false, message: 'planSlug, successUrl, and cancelUrl are required' });
     return;
   }
+  if (!isAllowedReturnUrl(successUrl) || !isAllowedReturnUrl(cancelUrl)) {
+    res.status(400).json({ success: false, message: 'successUrl and cancelUrl must be relative or match allowed hosts' });
+    return;
+  }
   try {
     const result = await createCheckoutSession(businessId, planSlug, successUrl, cancelUrl);
     res.json({ success: true, data: result });
@@ -134,6 +158,10 @@ router.post('/customer-portal', async (req: AuthenticatedRequest, res: Response)
   const { returnUrl } = req.body;
   if (!returnUrl) {
     res.status(400).json({ success: false, message: 'returnUrl is required' });
+    return;
+  }
+  if (!isAllowedReturnUrl(returnUrl)) {
+    res.status(400).json({ success: false, message: 'returnUrl must be relative or match allowed hosts' });
     return;
   }
   try {

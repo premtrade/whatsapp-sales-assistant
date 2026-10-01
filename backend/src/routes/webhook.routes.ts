@@ -142,6 +142,8 @@ router.post(
         } catch (error) {
           if (error instanceof PaymentRequiredError) {
             logger.warn('AI reply quota exceeded', { businessId, error: error.message });
+            res.status(402).json({ success: false, message: `AI reply quota exceeded: ${error.message}` });
+            return;
           } else {
             logger.error('Failed to track AI reply usage', { businessId, error: error instanceof Error ? error.message : 'Unknown error' });
           }
