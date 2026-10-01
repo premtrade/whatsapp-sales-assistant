@@ -194,9 +194,9 @@ main() {
     for migration_file in "${all_migrations[@]}"; do
         if run_migration "$migration_file"; then
             if is_migration_applied "$(basename "$migration_file")"; then
-                ((applied++))
+                applied=$((applied + 1))
             else
-                ((skipped++))
+                skipped=$((skipped + 1))
             fi
         else
             log_error "Migration failed. Stopping."
