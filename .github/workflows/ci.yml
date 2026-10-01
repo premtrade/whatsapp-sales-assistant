@@ -255,9 +255,10 @@ jobs:
             chmod +x scripts/run-migrations.sh
             # run-migrations.sh uses schema_migrations(migration_name) and covers
             # both database/schema/*.sql and database/migrations/*.sql
-            DB_HOST=127.0.0.1 DB_PORT=5432 \
-              DB_USER=${{ secrets.POSTGRES_USER }} DB_NAME=${{ secrets.POSTGRES_DB }} \
-              PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            POSTGRES_HOST=127.0.0.1 \
+              POSTGRES_PORT="$(docker compose port postgres 5432 | sed 's/.*://')" \
+              POSTGRES_USER=${{ secrets.POSTGRES_USER }} POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
+              POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
               bash scripts/run-migrations.sh
 
             echo "==> Reloading nginx..."
