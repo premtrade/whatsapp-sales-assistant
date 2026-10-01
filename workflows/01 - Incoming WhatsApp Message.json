@@ -272,10 +272,10 @@
                   {
                       "parameters":  {
                                          "operation":  "executeQuery",
-                                         "query":  "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, $2, \u0027incoming\u0027, \u0027customer\u0027, \u0027text\u0027, $3::text, jsonb_build_object(\u0027event\u0027, $4, \u0027phone\u0027, $5, \u0027customer_name\u0027, $6, \u0027timestamp\u0027, $7, \u0027hasMedia\u0027, $8)\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
-                                         "options":  {
-                                                         "queryReplacement":  "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}"
-                                                     }
+                                          "query":  "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata, business_id\n)\nVALUES (\n    $1, $2, \u0027incoming\u0027, \u0027customer\u0027, \u0027text\u0027, $3::text, jsonb_build_object(\u0027event\u0027, $4, \u0027phone\u0027, $5, \u0027customer_name\u0027, $6, \u0027timestamp\u0027, $7, \u0027hasMedia\u0027, $8), $9\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
+                                          "options":  {
+                                                          "queryReplacement":  "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}, {{ String($(\"Upsert Conversation\").first().json.business_id || \"\") }}"
+                                                      }
                                      },
                       "type":  "n8n-nodes-base.postgres",
                       "typeVersion":  2.7,

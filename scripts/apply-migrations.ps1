@@ -47,6 +47,9 @@ if (-not $MigrationsDir) { $MigrationsDir = Join-Path $RepoRoot 'database\migrat
 if (-not $Database)      { $Database      = 'whatsapp_sales' }
 if (-not $PostgresUser)   { $PostgresUser  = 'postgres' }
 
+# PGPASSWORD must reach the postgres container, not just this shell.
+if ($env:POSTGRES_PASSWORD -and -not $env:PGPASSWORD) { $env:PGPASSWORD = $env:POSTGRES_PASSWORD }
+
 if (-not (Test-Path $MigrationsDir)) {
     Write-Error "Migrations directory not found: $MigrationsDir"
     exit 1
@@ -62,7 +65,7 @@ Write-Host "Applying $($Files.Count) migration(s) to database '$Database' as use
 foreach ($f in $Files) {
     Write-Host "  -> $($f.Name)"
     $Content = Get-Content -Path $f.FullName -Raw
-    $Content | docker compose exec -T postgres psql -U $PostgresUser -d $Database -v ON_ERROR_STOP=1 -X -q
+    $Content | docker compose exec -T -e PGPASSWORD=$env:PGPASSWORD postgres psql -U $PostgresUser -d $Database -v ON_ERROR_STOP=1 -X -q
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Migration FAILED: $($f.Name)"
         exit $LASTEXITCODE

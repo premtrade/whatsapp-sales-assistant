@@ -92,10 +92,12 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO customer_facts (contact_id, fact_key, fact_value, confidence, source)\nVALUES ($1::uuid, 'customer_name', $2, 0.99, 'ai')\nON CONFLICT (contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id, contact_id, fact_key, fact_value, confidence, source, updated_at;",
+        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT $1::uuid, NULLIF($3, '')::uuid, 'customer_name', $2, 0.99, 'ai'\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id, contact_id, fact_key, fact_value, confidence, source, updated_at;",
         "options": {
-          "queryReplacement": "={{ $('Extract Customer Name').item.json.contact_id }}\n{{ $('Extract Customer Name').item.json.customer_name }}"
-        }
+          "queryReplacement": "={{ $('Extract Customer Name').item.json.contact_id }}\n{{ $('Extract Customer Name').item.json.customer_name }}\n{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
@@ -236,10 +238,12 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO customer_facts (contact_id, fact_key, fact_value, confidence, source)\nSELECT * FROM json_to_recordset($1::json)\n  AS x(contact_id uuid, fact_key text, fact_value text, confidence numeric, source text)\nON CONFLICT (contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW();",
+        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT * FROM json_to_recordset($1::json)\n  AS x(contact_id uuid, business_id uuid, fact_key text, fact_value text, confidence numeric, source text)\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW();",
         "options": {
           "queryReplacement": "={{ JSON.stringify($json.facts) }}"
-        }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,

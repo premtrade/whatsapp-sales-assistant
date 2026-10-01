@@ -154,11 +154,12 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', cf.fact_key,\n      'fact_value', cf.fact_value,\n      'confidence', cf.confidence\n    )\n    ORDER BY cf.confidence DESC, cf.updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts cf\nJOIN contacts c ON c.id = cf.contact_id\nWHERE cf.contact_id = $1::uuid AND c.business_id = $2::uuid;",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', cf.fact_key,\n      'fact_value', cf.fact_value,\n      'confidence', cf.confidence\n    )\n    ORDER BY cf.confidence DESC, cf.updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts cf\nWHERE cf.contact_id = $1::uuid\n  AND (cf.business_id = $2::uuid OR cf.business_id IS NULL OR $2 = '');",
         "options": {
           "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
         },
-        "continueOnFail": true
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,

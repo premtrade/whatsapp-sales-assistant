@@ -99,7 +99,7 @@
             "intent": "={{ $('Parse AI Output').first().json.intent }}",
             "lead_stage": "={{ $('Parse AI Output').first().json.lead_stage }}",
             "sentiment": "={{ $('Parse AI Output').first().json.sentiment }}",
-            "escalate": "={{ $('Parse AI Output').first().json.escalate }}",
+            "escalate": "={{ $('Parse AI Output').first().json.escalate ? 'true' : 'false' }}",
             "escalation_reason": "={{ $('Parse AI Output').first().json.escalation_reason }}",
             "customer_name": "={{ $('When Executed by Another Workflow').first().json.customer_name }}",
             "phone": "={{ $('When Executed by Another Workflow').first().json.phone }}",

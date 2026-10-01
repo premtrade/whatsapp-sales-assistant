@@ -13,7 +13,7 @@
             { "name": "intent" },
             { "name": "lead_stage" },
             { "name": "sentiment" },
-            { "name": "escalate" },
+            { "name": "escalate", "type": "boolean" },
             { "name": "escalation_reason" },
             { "name": "customer_name" },
             { "name": "phone" },
@@ -50,10 +50,12 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO customer_facts (contact_id, fact_key, fact_value, confidence, source)\nSELECT $1::uuid, $2, $3, $4::numeric, $5\nWHERE $2 IS NOT NULL AND $3 IS NOT NULL\nON CONFLICT (contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id;",
+        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT $1::uuid, $6::uuid, $2, $3, $4::numeric, $5\nWHERE $2 IS NOT NULL AND $3 IS NOT NULL\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $json.contact_id }}\n{{ $json.fact_key }}\n{{ $json.fact_value }}\n{{ $json.confidence }}\n{{ $json.source }}"
-        }
+          "queryReplacement": "={{ $json.contact_id }}\n{{ $json.fact_key }}\n{{ $json.fact_value }}\n{{ $json.confidence }}\n{{ $json.source }}\n{{ $('When Executed by Another Workflow').first().json.business_id }}"
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,

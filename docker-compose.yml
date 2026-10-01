@@ -19,7 +19,7 @@ services:
        
 
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -70,6 +70,7 @@ services:
       - ./database/migrations/052_add_pending_business_status.sql:/docker-entrypoint-initdb.d/52_add_pending_business_status.sql
       - ./database/migrations/053_subscriptions_and_monetization.sql:/docker-entrypoint-initdb.d/53_subscriptions_and_monetization.sql
       - ./database/migrations/054_expand_staff_constraints.sql:/docker-entrypoint-initdb.d/54_expand_staff_constraints.sql
+      - ./database/migrations/055_repair_memory_layer.sql:/docker-entrypoint-initdb.d/55_repair_memory_layer.sql
 
     networks:
       - backend
@@ -104,7 +105,7 @@ services:
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
 
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6380:6379"
 
     volumes:
       - redis_data:/data
@@ -162,6 +163,7 @@ services:
       WEBHOOK_URL: http://n8n:5678/
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
       N8N_SECURE_ENV_ACCESS: "false"
+      N8N_SECURE_COOKIE: "false"
       EXECUTIONS_MODE: regular
       GENERIC_TIMEZONE: America/Jamaica
       WAHA_API_KEY: ${WAHA_API_KEY}
