@@ -72,7 +72,9 @@ export async function createMessageTemplate(data: {
         tenantId,
       ]
     );
-    return result.rows[0];
+    const created = result.rows[0];
+    if (!created) throw new Error('Failed to create message template');
+    return created;
   } catch (error: unknown) {
     if (error && typeof error === 'object' && (error as { code?: string }).code === '23505') {
       throw new ConflictError(`Template '${name}' already exists for this tenant`);
