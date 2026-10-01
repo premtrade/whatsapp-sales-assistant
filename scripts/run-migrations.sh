@@ -44,6 +44,16 @@ log_error() {
 # Function to run psql command
 run_psql() {
     local query="$1"
+    if ! command -v psql >/dev/null 2>&1; then
+        local -a docker_psql=(docker compose exec -T)
+        if [ -n "$DB_PASSWORD" ]; then
+            docker_psql+=( -e "PGPASSWORD=$DB_PASSWORD" )
+        fi
+        docker_psql+=(postgres psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1)
+        "${docker_psql[@]}" -c "$query"
+        return
+    fi
+
     if [ -n "$DB_PASSWORD" ]; then
         PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -c "$query"
     else
@@ -54,6 +64,16 @@ run_psql() {
 # Function to run psql file
 run_psql_file() {
     local file="$1"
+    if ! command -v psql >/dev/null 2>&1; then
+        local -a docker_psql=(docker compose exec -T)
+        if [ -n "$DB_PASSWORD" ]; then
+            docker_psql+=( -e "PGPASSWORD=$DB_PASSWORD" )
+        fi
+        docker_psql+=(postgres psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1)
+        "${docker_psql[@]}" < "$file"
+        return
+    fi
+
     if [ -n "$DB_PASSWORD" ]; then
         PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -f "$file"
     else
