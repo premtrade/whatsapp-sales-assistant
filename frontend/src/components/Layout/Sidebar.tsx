@@ -4,8 +4,13 @@ import { useAuth } from '@/context/AuthContext'
 import { useWebSocket } from '@/context/WebSocketContext'
 
 const adminNavigation = [
-  { name: 'Plans', href: '/plans', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477 4.5 1.253' },
-  { name: 'Owner', href: '/owner', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+  { name: 'Overview', href: '/owner', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+  { name: 'Users', href: '/owner/users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z' },
+  { name: 'Subscriptions', href: '/owner/subscriptions', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
+  { name: 'Contact Inquiries', href: '/owner/contact-inquiries', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+  { name: 'API Config', href: '/owner/api-config', icon: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4' },
+  { name: 'Settings', href: '/owner/settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+  { name: 'Plans', href: '/plans', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13M19.832 5.477 18.247 5c-1.746 0-3.332.477-4.5 1.253' },
   { name: 'Billing', href: '/billing', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
 ]
 
@@ -109,28 +114,34 @@ export function Sidebar({ isOpen, onToggle, onNavigate }: SidebarProps) {
             {!collapsed && <span className="truncate">{item.name}</span>}
           </NavLink>
         ))}
-        {staff?.role === 'super_admin' &&
-          adminNavigation.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.href}
-              onClick={() => {
-                if (!isDesktop()) onNavigate?.()
-              }}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-100 ${
-                  isActive
-                    ? 'bg-primary-600/20 text-primary-400'
-                    : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200'
-                } ${collapsed ? 'justify-center' : ''}`}
-              title={collapsed ? item.name : undefined}
-            >
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
-              </svg>
-              {!collapsed && <span className="truncate">{item.name}</span>}
-            </NavLink>
-          ))}
+        {staff?.role === 'super_admin' && (
+          <>
+            <div className="px-3 pt-4 pb-1">
+              {!collapsed && <p className="text-[10px] font-semibold uppercase tracking-wider text-surface-500">Platform</p>}
+            </div>
+            {adminNavigation.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                onClick={() => {
+                  if (!isDesktop()) onNavigate?.()
+                }}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-100 ${
+                    isActive
+                      ? 'bg-primary-600/20 text-primary-400'
+                      : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200'
+                  } ${collapsed ? 'justify-center' : ''}`}
+                title={collapsed ? item.name : undefined}
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
+                </svg>
+                {!collapsed && <span className="truncate">{item.name}</span>}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
         {/* Collapse toggle */}
