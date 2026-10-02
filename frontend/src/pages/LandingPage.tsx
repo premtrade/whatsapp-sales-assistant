@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { submitContactInquiry } from '@/services/api'
 
 const whatsappGreen = '#25D366'
 const whatsappDark = '#075E54'
@@ -182,6 +183,9 @@ const pricingTiers = [
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [contactSubmitted, setContactSubmitted] = useState(false)
+  const [contactLoading, setContactLoading] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
 
   return (
     <div className="min-h-screen bg-white">
@@ -637,23 +641,30 @@ export default function LandingPage() {
           </div>
           <form
             className="bg-white rounded-xl p-6 sm:p-8 space-y-4"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              const formData = new FormData(event.currentTarget)
-              const name = String(formData.get('name') || '').trim()
-              const business = String(formData.get('business') || '').trim()
-              const email = String(formData.get('email') || '').trim()
-              const whatsapp = String(formData.get('whatsapp') || '').trim()
-              const message = String(formData.get('message') || '').trim()
-              const body = [
-                `Name: ${name}`,
-                `Business: ${business || 'Not provided'}`,
-                `Email: ${email}`,
-                `WhatsApp: ${whatsapp || 'Not provided'}`,
-                '',
-                message,
-              ].join('\n')
-              window.location.href = `mailto:premtrade_ja@outlook.com?subject=${encodeURIComponent(`WAFLO enquiry from ${name}`)}&body=${encodeURIComponent(body)}`
+              setContactLoading(true)
+              setContactError(null)
+              try {
+                const formData = new FormData(event.currentTarget)
+                const name = String(formData.get('name') || '').trim()
+                const business = String(formData.get('business') || '').trim()
+                const email = String(formData.get('email') || '').trim()
+                const whatsapp = String(formData.get('whatsapp') || '').trim()
+                const message = String(formData.get('message') || '').trim()
+                await submitContactInquiry({
+                  name,
+                  business: business || undefined,
+                  email,
+                  whatsapp: whatsapp || undefined,
+                  message,
+                })
+                setContactSubmitted(true)
+              } catch (err: any) {
+                setContactError(err?.message || 'Something went wrong. Please try again later.')
+              } finally {
+                setContactLoading(false)
+              }
             }}
           >
             <div>
@@ -682,8 +693,21 @@ export default function LandingPage() {
               How can we help?
               <textarea name="message" required rows={4} className="input mt-1 resize-y" placeholder="Tell us about your business and what you’d like to explore." />
             </label>
-            <button type="submit" className="btn-primary w-full py-3 text-base">Prepare email</button>
-            <p className="text-xs leading-relaxed text-surface-500">Your message is not submitted to a server. This opens your email app with the details filled in.</p>
+              {!contactSubmitted ? (
+                <>
+                  <button type="submit" disabled={contactLoading} className="btn-primary w-full py-3 text-base">
+                    {contactLoading ? 'Sending...' : 'Send message'}
+                  </button>
+                  {contactError && <p className="mt-2 text-xs text-red-600">{contactError}</p>}
+                  <p className="mt-2 text-xs leading-relaxed text-surface-500">
+                    We usually reply within a few hours.
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-800">
+                  Thanks! We received your message and will be in touch shortly.
+                </div>
+              )}
           </form>
         </div>
       </section>

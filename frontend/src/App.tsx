@@ -27,6 +27,7 @@ import PlansPage from './pages/Plans'
 import OwnerDashboardPage from './pages/OwnerDashboard'
 import UserManagementPage from './pages/UserManagement'
 import SubscriptionManagementPage from './pages/SubscriptionManagement'
+import ContactInquiriesPage from './pages/ContactInquiries'
 import ApiConfigurationPage from './pages/ApiConfiguration'
 import GlobalSettingsPage from './pages/GlobalSettings'
 import BillingPage from './pages/Billing'
@@ -85,6 +86,7 @@ export default function App() {
                 <Route path="/owner" element={<RequireOwnerAccess><OwnerDashboardPage /></RequireOwnerAccess>} />
                 <Route path="/owner/users" element={<RequireOwnerAccess><UserManagementPage /></RequireOwnerAccess>} />
                 <Route path="/owner/subscriptions" element={<RequireOwnerAccess><SubscriptionManagementPage /></RequireOwnerAccess>} />
+                <Route path="/owner/contact-inquiries" element={<RequireOwnerAccess><ContactInquiriesPage /></RequireOwnerAccess>} />
                 <Route path="/owner/api-config" element={<RequireOwnerAccess><ApiConfigurationPage /></RequireOwnerAccess>} />
                 <Route path="/owner/settings" element={<RequireOwnerAccess><GlobalSettingsPage /></RequireOwnerAccess>} />
                 <Route path="/billing" element={<RequireBusinessAdmin><BillingPage /></RequireBusinessAdmin>} />

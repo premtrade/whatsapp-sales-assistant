@@ -465,6 +465,11 @@ export async function publicSignup(data: { businessName: string; slug: string; w
   return response.data.data
 }
 
+export async function submitContactInquiry(data: { name: string; business?: string; email: string; whatsapp?: string; message: string }): Promise<{ success: boolean; message: string }> {
+  const response = await api.post<{ success: boolean; data: any; message: string }>('/public/contact', data)
+  return { success: response.data.success, message: response.data.message }
+}
+
 export async function checkSlugAvailability(slug: string): Promise<{ available: boolean }> {
   const response = await api.get<{ success: boolean; data: { available: boolean } }>(`/public/business/slug/${encodeURIComponent(slug)}/available`)
   return response.data.data
@@ -636,6 +641,11 @@ export async function deleteAdminUser(id: string): Promise<void> {
 export async function getAdminSubscriptions(): Promise<any[]> {
   const response = await api.get<{ success: boolean; data: any[] }>('/admin/subscriptions')
   return response.data.data
+}
+
+export async function getAdminContactInquiries(params?: { page?: number; limit?: number; source?: string }): Promise<{ data: any[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
+  const response = await api.get<{ success: boolean; data: any[]; meta: any }>('/admin/contact-inquiries', { params })
+  return { data: response.data.data, meta: response.data.meta }
 }
 
 export async function cancelSubscription(id: string): Promise<any> {

@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { signupBusiness, checkSlugAvailability, checkPhoneAvailability } from '../services/public.service';
 import { activateBusiness } from '../services/public.service';
+import { createContactInquiry } from '../services/contact-inquiry.service';
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors';
 import logger from '../utils/logger';
 import { authenticate } from '../middleware/auth';
@@ -16,6 +17,14 @@ const signupSchema = z.object({
   ownerName: z.string().min(1, 'Owner name is required'),
   email: z.string().email('Invalid email format'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const contactSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  business: z.string().max(255).optional().default(''),
+  email: z.string().email('Invalid email format'),
+  whatsapp: z.string().max(50).optional().default(''),
+  message: z.string().min(1, 'Message is required'),
 });
 
 // Stricter rate limiter for signup to prevent abuse during beta.
@@ -45,6 +54,34 @@ router.post('/signup', signupRateLimiter, async (req: any, res: Response): Promi
     }
     logger.error('Signup failed', { error: error?.message || error });
     res.status(500).json({ success: false, message: 'Signup failed. Please try again.' });
+  }
+});
+
+router.post('/contact', async (req: any, res: Response): Promise<void> => {
+  try {
+    const validated = contactSchema.parse(req.body);
+    const result = await createContactInquiry({
+      ...validated,
+      source: 'landing-page',
+      ipAddress: req.ip || req.connection.remoteAddress || undefined,
+      userAgent: req.get('user-agent') || undefined,
+    });
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: 'Thank you! We\'ll be in touch soon.',
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ success: false, message: error.errors.map((e: any) => e.message).join(', ') });
+      return;
+    }
+    if (error instanceof BadRequestError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    logger.error('Contact inquiry failed', { error: error?.message || error });
+    res.status(500).json({ success: false, message: 'Something went wrong. Please try again later.' });
   }
 });
 

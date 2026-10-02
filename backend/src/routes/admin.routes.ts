@@ -7,6 +7,7 @@ import logger from '../utils/logger';
 import { getActiveSubscription, clearSubCache } from '../services/subscription.service';
 import { cancelStripeSubscription, resumeStripeSubscription } from '../services/stripe.service';
 import { validateSettingValue } from '../services/settings.service';
+import { listContactInquiries } from '../services/contact-inquiry.service';
 
 const router = Router();
 
@@ -287,12 +288,26 @@ router.put('/settings', authenticate, requireOwnerAccess, async (req: Authentica
       );
       results.push(result.rows[0]);
     }
-    logger.info('Settings updated by owner', { updatedBy: req.user?.id });
-    res.json({ success: true, data: results });
+  logger.info('Settings updated by owner', { updatedBy: req.user?.id });
+  res.json({ success: true, data: results });
+} catch (error: any) {
+  logger.error('Failed to update settings', { error });
+  const message = error?.message || 'Failed to update settings';
+  res.status(400).json({ success: false, error: message });
+}
+});
+
+// Contact Inquiries
+router.get('/contact-inquiries', authenticate, requireOwnerAccess, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const page = req.query.page ? parseInt(req.query.page as string) : 1;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+    const source = req.query.source as string | undefined;
+    const result = await listContactInquiries({ page, limit, source });
+    res.json({ success: true, data: result.data, meta: result.meta });
   } catch (error: any) {
-    logger.error('Failed to update settings', { error });
-    const message = error?.message || 'Failed to update settings';
-    res.status(400).json({ success: false, error: message });
+    logger.error('Failed to fetch contact inquiries', { error });
+    res.status(500).json({ success: false, message: 'Failed to fetch contact inquiries' });
   }
 });
 
