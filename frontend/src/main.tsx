@@ -6,6 +6,9 @@ import { AuthProvider } from './context/AuthContext'
 import { WebSocketProvider } from './context/WebSocketContext'
 import App from './App'
 import './index.css'
+import { inject } from '@vercel/analytics'
+
+inject()
 
 const queryClient = new QueryClient({
   defaultOptions: {
