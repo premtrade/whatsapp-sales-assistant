@@ -58,12 +58,15 @@ export default function OwnerDashboardPage() {
         <p className="text-sm text-surface-400">Welcome back, {staff?.first_name || 'owner'}. Here's what's happening across WAFLO.</p>
         
         {/* Owner Navigation */}
-        <div className="mt-4 flex space-x-4">
+        <div className="mt-4 flex flex-wrap gap-2">
           <Link to="/owner/users" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
             Users
           </Link>
           <Link to="/owner/subscriptions" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
             Subscriptions
+          </Link>
+          <Link to="/owner/contact-inquiries" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
+            Contact Inquiries
           </Link>
           <Link to="/owner/api-config" className="px-3 py-1 bg-surface-800 hover:bg-surface-700 text-xs rounded text-surface-300 hover:text-surface-100 transition-colors">
             API Config
