@@ -1,7 +1,7 @@
 import { config } from '../config';
-import { getSettingByKey, getSettings, updateSetting } from './settings.service';
+import { getSettingByKey, getSettings, upsertSetting } from './settings.service';
 import { getBusinessById } from './business.service';
-import { getWahaSessionInfo, ensureWahaSession } from './waha.service';
+import { getWahaSessionInfo, ensureWahaSession, getWahaQrCode } from './waha.service';
 import logger from '../utils/logger';
 
 interface WAHASessionResponse {
@@ -131,7 +131,7 @@ export async function getWhatsAppConfig(tenantId: string): Promise<WhatsAppConfi
     phoneNumber,
     businessName,
     businessId,
-    displayVerified: true,
+    displayVerified: Boolean(phoneNumber),
     webhookUrl,
     webhookStatus,
     apiVersion,
@@ -141,6 +141,20 @@ export async function getWhatsAppConfig(tenantId: string): Promise<WhatsAppConfi
   };
 }
 
+const WHATSAPP_CONFIG_KEYS: Array<{
+  field: 'phoneNumber' | 'businessName' | 'businessId' | 'webhookUrl' | 'apiVersion' | 'messageLimit';
+  key: string;
+  dataType: 'string' | 'integer';
+  description: string;
+}> = [
+  { field: 'phoneNumber', key: 'whatsapp_phone_number', dataType: 'string', description: 'WhatsApp Business phone number in E.164 format' },
+  { field: 'businessName', key: 'whatsapp_business_name', dataType: 'string', description: 'WhatsApp Business display name' },
+  { field: 'businessId', key: 'whatsapp_business_id', dataType: 'string', description: 'WhatsApp Business Account ID' },
+  { field: 'webhookUrl', key: 'whatsapp_webhook_url', dataType: 'string', description: 'Webhook URL for incoming WhatsApp messages' },
+  { field: 'apiVersion', key: 'whatsapp_api_version', dataType: 'string', description: 'WhatsApp Business API version' },
+  { field: 'messageLimit', key: 'whatsapp_message_limit', dataType: 'integer', description: 'Daily message limit for WhatsApp Business API' },
+];
+
 export async function updateWhatsAppConfig(tenantId: string, data: {
   phoneNumber?: string;
   businessName?: string;
@@ -149,19 +163,14 @@ export async function updateWhatsAppConfig(tenantId: string, data: {
   apiVersion?: string;
   messageLimit?: string;
 }): Promise<WhatsAppConfig> {
-  const updates = [
-    { key: 'whatsapp_phone_number', value: data.phoneNumber },
-    { key: 'whatsapp_business_name', value: data.businessName },
-    { key: 'whatsapp_business_id', value: data.businessId },
-    { key: 'whatsapp_webhook_url', value: data.webhookUrl },
-    { key: 'whatsapp_api_version', value: data.apiVersion },
-    { key: 'whatsapp_message_limit', value: data.messageLimit },
-  ] as const;
-
   await Promise.all(
-    updates.map(({ key, value }) =>
-      updateSetting(key, value || '', tenantId).catch(() => null)
-    )
+    WHATSAPP_CONFIG_KEYS.map(({ field, key, dataType, description }) => {
+      const value = data[field];
+      if (value === undefined) return Promise.resolve(null);
+      // Upsert so the first save succeeds even for tenants that were never
+      // seeded with the whatsapp_* rows (an UPDATE-only path silently no-op'd).
+      return upsertSetting(key, value, tenantId, { dataType, description, isSystem: true });
+    })
   );
 
   return getWhatsAppConfig(tenantId);
@@ -191,9 +200,12 @@ export async function getWhatsAppStatus(tenantId: string): Promise<WhatsAppStatu
 
   if (info) {
     connected = info.status === 'WORKING';
-    if (info.qr) {
-      qrCode = info.qr;
-    }
+  }
+
+  // The QR is served by a dedicated WAHA endpoint, not the session object.
+  // Only fetch it while the session is not yet paired.
+  if (!connected) {
+    qrCode = (await getWahaQrCode(session)) || undefined;
   }
 
   return {

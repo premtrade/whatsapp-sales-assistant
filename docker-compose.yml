@@ -282,6 +282,16 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # WAHA (WhatsApp HTTP API). The backend needs these to authenticate to
+      # WAHA for the System Health check, session/QR provisioning and message
+      # sending. Without WAHA_API_KEY the backend sends an empty X-Api-Key
+      # header and WAHA replies HTTP 401 (even though WAHA itself is up).
+      WAHA_HOST: waha
+      WAHA_PORT: 3000
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_SESSION: ${WHATSAPP_SESSION:-default}
+      N8N_HOST: n8n
+      N8N_PORT: 5678
 
     volumes:
       - backend_data:/app/data

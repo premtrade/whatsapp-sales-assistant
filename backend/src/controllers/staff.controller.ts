@@ -59,7 +59,10 @@ export const getStaffUser = async (req: Request, res: Response): Promise<void> =
 
 export const createNewStaffUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const tenantId = getTenantId(req);
-  await requireStaffSeat(tenantId);
+  // Platform owners are not gated by tenant billing state.
+  if (req.user?.role !== 'super_admin') {
+    await requireStaffSeat(tenantId);
+  }
   const validated = staffCreateSchema.parse(req.body);
   const created = await createStaffUser(validated, tenantId);
   await createAuditLog('staff_user', 'staff.created', req.user?.id || null, 'staff', `Staff user '${created.email}' created`, undefined, { email: created.email }, { staffId: created.id }, req.ip!, req.get('user-agent')!, tenantId);

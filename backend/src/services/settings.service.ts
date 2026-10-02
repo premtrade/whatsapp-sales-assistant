@@ -66,6 +66,29 @@ export async function updateSetting(key: string, value: string, tenantId: string
   return updated;
 }
 
+export async function upsertSetting(
+  key: string,
+  value: string,
+  tenantId: string,
+  defaults?: { dataType?: string; description?: string | null; isSystem?: boolean }
+): Promise<Setting> {
+  const dataType = defaults?.dataType || 'string';
+  validateSettingValue(dataType, value);
+
+  const result = await query<Setting>(
+    `INSERT INTO settings (setting_key, setting_value, data_type, description, is_system, business_id)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (setting_key, business_id)
+     DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()
+     RETURNING id, business_id, setting_key, setting_value, data_type, description, is_system, created_at, updated_at`,
+    [key, value, dataType, defaults?.description ?? null, defaults?.isSystem ?? false, tenantId]
+  );
+
+  const setting = result.rows[0];
+  if (!setting) throw new BadRequestError(`Failed to save setting '${key}'`);
+  return setting;
+}
+
 export async function createSetting(data: {
   setting_key: string;
   setting_value?: string | null;

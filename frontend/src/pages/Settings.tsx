@@ -95,7 +95,8 @@ export function SettingsPage() {
       last_name: data.last_name,
       email: data.email,
       phone: data.phone,
-      role: data.role,
+      // The API only accepts tenant roles; never echo `super_admin` back.
+      ...(data.role === 'super_admin' ? {} : { role: data.role }),
       timezone: data.timezone,
     }),
     onSuccess: () => {
@@ -114,6 +115,15 @@ export function SettingsPage() {
       refetchStaff()
     },
     onError: () => toast.error('Failed to delete staff member'),
+  })
+
+  const statusStaffMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateStaffStatus(id, status),
+    onSuccess: (_data, variables) => {
+      toast.success(`Staff member ${variables.status === 'active' ? 'reactivated' : 'deactivated'}`)
+      refetchStaff()
+    },
+    onError: () => toast.error('Failed to update staff status'),
   })
 
   const tabs: { id: TabId; label: string; description: string }[] = [
@@ -183,9 +193,8 @@ export function SettingsPage() {
         ? `${user.display_name} will regain access to the dashboard.`
         : `${user.display_name} will lose access immediately. They can be reactivated later.`,
       onConfirm: () => {
-        toast.success(`${user.display_name} ${next === 'active' ? 'reactivated' : 'deactivated'}`)
+        statusStaffMutation.mutate({ id: user.id, status: next })
         setConfirmState(null)
-        refetchStaff()
       },
     })
   }

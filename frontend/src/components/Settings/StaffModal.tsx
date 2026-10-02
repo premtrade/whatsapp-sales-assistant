@@ -29,8 +29,9 @@ const defaultFormData: StaffFormData = {
   password: '',
 }
 
+// `super_admin` is intentionally not assignable from the tenant Staff screen —
+// the API rejects it (platform-owner-only role) and it is a privilege escalation.
 const roles: { value: StaffFormData['role']; label: string }[] = [
-  { value: 'super_admin', label: 'Super Admin' },
   { value: 'admin', label: 'Admin' },
   { value: 'manager', label: 'Manager' },
   { value: 'sales', label: 'Sales' },
@@ -40,6 +41,7 @@ const roles: { value: StaffFormData['role']; label: string }[] = [
 
 const timezones = [
   'UTC',
+  'America/Jamaica',
   'America/New_York',
   'America/Chicago',
   'America/Denver',
@@ -148,6 +150,9 @@ export function StaffModal({ isOpen, staff, onClose, onSave, isLoading }: StaffM
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Role *</label>
                   <select value={formData.role} onChange={(e) => handleChange('role', e.target.value as StaffFormData['role'])} className={`input ${errors.role ? 'border-danger-500' : ''}`}>
+                    {!roles.some((role) => role.value === formData.role) && (
+                      <option value={formData.role} disabled>{formData.role === 'super_admin' ? 'Super Admin (system)' : formData.role}</option>
+                    )}
                     {roles.map((role) => (<option key={role.value} value={role.value}>{role.label}</option>))}
                   </select>
                   {errors.role && <p className="text-xs text-danger-600 mt-1">{errors.role}</p>}

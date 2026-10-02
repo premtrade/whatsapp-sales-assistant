@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
-import { getWhatsAppConfig, getWhatsAppStatus, testWhatsAppConnection, updateWhatsAppConfig } from '@/services/api'
+import { getWhatsAppConfig, getWhatsAppStatus, testWhatsAppConnection, connectWhatsAppSession, updateWhatsAppConfig, getMessageTemplates, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '@/services/api'
+import type { MessageTemplate } from '@/types'
 import { LoadingState } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
 import toast from 'react-hot-toast'
@@ -39,7 +40,7 @@ const emptyForm: FormData = {
 
 const emptyTemplateForm: TemplateFormData = {
   name: '',
-  category: 'UTILITY',
+  category: 'greeting',
   description: '',
   subject: '',
   body: '',
@@ -49,11 +50,12 @@ const emptyTemplateForm: TemplateFormData = {
 }
 
 const templateCategories = [
-  { value: 'UTILITY', label: 'Utility' },
-  { value: 'MARKETING', label: 'Marketing' },
-  { value: 'ACCOUNT_UPDATE', label: 'Account Update' },
-  { value: 'ISSUE_RESOLUTION', label: 'Issue Resolution' },
-  { value: 'SERVICE_UPDATE', label: 'Service Update' },
+  { value: 'greeting', label: 'Greeting' },
+  { value: 'service_inquiry', label: 'Service Inquiry' },
+  { value: 'quote_request', label: 'Quote Request' },
+  { value: 'appointment', label: 'Appointment' },
+  { value: 'follow_up', label: 'Follow Up' },
+  { value: 'closing', label: 'Closing' },
 ]
 
 export function WhatsAppConfig() {
@@ -62,7 +64,7 @@ export function WhatsAppConfig() {
   const [isEditing, setIsEditing] = useState(false)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<any>(null)
-  const [templateConfirm, setTemplateConfirm] = useState<{ id: number; name: string } | null>(null)
+  const [templateConfirm, setTemplateConfirm] = useState<{ id: string; name: string } | null>(null)
   const queryClient = useQueryClient()
 
   const [form, setForm] = useState<FormData>(emptyForm)
@@ -78,6 +80,13 @@ export function WhatsAppConfig() {
   const { data: status } = useQuery({
     queryKey: ['whatsapp-status'],
     queryFn: getWhatsAppStatus,
+    // Poll while the session is not paired so the QR and connection state stay fresh.
+    refetchInterval: (query) => (query.state.data?.connected ? false : 8000),
+  })
+
+  const { data: templatesData } = useQuery({
+    queryKey: ['message-templates'],
+    queryFn: () => getMessageTemplates(),
   })
 
   const testMutation = useMutation({
@@ -99,6 +108,16 @@ export function WhatsAppConfig() {
     },
   })
 
+  const connectMutation = useMutation({
+    mutationFn: connectWhatsAppSession,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] })
+      if (data.connected) toast.success('WhatsApp connected')
+      else toast.success('QR code ready — scan it with WhatsApp to link this device')
+    },
+    onError: () => toast.error('Failed to start WhatsApp pairing'),
+  })
+
   const updateMutation = useMutation({
     mutationFn: updateWhatsAppConfig,
     onSuccess: () => {
@@ -109,6 +128,51 @@ export function WhatsAppConfig() {
     },
     onError: () => {
       toast.error('Failed to save configuration')
+    },
+  })
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: async (payload: {
+      id?: string
+      data: {
+        name: string
+        category: string
+        description?: string | null
+        subject?: string | null
+        body: string
+        variables?: string[]
+        language?: string
+        is_active?: boolean
+      }
+    }) => {
+      if (payload.id) return updateMessageTemplate(payload.id, payload.data)
+      return createMessageTemplate(payload.data)
+    },
+    onSuccess: (_result, variables) => {
+      toast.success(variables.id ? 'Template updated' : 'Template created')
+      queryClient.invalidateQueries({ queryKey: ['message-templates'] })
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
+      setIsTemplateModalOpen(false)
+      setTemplateForm(emptyTemplateForm)
+      setEditingTemplate(null)
+      setTemplateErrors({})
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to save template')
+    },
+  })
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (id: string) => deleteMessageTemplate(id),
+    onSuccess: () => {
+      toast.success('Template deleted')
+      queryClient.invalidateQueries({ queryKey: ['message-templates'] })
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
+      setTemplateConfirm(null)
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to delete template')
+      setTemplateConfirm(null)
     },
   })
 
@@ -144,8 +208,14 @@ export function WhatsAppConfig() {
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {}
-    if (!form.webhookUrl.trim()) newErrors.webhookUrl = 'Webhook URL is required'
-    else if (!/^https?:\/\/.+/.test(form.webhookUrl)) newErrors.webhookUrl = 'Please enter a valid URL'
+    const phone = form.phoneNumber.trim()
+    if (phone && !/^\+?[1-9]\d{6,14}$/.test(phone.replace(/[\s()-]/g, ''))) {
+      newErrors.phoneNumber = 'Use E.164 format, e.g. +18765551234'
+    }
+    const webhook = form.webhookUrl.trim()
+    if (webhook && !/^https?:\/\/.+/.test(webhook)) {
+      newErrors.webhookUrl = 'Enter a valid URL starting with http:// or https://'
+    }
     if (!form.apiVersion.trim()) newErrors.apiVersion = 'API version is required'
     if (!form.messageLimit.trim()) newErrors.messageLimit = 'Message limit is required'
     else if (!/^\d+$/.test(form.messageLimit)) newErrors.messageLimit = 'Message limit must be a number'
@@ -209,25 +279,24 @@ export function WhatsAppConfig() {
   }
 
   const handleSaveTemplate = () => {
-    if (validateTemplateForm()) {
-      if (editingTemplate) {
-        // Update template - need to add this API call
-        // For now, we'll just close the modal and show success
-        toast.success('Template updated')
-        setIsTemplateModalOpen(false)
-        setTemplateForm(emptyTemplateForm)
-        setEditingTemplate(null)
-        queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
-      } else {
-        // Create template - need to add this API call
-        // For now, we'll just close the modal and show success
-        toast.success('Template created')
-        setIsTemplateModalOpen(false)
-        setTemplateForm(emptyTemplateForm)
-        setEditingTemplate(null)
-        queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
-      }
-    }
+    if (!validateTemplateForm()) return
+    const variables = templateForm.variables
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0)
+    saveTemplateMutation.mutate({
+      id: editingTemplate?.id,
+      data: {
+        name: templateForm.name.trim(),
+        category: templateForm.category,
+        description: templateForm.description.trim() || null,
+        subject: templateForm.subject.trim() || null,
+        body: templateForm.body,
+        variables,
+        language: templateForm.language,
+        is_active: templateForm.is_active,
+      },
+    })
   }
 
   const handleCancelTemplate = () => {
@@ -243,11 +312,7 @@ export function WhatsAppConfig() {
 
   const handleConfirmDelete = () => {
     if (templateConfirm) {
-      // Delete template - need to add this API call
-      // For now, we'll just close the modal and show success
-      toast.success('Template deleted')
-      setTemplateConfirm(null)
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
+      deleteTemplateMutation.mutate(templateConfirm.id)
     }
   }
 
@@ -274,6 +339,7 @@ export function WhatsAppConfig() {
 
   const limitValue = Number(form.messageLimit || 0)
   const limitPercent = Number.isFinite(limitValue) && limitValue > 0 ? Math.min((whatsappConfig.currentUsage / limitValue) * 100, 100) : 0
+  const templates: MessageTemplate[] = templatesData ?? []
 
   return (
     <div className="space-y-6">
@@ -311,7 +377,10 @@ export function WhatsAppConfig() {
           <div>
             <p className="text-xs text-surface-400 mb-1">Phone Number</p>
             {isEditing ? (
-              <input className="input" value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
+              <>
+                <input className="input" value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+18765551234" />
+                {formErrors.phoneNumber && <p className="text-xs text-danger-600 mt-1">{formErrors.phoneNumber}</p>}
+              </>
             ) : (
               <p className="text-sm font-medium text-surface-800">{whatsappConfig.phoneNumber || 'Not configured'}</p>
             )}
@@ -350,7 +419,10 @@ export function WhatsAppConfig() {
               <p className="text-xs text-surface-400">WhatsApp Business API</p>
             </div>
             {isEditing ? (
-              <input className="input w-32" value={form.apiVersion} onChange={(e) => setForm({ ...form, apiVersion: e.target.value })} />
+              <div className="text-right">
+                <input className="input w-32" value={form.apiVersion} onChange={(e) => setForm({ ...form, apiVersion: e.target.value })} />
+                {formErrors.apiVersion && <p className="text-xs text-danger-600 mt-1">{formErrors.apiVersion}</p>}
+              </div>
             ) : (
               <span className="text-sm text-surface-600 font-mono">{whatsappConfig.apiVersion}</span>
             )}
@@ -361,7 +433,10 @@ export function WhatsAppConfig() {
               <p className="text-xs text-surface-400 font-mono">{whatsappConfig.webhookUrl || 'Not configured'}</p>
             </div>
             {isEditing ? (
-              <input className="input w-64" value={form.webhookUrl} onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })} />
+              <div className="text-right">
+                <input className="input w-64" value={form.webhookUrl} onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })} placeholder="https://example.com/api/webhooks/waha" />
+                {formErrors.webhookUrl && <p className="text-xs text-danger-600 mt-1">{formErrors.webhookUrl}</p>}
+              </div>
             ) : (
               <StatusBadge status={whatsappConfig.webhookStatus} type="conversation" />
             )}
@@ -373,12 +448,15 @@ export function WhatsAppConfig() {
                 <p className="text-xs text-surface-400">{whatsappConfig.messageLimit} limit</p>
               </div>
               {isEditing ? (
-                <input
-                  type="number"
-                  className="input w-24"
-                  value={form.messageLimit}
-                  onChange={(e) => setForm({ ...form, messageLimit: e.target.value })}
-                />
+                <div className="text-right">
+                  <input
+                    type="number"
+                    className="input w-24"
+                    value={form.messageLimit}
+                    onChange={(e) => setForm({ ...form, messageLimit: e.target.value })}
+                  />
+                  {formErrors.messageLimit && <p className="text-xs text-danger-600 mt-1">{formErrors.messageLimit}</p>}
+                </div>
               ) : (
                 <span className="text-sm text-surface-600">{whatsappConfig.currentUsage} / {limitValue || 1000}</span>
               )}
@@ -397,14 +475,14 @@ export function WhatsAppConfig() {
           </button>
         </div>
         <div className="space-y-2">
-          {whatsappConfig.templates.length > 0 ? (
-            whatsappConfig.templates.map((template) => (
-              <div key={template.name} className="flex items-center justify-between py-2 border-b border-surface-50 last:border-0">
+          {templates.length > 0 ? (
+            templates.map((template) => (
+              <div key={template.id} className="flex items-center justify-between py-2 border-b border-surface-50 last:border-0">
                 <div>
                   <p className="text-sm font-medium text-surface-800 font-mono">{template.name}</p>
                   <p className="text-xs text-surface-400">{template.category}</p>
                 </div>
-                <StatusBadge status={template.status} type="conversation" />
+                <StatusBadge status={template.is_active ? 'active' : 'inactive'} type="conversation" />
                 <button onClick={() => handleEditTemplate(template)} className="text-xs font-medium text-primary-600 hover:text-primary-700">
                   Edit
                 </button>
@@ -419,26 +497,46 @@ export function WhatsAppConfig() {
         </div>
       </div>
       <div className="card p-4">
-        <h4 className="text-sm font-semibold text-surface-800 mb-3">Device Pairing</h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-surface-800">Device Pairing</h4>
+          <span className={`text-xs font-medium ${status?.connected ? 'text-success-600' : 'text-surface-400'}`}>
+            {status?.connected ? `Connected${status.session ? ` · ${status.session}` : ''}` : 'Not paired'}
+          </span>
+        </div>
         <div className="flex items-center gap-6">
           <div className="w-32 h-32 bg-surface-100 rounded-lg flex items-center justify-center border-2 border-dashed border-surface-300">
             <div className="text-center">
               {status?.qrCode ? (
-                <img src={status.qrCode} alt="WhatsApp QR Code" className="w-full h-full object-cover rounded" />
+                <img src={status.qrCode} alt="WhatsApp QR Code" className="w-full h-full object-contain rounded" />
               ) : (
                 <div>
                   <svg className="w-8 h-8 text-surface-400 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                  <p className="text-xs text-surface-400">QR Code</p>
+                  <p className="text-xs text-surface-400">{status?.connected ? 'Paired' : 'No QR'}</p>
                 </div>
               )}
             </div>
           </div>
           <div className="flex-1">
-            <p className="text-sm text-surface-600 mb-2">Scan this QR code with your WhatsApp mobile app to pair a new device.</p>
-            <button className="btn-secondary text-xs px-3 py-1.5" onClick={() => {
-              // Refresh just the status, not the whole config
-              queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] })
-            }}>Refresh QR Code</button>
+            <p className="text-sm text-surface-600 mb-2">
+              {status?.connected
+                ? `This device is linked${status.session ? ` (session: ${status.session})` : ''}. Replies are sent from this WhatsApp account.`
+                : 'Generate a QR code, then scan it with your WhatsApp mobile app (Linked Devices → Link a Device).'}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50"
+                onClick={() => connectMutation.mutate()}
+                disabled={connectMutation.isPending}
+              >
+                {connectMutation.isPending ? 'Starting…' : status?.qrCode ? 'Restart pairing session' : 'Connect / Show QR Code'}
+              </button>
+              <button
+                className="btn-secondary text-xs px-3 py-1.5"
+                onClick={() => { queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] }) }}
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -458,6 +556,9 @@ export function WhatsAppConfig() {
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Category *</label>
                 <select value={templateForm.category} onChange={(e) => setTemplateForm({ ...templateForm, category: e.target.value })} className={`input ${templateErrors.category ? 'border-danger-500' : ''}`}>
+                  {templateForm.category && !templateCategories.some(cat => cat.value === templateForm.category) && (
+                    <option value={templateForm.category}>{templateForm.category}</option>
+                  )}
                   {templateCategories.map(cat => (
                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                   ))}
@@ -504,8 +605,8 @@ export function WhatsAppConfig() {
           <button type="button" className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-surface-900 shadow-sm ring-1 ring-inset ring-surface-300 hover:bg-surface-50 sm:mt-0 sm:w-auto" onClick={handleCancelTemplate}>
             Cancel
           </button>
-          <button type="submit" disabled={true} className="inline-flex w-full justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 sm:ml-3 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed">
-            {editingTemplate ? 'Update' : 'Add'} Template
+          <button type="button" onClick={handleSaveTemplate} disabled={saveTemplateMutation.isPending} className="inline-flex w-full justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 sm:ml-3 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed">
+            {saveTemplateMutation.isPending ? 'Saving...' : `${editingTemplate ? 'Update' : 'Add'} Template`}
           </button>
         </div>
       </Modal>

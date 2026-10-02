@@ -25,15 +25,24 @@ router.use(authenticate);
 router.use(requireActiveSubscription);
 router.use(sanitizePagination);
 
-// Admin-only routes with admin rate limiting
-router.post('/', adminRateLimiter, requireRole('admin'), createNewStaffUser);
-  router.put('/:id', adminRateLimiter, requireRole('admin', 'manager'), updateExistingStaffUser);
-  router.patch('/:id/status', adminRateLimiter, requireRole('admin'), updateStaffUserStatus);
-  router.delete('/:id', adminRateLimiter, requireRole('admin'), deleteStaffUser);
+// Admin-only routes with admin rate limiting.
+// `super_admin` is included so the platform owner can manage staff, and the
+// `/users/*` aliases match the paths used by the dashboard client.
+const canManageStaff = requireRole('admin', 'super_admin');
+const canEditStaff = requireRole('admin', 'manager', 'super_admin');
+router.post('/', adminRateLimiter, canManageStaff, createNewStaffUser);
+router.post('/users', adminRateLimiter, canManageStaff, createNewStaffUser);
+router.put('/users/:id', adminRateLimiter, canEditStaff, updateExistingStaffUser);
+router.put('/:id', adminRateLimiter, canEditStaff, updateExistingStaffUser);
+router.patch('/users/:id/status', adminRateLimiter, canManageStaff, updateStaffUserStatus);
+router.patch('/:id/status', adminRateLimiter, canManageStaff, updateStaffUserStatus);
+router.delete('/users/:id', adminRateLimiter, canManageStaff, deleteStaffUser);
+router.delete('/:id', adminRateLimiter, canManageStaff, deleteStaffUser);
 
 // Read-only routes (no admin rate limiter needed)
 router.get('/', listStaffUsers);
 router.get('/users', listStaffUsers);
+router.get('/users/:id', getStaffUser);
 router.get('/:id', getStaffUser);
 
 export default router;

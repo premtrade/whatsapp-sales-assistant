@@ -402,6 +402,11 @@ export async function testWhatsAppConnection(): Promise<WhatsAppTestResult> {
   return response.data.data
 }
 
+export async function connectWhatsAppSession(): Promise<WhatsAppStatus> {
+  const response = await api.post<{ success: boolean; data: WhatsAppStatus }>('/whatsapp/connect')
+  return response.data.data
+}
+
 export async function updateWhatsAppConfig(data: {
   phoneNumber?: string;
   businessName?: string;

@@ -44,6 +44,38 @@ export async function ensureWahaSession(session: string): Promise<WahaSessionInf
   return getWahaSessionInfo(session);
 }
 
+/**
+ * Fetches the pairing QR code for a session.
+ *
+ * WAHA does not expose the QR on the session object — it is served by
+ * `GET /api/{session}/auth/qr`. We request the JSON media type
+ * (`{"mimetype":"image/png","data":"<base64>"}`) and return a data URI so the
+ * dashboard can drop it straight into an <img src>. Falls back to the binary
+ * image response.
+ */
+export async function getWahaQrCode(session: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${wahaBaseUrl()}/api/${encodeURIComponent(session)}/auth/qr`, {
+      headers: wahaHeaders({ Accept: 'application/json' }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = (await res.json()) as { mimetype?: string; data?: string };
+      if (data?.data) return `data:${data.mimetype || 'image/png'};base64,${data.data}`;
+      return null;
+    }
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0) return null;
+    return `data:${contentType.split(';')[0] || 'image/png'};base64,${buffer.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function sendWahaDocument(params: {
   session: string;
   chatId: string;
