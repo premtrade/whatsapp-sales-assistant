@@ -139,7 +139,7 @@ const faqs = [
   },
   {
     q: 'Is my data secure?',
-    a: 'Yes. SOC 2 compliant infrastructure, encrypted databases, and role-based access. Your data is never used to train AI models.',
+    a: 'The platform uses encrypted databases and role-based access. Your data is never used to train AI models.',
   },
   {
     q: 'What if I want to self-host?',
@@ -201,6 +201,7 @@ export default function LandingPage() {
               <a href="#features" className="hover:text-surface-900">Features</a>
               <a href="#how-it-works" className="hover:text-surface-900">How It Works</a>
               <a href="#pricing" className="hover:text-surface-900">Pricing</a>
+              <Link to="/blog" className="hover:text-surface-900">Blog</Link>
               <a href="#faq" className="hover:text-surface-900">FAQ</a>
             </div>
             <div className="flex items-center gap-3">
@@ -487,18 +488,6 @@ export default function LandingPage() {
               </svg>
               Open source core
             </span>
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              SOC 2 compliant infrastructure
-            </span>
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              GDPR-ready
-            </span>
           </div>
         </div>
       </section>
@@ -626,34 +615,83 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="py-20 bg-surface-900">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-            Ready to Stop Missing WhatsApp Leads?
-          </h2>
-          <p className="mt-4 text-lg text-surface-300 max-w-2xl mx-auto">
-            Start your 14-day free trial. No credit card required. Setup in 10 minutes.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/signup" className="btn-primary py-3 px-8 text-base">
-              Get Started Free
-            </Link>
-            <a href="mailto:premtrade_ja@outlook.com" className="btn-secondary py-3 px-8 text-base bg-transparent border-surface-600 text-white hover:bg-surface-800">
-              Talk to Our Team
-            </a>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-start">
+          <div className="text-center lg:text-left">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+              Ready to Stop Missing WhatsApp Leads?
+            </h2>
+            <p className="mt-4 text-lg text-surface-300 max-w-xl mx-auto lg:mx-0">
+              Start your 14-day free trial, or tell us a little about your business and what you need.
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <Link to="/signup" className="btn-primary py-3 px-8 text-base">
+                Get Started Free
+              </Link>
+            </div>
+            <p className="mt-6 text-sm text-surface-400">
+              Prefer email?{' '}
+              <a href="mailto:premtrade_ja@outlook.com" className="text-primary-400 hover:text-primary-300 underline underline-offset-4">
+                premtrade_ja@outlook.com
+              </a>
+            </p>
           </div>
-          <p className="mt-6 text-sm text-surface-400">
-            Questions? Email us at{' '}
-            <a href="mailto:premtrade_ja@outlook.com" className="text-primary-400 hover:text-primary-300">
-              premtrade_ja@outlook.com
-            </a>
-          </p>
+          <form
+            className="bg-white rounded-xl p-6 sm:p-8 space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const formData = new FormData(event.currentTarget)
+              const name = String(formData.get('name') || '').trim()
+              const business = String(formData.get('business') || '').trim()
+              const email = String(formData.get('email') || '').trim()
+              const whatsapp = String(formData.get('whatsapp') || '').trim()
+              const message = String(formData.get('message') || '').trim()
+              const body = [
+                `Name: ${name}`,
+                `Business: ${business || 'Not provided'}`,
+                `Email: ${email}`,
+                `WhatsApp: ${whatsapp || 'Not provided'}`,
+                '',
+                message,
+              ].join('\n')
+              window.location.href = `mailto:premtrade_ja@outlook.com?subject=${encodeURIComponent(`WAFLO enquiry from ${name}`)}&body=${encodeURIComponent(body)}`
+            }}
+          >
+            <div>
+              <h3 className="text-xl font-semibold text-surface-900">Talk to our team</h3>
+              <p className="mt-1 text-sm text-surface-600">Share a few details and we’ll prepare an email draft for you to send.</p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <label className="block text-sm font-medium text-surface-700">
+                Your name
+                <input name="name" autoComplete="name" required className="input mt-1" />
+              </label>
+              <label className="block text-sm font-medium text-surface-700">
+                Business name
+                <input name="business" autoComplete="organization" className="input mt-1" />
+              </label>
+              <label className="block text-sm font-medium text-surface-700">
+                Email address
+                <input name="email" type="email" autoComplete="email" required className="input mt-1" />
+              </label>
+              <label className="block text-sm font-medium text-surface-700">
+                WhatsApp number <span className="font-normal text-surface-400">(optional)</span>
+                <input name="whatsapp" type="tel" autoComplete="tel" className="input mt-1" />
+              </label>
+            </div>
+            <label className="block text-sm font-medium text-surface-700">
+              How can we help?
+              <textarea name="message" required rows={4} className="input mt-1 resize-y" placeholder="Tell us about your business and what you’d like to explore." />
+            </label>
+            <button type="submit" className="btn-primary w-full py-3 text-base">Prepare email</button>
+            <p className="text-xs leading-relaxed text-surface-500">Your message is not submitted to a server. This opens your email app with the details filled in.</p>
+          </form>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="bg-surface-950 text-surface-400 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
@@ -672,26 +710,12 @@ export default function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li><a href="#features" className="hover:text-white">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white">Pricing</a></li>
-                <li><a href="#" className="hover:text-white">Integrations</a></li>
-                <li><a href="#" className="hover:text-white">Changelog</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Resources</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Documentation</a></li>
-                <li><a href="#" className="hover:text-white">API Reference</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Community</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-white">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white">GDPR</a></li>
-                <li><a href="#" className="hover:text-white">SOC 2</a></li>
+                <li><Link to="/blog" className="hover:text-white">Blog</Link></li>
               </ul>
             </div>
           </div>
@@ -699,16 +723,6 @@ export default function LandingPage() {
             <p className="text-xs text-surface-500">
               © 2026 WAFLO. Open source under MIT License. Built with ❤️ for service businesses.
             </p>
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-surface-400 hover:text-white">
-                <span className="sr-only">GitHub</span>
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg>
-              </a>
-              <a href="#" className="text-surface-400 hover:text-white">
-                <span className="sr-only">Twitter</span>
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" /></svg>
-              </a>
-            </div>
           </div>
         </div>
       </footer>
