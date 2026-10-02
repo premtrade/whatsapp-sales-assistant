@@ -20,7 +20,19 @@ function getFocusableElements(container: HTMLElement | null): HTMLElement[] {
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
 
+  // Track the latest onClose WITHOUT re-running the focus/listener effect below.
+  // Parents often pass inline arrows (new identity every render); re-running the
+  // effect on identity change re-focuses the first focusable element after every
+  // render, which steals focus from inputs mid-typing (e.g. only the first field
+  // in a form stays typeable).
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // Deps intentionally only [isOpen]: run focus management once when the modal
+  // opens, not on every parent re-render.
   useEffect(() => {
     if (!isOpen) return
 
@@ -33,7 +45,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
 
@@ -66,7 +78,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       document.body.style.overflow = 'unset'
       previousActiveElement.current?.focus()
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 

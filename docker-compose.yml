@@ -218,6 +218,10 @@ services:
       WAHA_SESSION: ${WHATSAPP_SESSION}
       WAHA_WEBHOOK_EVENTS: ${WAHA_WEBHOOK_EVENTS:-}
       WAHA_WEBHOOK_URL: ${WAHA_WEBHOOK_URL:-}
+      # WAHA's documented global-webhook vars (WHATSAPP_HOOK_*); both pairs are
+      # passed through so webhooks work regardless of the WAHA version's prefix.
+      WHATSAPP_HOOK_URL: ${WHATSAPP_HOOK_URL:-}
+      WHATSAPP_HOOK_EVENTS: ${WHATSAPP_HOOK_EVENTS:-}
 
     volumes:
       - waha_data:/app/.sessions
@@ -279,6 +283,13 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${BACKEND_JWT_EXPIRES_IN:-1d}
+      # Billing: hosts allowed to receive Stripe checkout/portal return URLs,
+      # plus Stripe keys (empty until configured — the billing page then shows
+      # a "payments not configured" notice instead of failing silently).
+      ALLOWED_RETURN_HOSTS: ${ALLOWED_RETURN_HOSTS:-}
+      FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GEMINI_API_KEY: ${GEMINI_API_KEY}

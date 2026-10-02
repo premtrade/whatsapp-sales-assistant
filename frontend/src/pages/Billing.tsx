@@ -19,6 +19,7 @@ type SubscriptionData = {
     }
   } | null
   trialDaysLeft: number | null
+  paymentsConfigured?: boolean
 }
 
 type UsageData = Record<string, { used: number; limit: number | null }>
@@ -27,23 +28,27 @@ export default function BillingPage() {
   const [sub, setSub] = useState<SubscriptionData | null>(null)
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [subData, usageData] = await Promise.all([
-          getSubscription(),
-          getUsage(),
-        ])
-        setSub(subData)
-        setUsage(usageData)
-      } catch {
-        toast.error('Failed to load billing info')
-      } finally {
-        setLoading(false)
-      }
+  const load = async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const [subData, usageData] = await Promise.all([
+        getSubscription(),
+        getUsage(),
+      ])
+      setSub(subData)
+      setUsage(usageData)
+    } catch (error: any) {
+      setLoadError(error?.message || 'Failed to load billing info')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     load()
   }, [])
 
@@ -81,10 +86,35 @@ export default function BillingPage() {
     )
   }
 
+  if (loadError) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-surface-100">Billing & Plan</h1>
+          <p className="text-sm text-surface-400">Manage your subscription and view usage.</p>
+        </div>
+        <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+          <p className="text-surface-100 font-medium">Couldn&apos;t load billing info</p>
+          <p className="text-sm text-surface-400 mt-1">{loadError}</p>
+          <button
+            onClick={() => load()}
+            className="mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const plan = sub?.subscription?.plan
   const isTrialing = sub?.subscription?.status === 'trialing'
   const daysLeft = sub?.trialDaysLeft ?? null
   const usageMetrics = usage || {}
+  // The backend reports whether Stripe keys exist on this environment. When they
+  // don't, checkout/portal calls always fail — say so up front instead of
+  // letting every button error silently.
+  const paymentsConfigured = sub?.paymentsConfigured !== false
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -92,6 +122,16 @@ export default function BillingPage() {
         <h1 className="text-2xl font-bold text-surface-100">Billing & Plan</h1>
         <p className="text-sm text-surface-400">Manage your subscription and view usage.</p>
       </div>
+
+      {!paymentsConfigured && (
+        <div className="bg-warning-50 border border-warning-100 rounded-xl p-4">
+          <p className="text-sm font-medium text-warning-900">Payments aren&apos;t configured yet</p>
+          <p className="text-xs text-warning-800">
+            No Stripe keys are set on this environment, so upgrades and the billing portal are
+            unavailable for now. Plan details and usage below are live.
+          </p>
+        </div>
+      )}
 
       {isTrialing && (
         <div className="bg-warning-50 border border-warning-100 rounded-xl p-4 flex items-center justify-between">
@@ -105,8 +145,8 @@ export default function BillingPage() {
           </div>
           <button
             onClick={handleUpgrade}
-            disabled={upgrading}
-            className="px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            disabled={upgrading || !paymentsConfigured}
+            className="px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
           >
             {upgrading ? 'Loading...' : 'Upgrade now'}
           </button>
@@ -132,20 +172,31 @@ export default function BillingPage() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={handleUpgrade}
-                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
+                disabled={!paymentsConfigured || upgrading}
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
               >
                 Change plan
               </button>
               <button
                 onClick={handleManageBilling}
-                className="px-4 py-2 bg-surface-800 hover:bg-surface-700 text-surface-200 text-sm font-medium rounded-lg transition-colors"
+                disabled={!paymentsConfigured}
+                className="px-4 py-2 bg-surface-800 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 text-sm font-medium rounded-lg transition-colors"
               >
                 Manage billing
               </button>
             </div>
           </div>
         ) : (
-          <p className="text-surface-400 text-sm">No active plan. Choose a plan to get started.</p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-surface-400 text-sm">No active plan. Choose a plan to get started.</p>
+            <button
+              onClick={handleUpgrade}
+              disabled={!paymentsConfigured || upgrading}
+              className="shrink-0 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {upgrading ? 'Loading...' : 'Choose a plan'}
+            </button>
+          </div>
         )}
       </div>
 

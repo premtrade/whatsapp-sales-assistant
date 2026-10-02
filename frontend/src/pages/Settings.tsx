@@ -86,7 +86,7 @@ export function SettingsPage() {
       setEditingStaff(null)
       refetchStaff()
     },
-    onError: () => toast.error('Failed to create staff member'),
+    onError: (error: any) => toast.error(error?.message || 'Failed to create staff member'),
   })
 
   const updateStaffMutation = useMutation({
@@ -105,7 +105,7 @@ export function SettingsPage() {
       setEditingStaff(null)
       refetchStaff()
     },
-    onError: () => toast.error('Failed to update staff member'),
+    onError: (error: any) => toast.error(error?.message || 'Failed to update staff member'),
   })
 
   const deleteStaffMutation = useMutation({
@@ -114,7 +114,7 @@ export function SettingsPage() {
       toast.success('Staff member deleted')
       refetchStaff()
     },
-    onError: () => toast.error('Failed to delete staff member'),
+    onError: (error: any) => toast.error(error?.message || 'Failed to delete staff member'),
   })
 
   const statusStaffMutation = useMutation({
@@ -123,7 +123,7 @@ export function SettingsPage() {
       toast.success(`Staff member ${variables.status === 'active' ? 'reactivated' : 'deactivated'}`)
       refetchStaff()
     },
-    onError: () => toast.error('Failed to update staff status'),
+    onError: (error: any) => toast.error(error?.message || 'Failed to update staff status'),
   })
 
   const tabs: { id: TabId; label: string; description: string }[] = [

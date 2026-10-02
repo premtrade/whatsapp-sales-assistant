@@ -486,7 +486,7 @@ export async function getPlans(): Promise<Plan[]> {
   return response.data.data
 }
 
-export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null } | null> {
+export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null; paymentsConfigured?: boolean } | null> {
   const response = await api.get<{ success: boolean; data: any }>('/billing/subscription')
   return response.data.data
 }
