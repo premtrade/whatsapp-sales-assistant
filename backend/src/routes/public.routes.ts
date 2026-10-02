@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { signupBusiness, checkSlugAvailability, checkPhoneAvailability } from '../services/public.service';
 import { activateBusiness } from '../services/public.service';
-import { BadRequestError, ConflictError, NotFoundError, ForbiddenError } from '../utils/errors';
+import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors';
 import logger from '../utils/logger';
 import { authenticate } from '../middleware/auth';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -41,10 +41,6 @@ router.post('/signup', signupRateLimiter, async (req: any, res: Response): Promi
     }
     if (error instanceof BadRequestError) {
       res.status(400).json({ success: false, message: error.message });
-      return;
-    }
-    if (error instanceof ForbiddenError) {
-      res.status(403).json({ success: false, message: error.message });
       return;
     }
     logger.error('Signup failed', { error: error?.message || error });

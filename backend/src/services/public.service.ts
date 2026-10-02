@@ -93,27 +93,6 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
 
   validatePassword(data.password);
 
-  // Beta gating: require an open beta or a valid invite.
-  const betaOpen = await isBetaOpen();
-  const inviteResult = await validateBetaInvite(normalizedEmail);
-  if (!betaOpen && !inviteResult.valid) {
-    throw new ForbiddenError(inviteResult.error || 'The public beta is currently closed. Please join the waitlist.');
-  }
-  if (betaOpen && !inviteResult.valid) {
-    // Record the registration attempt for traceability.
-    try {
-      await recordBetaRegistration({
-        email: normalizedEmail,
-        inviteType: inviteResult.inviteType,
-        ipAddress: undefined,
-        userAgent: undefined,
-      });
-    } catch {
-      // non-blocking
-    }
-    throw new ForbiddenError(inviteResult.error || 'You need a valid beta invite to sign up. Please request access or use a promo code.');
-  }
-
   const existingSlug = await getBusinessBySlug(slug);
   if (existingSlug) {
     throw new ConflictError('Slug is already taken');
