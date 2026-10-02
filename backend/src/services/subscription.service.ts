@@ -6,6 +6,7 @@ import logger from '../utils/logger';
 
 export const TRIAL_DAYS = 14;
 export const GRACE_PERIOD_DAYS = 3;
+export const MAX_TRIAL_DAYS = 30; // Hard ceiling to prevent indefinite trials via clock-skew or DB edits.
 export const USAGE_CACHE_TTL_SECONDS = 15 * 60;
 export const SUBSCRIPTION_CACHE_TTL_SECONDS = 5 * 60;
 
@@ -185,21 +186,6 @@ export function assertUsable(sub: SubscriptionWithPlan | null): void {
   if (sub.status === 'canceled') throw new ForbiddenError('Subscription is canceled.');
   throw new PaymentRequiredError('Subscription is not active.');
 }
-export async function createTrial(businessId: string, slug = 'starter'): Promise<SubscriptionWithPlan> {
-  const existing = await getActiveSubscription(businessId);
-  if (existing) return existing;
-  let plan: Plan;
-  try { plan = await getPlanBySlug(slug); } catch { plan = await getPlanBySlug('starter'); }
-  try {
-    await query(`INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end, trial_ends_at, metadata) VALUES ($1,$2,'trialing',NOW(),NOW()+($3||' days')::interval,NOW()+($3||' days')::interval,'{"notes":"Trial created"}'::jsonb)`, [businessId, plan.id, String(TRIAL_DAYS)]);
-  } catch (err: any) {
-    logger.warn('Trial insert skipped', { businessId, err: err?.message });
-  }
-  clearSubCache(businessId);
-  const full = await getActiveSubscription(businessId);
-  if (!full) throw new BadRequestError('Failed to create trial subscription');
-  return full;
-}
 
 export async function createTrialSubscription(
   businessId: string,
@@ -215,7 +201,8 @@ export async function createTrialSubscription(
     plan = await getPlanBySlug('starter');
   }
 
-  const days = TRIAL_DAYS;
+  // Cap trial length at MAX_TRIAL_DAYS to prevent indefinite trials.
+  const days = Math.min(TRIAL_DAYS, MAX_TRIAL_DAYS);
   const dupeGuardWindowMs = 2 * 60 * 1000;
   try {
     const dupe = await query<{ id: string }>(
@@ -229,6 +216,8 @@ export async function createTrialSubscription(
       const reread = await getActiveSubscription(businessId);
       if (reread) return reread;
     }
+
+    // Use INSERT ... ON CONFLICT DO NOTHING to handle concurrent requests safely.
     await query(
       `INSERT INTO subscriptions
          (business_id, plan_id, status,
@@ -239,7 +228,9 @@ export async function createTrialSubscription(
          NOW(), NOW() + make_interval(days => $3),
          NOW() + make_interval(days => $3),
          '{"source":"public-signup"}'::jsonb
-       )`,
+       )
+       ON CONFLICT (business_id) WHERE (SELECT COUNT(*) FROM subscriptions WHERE business_id = $1 AND status IN ('trialing','active','past_due')) = 0
+       DO NOTHING`,
       [businessId, plan.id, days]
     );
   } catch (err: any) {
@@ -252,6 +243,14 @@ export async function createTrialSubscription(
   return created;
 }
 
+/**
+ * @deprecated Use createTrialSubscription instead. Kept for backward compatibility
+ * during the migration period; will be removed in a future release.
+ */
+export async function createTrial(businessId: string, slug = 'starter'): Promise<SubscriptionWithPlan> {
+  return createTrialSubscription(businessId, slug);
+}
+
 /** Change plan on an existing subscription (append-only plan catalog: never edit plan rows). */
 
 export async function changePlan(businessId: string, slug: string, by?: string): Promise<SubscriptionWithPlan> {
@@ -260,7 +259,25 @@ export async function changePlan(businessId: string, slug: string, by?: string):
   const next = await getPlanBySlug(slug);
   if (!next.is_active) throw new BadRequestError(`Plan '${slug}' unavailable`);
   const from = (cur.plan as Plan).slug;
-  await query(`UPDATE subscriptions SET plan_id=$1, updated_at=NOW(), metadata=metadata||$2::jsonb WHERE id=$3`, [next.id, JSON.stringify({ from, at: new Date().toISOString(), by: by || null }), cur.id]);
+
+  const changeMetadata = { from, at: new Date().toISOString(), by: by || null };
+
+  await query(
+    `UPDATE subscriptions SET plan_id=$1, updated_at=NOW(), metadata=metadata||$2::jsonb WHERE id=$3`,
+    [next.id, JSON.stringify(changeMetadata), cur.id]
+  );
+
+  // Log the plan change asynchronously.
+  try {
+    await query(
+      `INSERT INTO plan_changes (subscription_id, from_plan_id, to_plan_id, changed_by, changed_by_user_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [cur.id, cur.plan_id, next.id, by || 'system', null, JSON.stringify(changeMetadata)]
+    );
+  } catch (err: any) {
+    logger.warn('Failed to log plan change', { subscriptionId: cur.id, err: err?.message });
+  }
+
   clearSubCache(businessId);
   logger.info('Plan changed', { businessId, from, to: slug });
   const u = await getActiveSubscription(businessId);
@@ -281,8 +298,32 @@ export async function cancelSub(businessId: string): Promise<Subscription> {
 export async function cancelSubscription(b: string): Promise<Subscription> { return cancelSub(b); }
 
 export async function expireDueTrials(): Promise<number> {
-  const r = await query<{ id: string }>(`UPDATE subscriptions SET status='expired', grace_period_ends_at=NOW()+($1||' days')::interval, updated_at=NOW() WHERE status='trialing' AND trial_ends_at IS NOT NULL AND trial_ends_at<=NOW() RETURNING id`, [String(GRACE_PERIOD_DAYS)]);
-  return r.rowCount || 0;
+  // Use a subquery to atomically select and expire trials, avoiding race conditions
+  // when multiple server instances run this job concurrently.
+  const r = await query<{ id: string }>(
+    `WITH to_expire AS (
+       SELECT id
+       FROM subscriptions
+       WHERE status = 'trialing'
+         AND trial_ends_at IS NOT NULL
+         AND trial_ends_at <= NOW()
+       ORDER BY trial_ends_at ASC
+       LIMIT 1000
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE subscriptions
+     SET status = 'expired',
+         grace_period_ends_at = NOW() + make_interval(days => $1),
+         updated_at = NOW()
+     WHERE id IN (SELECT id FROM to_expire)
+     RETURNING id`,
+    [String(GRACE_PERIOD_DAYS)]
+  );
+  const expiredCount = r.rowCount || 0;
+  if (expiredCount > 0) {
+    logger.info('Trial expiry job completed', { expiredCount });
+  }
+  return expiredCount;
 }
 
 function monthBounds(now = new Date()): { s: string; e: string } {

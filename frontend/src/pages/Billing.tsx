@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getSubscription, getUsage, createCheckoutSession, createCustomerPortalSession } from '@/services/api'
+import { getSubscription, getUsage, getPlans, createCheckoutSession, createCustomerPortalSession, getBetaStatus } from '@/services/api'
 
 type SubscriptionData = {
   subscription: {
@@ -24,23 +24,50 @@ type SubscriptionData = {
 
 type UsageData = Record<string, { used: number; limit: number | null }>
 
+type BetaStatus = {
+  open: boolean
+  waitlistUrl?: string
+  estimatedLaunch?: string
+}
+
+type PlanOption = {
+  id: string
+  name: string
+  slug: string
+  price_monthly: number
+  price_yearly?: number | null
+  currency: string
+  features: Record<string, boolean | undefined>
+  limits: Record<string, number | undefined>
+}
+
 export default function BillingPage() {
   const [sub, setSub] = useState<SubscriptionData | null>(null)
   const [usage, setUsage] = useState<UsageData | null>(null)
+  const [plans, setPlans] = useState<PlanOption[]>([])
+  const [betaStatus, setBetaStatus] = useState<BetaStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
+  const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>('professional')
 
   const load = async () => {
     setLoading(true)
     setLoadError(null)
     try {
-      const [subData, usageData] = await Promise.all([
+      const [subData, usageData, plansData, beta] = await Promise.all([
         getSubscription(),
         getUsage(),
+        getPlans(),
+        getBetaStatus().catch(() => ({ open: true } as BetaStatus)),
       ])
       setSub(subData)
       setUsage(usageData)
+      setPlans(plansData)
+      setBetaStatus(beta)
+      if (plansData.length > 0 && !plansData.some(p => p.slug === selectedPlanSlug)) {
+        setSelectedPlanSlug(plansData[0].slug)
+      }
     } catch (error: any) {
       setLoadError(error?.message || 'Failed to load billing info')
     } finally {
@@ -52,11 +79,11 @@ export default function BillingPage() {
     load()
   }, [])
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (planSlug: string) => {
     try {
       setUpgrading(true)
       const result = await createCheckoutSession({
-        planSlug: 'professional',
+        planSlug,
         successUrl: window.location.origin + '/billing?success=1',
         cancelUrl: window.location.origin + '/billing?canceled=1',
       })
@@ -111,10 +138,8 @@ export default function BillingPage() {
   const isTrialing = sub?.subscription?.status === 'trialing'
   const daysLeft = sub?.trialDaysLeft ?? null
   const usageMetrics = usage || {}
-  // The backend reports whether Stripe keys exist on this environment. When they
-  // don't, checkout/portal calls always fail — say so up front instead of
-  // letting every button error silently.
   const paymentsConfigured = sub?.paymentsConfigured !== false
+  const currentPlanSlug = plan?.slug
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -123,16 +148,18 @@ export default function BillingPage() {
         <p className="text-sm text-surface-400">Manage your subscription and view usage.</p>
       </div>
 
+      {/* Beta notice when Stripe is not configured */}
       {!paymentsConfigured && (
         <div className="bg-warning-50 border border-warning-100 rounded-xl p-4">
-          <p className="text-sm font-medium text-warning-900">Payments aren&apos;t configured yet</p>
+          <p className="text-sm font-medium text-warning-900">You&apos;re on the free beta</p>
           <p className="text-xs text-warning-800">
-            No Stripe keys are set on this environment, so upgrades and the billing portal are
-            unavailable for now. Plan details and usage below are live.
+            Billing is not yet enabled on this environment. Enjoy full access during the public beta.
+            Paid plans will be available soon.
           </p>
         </div>
       )}
 
+      {/* Trial banner */}
       {isTrialing && (
         <div className="bg-warning-50 border border-warning-100 rounded-xl p-4 flex items-center justify-between">
           <div>
@@ -143,16 +170,19 @@ export default function BillingPage() {
                 : 'Your trial has ended. Upgrade to continue.'}
             </p>
           </div>
-          <button
-            onClick={handleUpgrade}
-            disabled={upgrading || !paymentsConfigured}
-            className="px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            {upgrading ? 'Loading...' : 'Upgrade now'}
-          </button>
+          {paymentsConfigured && (
+            <button
+              onClick={() => handleUpgrade(currentPlanSlug || selectedPlanSlug)}
+              disabled={upgrading}
+              className="px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {upgrading ? 'Loading...' : 'Upgrade now'}
+            </button>
+          )}
         </div>
       )}
 
+      {/* Current plan or plan selector */}
       <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
         <h2 className="text-lg font-semibold text-surface-100 mb-4">Current Plan</h2>
         {plan ? (
@@ -169,37 +199,91 @@ export default function BillingPage() {
                 )}
               </div>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleUpgrade}
-                disabled={!paymentsConfigured || upgrading}
-                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                Change plan
-              </button>
-              <button
-                onClick={handleManageBilling}
-                disabled={!paymentsConfigured}
-                className="px-4 py-2 bg-surface-800 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 text-sm font-medium rounded-lg transition-colors"
-              >
-                Manage billing
-              </button>
-            </div>
+            {paymentsConfigured && (
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => handleUpgrade(currentPlanSlug || selectedPlanSlug)}
+                  disabled={upgrading}
+                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Change plan
+                </button>
+                <button
+                  onClick={handleManageBilling}
+                  disabled={upgrading}
+                  className="px-4 py-2 bg-surface-800 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 text-sm font-medium rounded-lg transition-colors"
+                >
+                  Manage billing
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <p className="text-surface-400 text-sm">No active plan. Choose a plan to get started.</p>
-            <button
-              onClick={handleUpgrade}
-              disabled={!paymentsConfigured || upgrading}
-              className="shrink-0 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              {upgrading ? 'Loading...' : 'Choose a plan'}
-            </button>
+            {paymentsConfigured && (
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedPlanSlug}
+                  onChange={(e) => setSelectedPlanSlug(e.target.value)}
+                  className="bg-surface-800 border border-surface-700 text-surface-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {plans.map(p => (
+                    <option key={p.slug} value={p.slug}>{p.name} — ${p.price_monthly}/mo</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => handleUpgrade(selectedPlanSlug)}
+                  disabled={upgrading}
+                  className="shrink-0 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {upgrading ? 'Loading...' : 'Choose plan'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Plan comparison (shown when no plan is selected or during trial) */}
+      {plans.length > 0 && (
+        <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-surface-100 mb-4">Available Plans</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {plans.map(p => (
+              <div
+                key={p.slug}
+                className={`border rounded-xl p-4 ${currentPlanSlug === p.slug ? 'border-primary-500 bg-surface-800' : 'border-surface-700 bg-surface-900'}`}
+              >
+                <p className="text-surface-100 font-medium">{p.name}</p>
+                <p className="text-xl font-bold text-surface-100">${p.price_monthly}<span className="text-xs text-surface-400">/mo</span></p>
+                {p.price_yearly && (
+                  <p className="text-xs text-surface-400">${p.price_yearly}/yr</p>
+                )}
+                <ul className="mt-3 space-y-1 text-xs text-surface-300">
+                  {Object.entries(p.features).filter(([, v]) => v).map(([key]) => (
+                    <li key={key} className="flex items-center gap-1">
+                      <span className="text-primary-400">&#10003;</span>
+                      <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                    </li>
+                  ))}
+                </ul>
+                {paymentsConfigured && currentPlanSlug !== p.slug && (
+                  <button
+                    onClick={() => handleUpgrade(p.slug)}
+                    disabled={upgrading}
+                    className="mt-3 w-full px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {upgrading ? 'Loading...' : 'Select'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Usage */}
       {plan && (
         <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
           <h2 className="text-lg font-semibold text-surface-100 mb-4">Usage</h2>

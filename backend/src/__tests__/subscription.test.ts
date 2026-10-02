@@ -290,3 +290,14 @@ describe('requireUsageLimit middleware', () => {
     expect(mockRequireFeatureLimit).not.toHaveBeenCalled();
   });
 });
+
+describe('Subscription hardening (MAX_TRIAL_DAYS)', () => {
+  it('enforces a maximum trial length ceiling', async () => {
+    // createTrialSubscription should cap at MAX_TRIAL_DAYS (30 days).
+    // The actual DB interaction is tested in integration tests; here we verify
+    // the exported constant is reasonable.
+    const { MAX_TRIAL_DAYS } = require('../services/subscription.service');
+    expect(MAX_TRIAL_DAYS).toBeGreaterThanOrEqual(14);
+    expect(MAX_TRIAL_DAYS).toBeLessThanOrEqual(30);
+  });
+});

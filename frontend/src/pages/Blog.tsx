@@ -1,6 +1,20 @@
 import { Link } from 'react-router-dom'
 
-const posts = [
+type BlogSection = {
+  heading: string
+  paragraphs: string[]
+  example?: string
+}
+
+type BlogPost = {
+  id: string
+  category: string
+  title: string
+  summary: string
+  sections: BlogSection[]
+}
+
+const posts: BlogPost[] = [
   {
     id: 'setup-whatsapp',
     category: 'Getting started',
@@ -88,6 +102,52 @@ const posts = [
       },
     ],
   },
+  {
+    id: 'business-knowledge',
+    category: 'Agent setup',
+    title: 'Step 7: Give Your Agent Your Business Knowledge',
+    summary: 'Give an AI assistant clear, current facts about your business, then spell out how it should use them when replying to customers.',
+    sections: [
+      {
+        heading: 'A useful answer starts with useful context',
+        paragraphs: [
+          'An AI assistant can only represent your business well when it has reliable information to work from. A vague instruction such as “answer questions about our services” leaves important gaps: which services do you offer, where do you work, what do things cost, and when should a person step in?',
+          'Create one concise, maintained source of truth. Use plain language, clear headings, and specific details. If information changes often, assign someone to review it regularly and remove old versions so the assistant is not choosing between conflicting facts.',
+        ],
+      },
+      {
+        heading: 'What to include in your business knowledge',
+        paragraphs: [
+          'Business details: your name, a short description, contact information, service area, and the locations you do not cover.',
+          'Services and pricing: what you offer, what is included, starting prices or price ranges, what affects the final quote, and what needs an inspection or staff approval. Label estimates clearly; never present a conditional price as guaranteed.',
+          'Opening hours and location: normal business hours, holidays or closures, time zone, address, travel area, and expected response times outside working hours.',
+          'Policies and FAQs: payment methods, deposits, cancellations, warranties, preparation requirements, and concise answers to common customer questions.',
+          'Brand voice and booking rules: whether you sound formal or conversational, what details are needed to request an appointment, which times can be offered, and how to handle requests that need confirmation.',
+        ],
+      },
+      {
+        heading: 'Give the assistant operating rules too',
+        paragraphs: [
+          'Facts describe your business; instructions describe how the assistant should behave. Tell it to use the supplied information, ask a short clarifying question when a detail is missing, and say when it does not know. It should not invent prices, availability, policies, or promises.',
+          'Define when to stop and hand off: for example, a customer asks for a person, the request is a complaint, a quote needs approval, or the answer is not covered by the business material. Ask the assistant to summarize what the team needs to know when handing over.',
+        ],
+      },
+      {
+        heading: 'A starter instruction you can adapt',
+        paragraphs: [
+          'Use this as a starting point for an agent instruction. Replace every bracketed field with confirmed information and remove any rule that does not fit your business:',
+        ],
+        example: `You are the WhatsApp assistant for [BUSINESS NAME].\n\nUse the business information and conversation context provided to answer customer questions. Be [BRAND VOICE] and keep replies clear and concise.\n\nServices: [SERVICES]\nService area: [LOCATIONS]\nHours: [OPENING HOURS AND TIME ZONE]\nPricing: [CONFIRMED PRICES OR HOW TO REQUEST A QUOTE]\nBooking rules: [REQUIRED DETAILS, AVAILABLE TIMES, AND CONFIRMATION PROCESS]\nPolicies and FAQs: [IMPORTANT POLICIES AND COMMON ANSWERS]\n\nNever invent a price, appointment, policy, service, or commitment. If information is missing or uncertain, ask a focused question or say that a team member will confirm it. Hand off complaints, requests for a person, and decisions requiring approval. Before handing off, summarize the customer's request and any details already collected.`,
+      },
+      {
+        heading: 'Adding this knowledge to WAFLO',
+        paragraphs: [
+          'In WAFLO, add business source material through the dashboard’s Knowledge Base. Upload a current services guide, FAQ, price list, or booking policy with a clear title. The agent’s conversational instructions are configured in the n8n workflow, so this article is not asking business owners to edit application source files or promising a system-prompt editor in the dashboard.',
+          'After adding or updating material, test with realistic customer questions: one with a clear answer, one missing an important detail, and one that should be handed to a person. Check that the response uses the source correctly and does not make up the missing information.',
+        ],
+      },
+    ],
+  },
 ]
 
 export default function BlogPage() {
@@ -127,6 +187,9 @@ export default function BlogPage() {
                       <div className="mt-3 space-y-3 text-sm leading-7 text-surface-700">
                         {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
                       </div>
+                      {section.example && (
+                        <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-lg border border-surface-200 bg-surface-50 p-4 text-xs leading-6 text-surface-700">{section.example}</pre>
+                      )}
                     </section>
                   ))}
                 </div>

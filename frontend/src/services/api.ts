@@ -668,4 +668,20 @@ export async function updateAdminSettings(settings: Record<string, string>): Pro
   return response.data.data
 }
 
+// Beta
+export async function getBetaStatus(): Promise<{ open: boolean; waitlistUrl?: string; estimatedLaunch?: string }> {
+  const response = await api.get<{ success: boolean; data: any }>('/beta/status')
+  return response.data.data
+}
+
+export async function validateBetaInviteApi(email: string, token?: string): Promise<{ valid: boolean; inviteType?: string; error?: string }> {
+  const response = await api.post<{ success: boolean; data: any }>('/beta/validate-invite', { email, token })
+  return response.data.data
+}
+
+export async function registerBetaInterestApi(email: string, inviteToken?: string): Promise<any> {
+  const response = await api.post<{ success: boolean; data: any }>('/beta/register', { email, inviteToken })
+  return response.data.data
+}
+
 

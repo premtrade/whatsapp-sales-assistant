@@ -86,7 +86,11 @@ is_migration_applied() {
     local migration_name="$1"
     local result
     result=$(run_psql "SELECT is_migration_applied('$migration_name');")
-    echo "$result" | grep -q "t"
+    # psql prints a header row that contains the function name (which itself
+    # contains the letter "t"), so `grep -q "t"` used to match every output
+    # and silently treat ALL migrations as already applied. Match only the
+    # boolean value line: a bare "t" surrounded by whitespace.
+    echo "$result" | grep -qE '^[[:space:]]*t[[:space:]]*$'
 }
 
 # Function to record migration as applied

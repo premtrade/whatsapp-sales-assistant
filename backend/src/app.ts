@@ -35,6 +35,7 @@ import subscriptionRoutes from './routes/subscription.routes';
 import ownerRoutes from './routes/owner.routes';
 import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
+import betaRoutes from './routes/beta.routes';
 import { ApiResponse } from './types';
 
 const app: Application = express();
@@ -119,6 +120,8 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/webhooks', webhookRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/public', publicRoutes);
+app.use('/api/beta', betaRoutes);
+app.use('/beta', betaRoutes);
 app.use('/api/billing', subscriptionRoutes);
 app.use('/billing', subscriptionRoutes);
 app.use('/api/owner', ownerRoutes);

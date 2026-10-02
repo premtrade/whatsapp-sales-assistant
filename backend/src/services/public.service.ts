@@ -4,7 +4,8 @@ import { config } from '../config';
 import { hashPassword } from './auth.service';
 import { createBusiness, getBusinessBySlug, getBusinessByWhatsAppPhone, Business } from './business.service';
 import { createTrial } from './subscription.service';
-import { NotFoundError, ConflictError, BadRequestError } from '../utils/errors';
+import { validateBetaInvite, recordBetaRegistration, consumeBetaInvite, isBetaOpen } from './beta.service';
+import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from '../utils/errors';
 import logger from '../utils/logger';
 
 export interface PublicSignupRequest {
@@ -92,6 +93,27 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
 
   validatePassword(data.password);
 
+  // Beta gating: require an open beta or a valid invite.
+  const betaOpen = await isBetaOpen();
+  const inviteResult = await validateBetaInvite(normalizedEmail);
+  if (!betaOpen && !inviteResult.valid) {
+    throw new ForbiddenError(inviteResult.error || 'The public beta is currently closed. Please join the waitlist.');
+  }
+  if (betaOpen && !inviteResult.valid) {
+    // Record the registration attempt for traceability.
+    try {
+      await recordBetaRegistration({
+        email: normalizedEmail,
+        inviteType: inviteResult.inviteType,
+        ipAddress: undefined,
+        userAgent: undefined,
+      });
+    } catch {
+      // non-blocking
+    }
+    throw new ForbiddenError(inviteResult.error || 'You need a valid beta invite to sign up. Please request access or use a promo code.');
+  }
+
   const existingSlug = await getBusinessBySlug(slug);
   if (existingSlug) {
     throw new ConflictError('Slug is already taken');
@@ -126,6 +148,20 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
     await createTrial(business.id, 'starter');
   } catch (error) {
     logger.warn('Trial subscription init failed; migration backfill will cover tenant', { businessId: business.id, error });
+  }
+
+  // Record beta registration with the business ID now that it exists.
+  try {
+    const postInviteResult = await validateBetaInvite(normalizedEmail);
+    if (postInviteResult.valid) {
+      await recordBetaRegistration({
+        businessId: business.id,
+        email: normalizedEmail,
+        inviteType: postInviteResult.inviteType,
+      });
+    }
+  } catch {
+    // non-blocking
   }
 
   const passwordHash = await hashPassword(data.password);

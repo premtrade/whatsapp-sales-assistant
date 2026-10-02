@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { query } from '../utils/database';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 import logger from '../utils/logger';
-import { getActiveSubscription, getPlanById, getPlanBySlug, clearSubCache } from './subscription.service';
+import { getActiveSubscription, getPlanById, getPlanBySlug, clearSubCache, TRIAL_DAYS, GRACE_PERIOD_DAYS } from './subscription.service';
 import type { Plan } from '../types';
 
 let stripeClient: Stripe | null = null;
@@ -54,6 +54,12 @@ export async function createCheckoutSession(businessId: string, planSlug: string
     }
   }
 
+  // If the local subscription is still in trial, tell Stripe to extend its trial
+  // so that the first invoice is not generated until the local trial expires.
+  const trialEndTimestamp = sub.status === 'trialing' && sub.trial_ends_at
+    ? Math.max(0, Math.floor(new Date(sub.trial_ends_at).getTime() / 1000))
+    : undefined;
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     customer_email: customerId ? undefined : business.email || undefined,
@@ -74,6 +80,14 @@ export async function createCheckoutSession(businessId: string, planSlug: string
         quantity: 1,
       },
     ],
+    subscription_data: {
+      trial_period_days: trialEndTimestamp ? Math.max(0, Math.ceil((trialEndTimestamp - Math.floor(Date.now() / 1000)) / 86400)) : undefined,
+      metadata: {
+        businessId,
+        subscriptionId: sub.id,
+        planSlug,
+      },
+    },
     metadata: {
       businessId,
       subscriptionId: sub.id,
@@ -136,6 +150,34 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
 
   logger.info('Received Stripe webhook', { type: event.type, id: event.id });
 
+  // Idempotency guard: skip if we have already processed this event.
+  try {
+    const idempotent = await query<{ id: string }>(
+      `INSERT INTO payments (business_id, subscription_id, amount, currency, status, provider, provider_payment_id, provider_customer_id, paid_at, metadata)
+       VALUES (
+         (SELECT business_id FROM subscriptions WHERE external_customer_id = $1 LIMIT 1),
+         NULL, 0, 'USD', 'pending', 'stripe', $2, $1, NOW(), $3::jsonb
+       )
+       ON CONFLICT (provider_payment_id) DO NOTHING
+       RETURNING id`,
+      [
+        event.data.object && typeof (event.data.object as any).customer === 'string' ? (event.data.object as any).customer : null,
+        `stripe_event_${event.id}`,
+        JSON.stringify({ stripeEventId: event.id, eventType: event.type, receivedAt: new Date().toISOString() }),
+      ]
+    );
+    // If the row already existed, idempotent.rows.length === 0.
+    if (idempotent.rowCount === 0 && event.type !== 'customer.subscription.updated' && event.type !== 'customer.subscription.deleted') {
+      // For non-subscription events, skip duplicates.
+      logger.info('Skipping duplicate Stripe event', { type: event.type, id: event.id });
+      return;
+    }
+  } catch (err: any) {
+    // If the idempotency insert fails for reasons other than conflict, continue processing.
+    // This prevents the idempotency mechanism from breaking the webhook flow.
+    logger.warn('Stripe webhook idempotency check failed, continuing', { error: err?.message, eventId: event.id });
+  }
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -156,9 +198,30 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
         `UPDATE subscriptions
          SET status='active', plan_id=COALESCE($1, plan_id), external_subscription_id=$2, external_customer_id=$3, metadata=metadata||$4::jsonb, updated_at=NOW()
          WHERE id=$5`,
-        [planId, stripeSubscriptionId, stripeCustomerId || null, JSON.stringify({ stripeSessionId: session.id, planSlug }), subscriptionId]
+        [planId, stripeSubscriptionId, stripeCustomerId || null, JSON.stringify({ stripeSessionId: session.id, planSlug, lastEventId: event.id }), subscriptionId]
       );
       clearSubCache(businessId);
+      break;
+    }
+
+    case 'customer.subscription.created': {
+      // Catch the case where Stripe fires subscription.created without a preceding checkout.session.completed.
+      const stripeSubscription = event.data.object as Stripe.Subscription;
+      const stripeCustomerId = (stripeSubscription.customer as string) || undefined;
+      if (!stripeCustomerId) break;
+
+      const subResult = await query<{ id: string; business_id: string }>(
+        `SELECT id, business_id FROM subscriptions WHERE external_customer_id=$1 LIMIT 1`,
+        [stripeCustomerId]
+      );
+      const subRow = subResult.rows[0];
+      if (!subRow) break;
+
+      await query(
+        `UPDATE subscriptions SET external_subscription_id=$1, metadata=metadata||$2::jsonb, updated_at=NOW() WHERE id=$3`,
+        [stripeSubscription.id, JSON.stringify({ stripeStatus: stripeSubscription.status, lastEventId: event.id }), subRow.id]
+      );
+      clearSubCache(subRow.business_id);
       break;
     }
 
@@ -186,12 +249,12 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
       if (stripeSubscription.status === 'active') status = 'active';
       else if (stripeSubscription.status === 'past_due') status = 'past_due';
       else if (stripeSubscription.status === 'canceled') status = 'canceled';
-      else if (stripeSubscription.status === 'incomplete_expired') status = 'expired';
+      else if (stripeSubscription.status === 'incomplete_expired' || stripeSubscription.status === 'unpaid') status = 'expired';
       else status = 'paused';
 
       await query(
         `UPDATE subscriptions SET status=$1, external_subscription_id=$2, metadata=metadata||$3::jsonb, updated_at=NOW() WHERE id=$4`,
-        [status, stripeSubscription.id, JSON.stringify({ stripeStatus: stripeSubscription.status }), subRow.id]
+        [status, stripeSubscription.id, JSON.stringify({ stripeStatus: stripeSubscription.status, lastEventId: event.id }), subRow.id]
       );
       clearSubCache(subRow.business_id);
       break;
@@ -210,13 +273,14 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
       if (!subRow) return;
 
       await query(
-        `UPDATE subscriptions SET status='past_due', metadata=metadata||$1::jsonb, updated_at=NOW() WHERE id=$2`,
-        [JSON.stringify({ lastPaymentFailure: invoice.id, failureReason: invoice.last_finalization_error?.message || null }), subRow.id]
+        `UPDATE subscriptions SET status='past_due', grace_period_ends_at=NOW() + make_interval(days => $1), metadata=metadata||$2::jsonb, updated_at=NOW() WHERE id=$3`,
+        [String(GRACE_PERIOD_DAYS), JSON.stringify({ lastPaymentFailure: invoice.id, failureReason: invoice.last_finalization_error?.message || null, lastEventId: event.id }), subRow.id]
       );
       clearSubCache(subRow.business_id);
       break;
     }
 
+    case 'invoice.payment_succeeded':
     case 'invoice.paid': {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = (invoice.customer as string) || undefined;
@@ -229,6 +293,9 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
       const subRow = subResult.rows[0];
       if (!subRow) return;
 
+      // Skip $0 invoices (e.g., trial extensions) to avoid recording zero-value payments.
+      if ((invoice.amount_paid || 0) === 0) break;
+
       await query(
         `INSERT INTO payments (business_id, subscription_id, amount, currency, status, provider, provider_payment_id, provider_customer_id, paid_at, metadata)
          VALUES ($1,$2,$3,$4,'succeeded','stripe',$5,$6,NOW(),$7::jsonb)
@@ -240,14 +307,14 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
           invoice.currency.toUpperCase(),
           invoice.id,
           customerId,
-          JSON.stringify({ invoiceNumber: invoice.number, hostedInvoiceUrl: invoice.hosted_invoice_url }),
+          JSON.stringify({ invoiceNumber: invoice.number, hostedInvoiceUrl: invoice.hosted_invoice_url, lastEventId: event.id }),
         ]
       );
 
       if (subRow.status === 'past_due') {
         await query(
           `UPDATE subscriptions SET status='active', metadata=metadata||$1::jsonb, updated_at=NOW() WHERE id=$2`,
-          [JSON.stringify({ lastPaymentFailureResolved: invoice.id, resolvedAt: new Date().toISOString() }), subRow.id]
+          [JSON.stringify({ lastPaymentFailureResolved: invoice.id, resolvedAt: new Date().toISOString(), lastEventId: event.id }), subRow.id]
         );
         clearSubCache(subRow.business_id);
       }

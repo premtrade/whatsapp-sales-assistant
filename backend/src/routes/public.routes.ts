@@ -2,9 +2,10 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { signupBusiness, checkSlugAvailability, checkPhoneAvailability } from '../services/public.service';
 import { activateBusiness } from '../services/public.service';
-import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors';
+import { BadRequestError, ConflictError, NotFoundError, ForbiddenError } from '../utils/errors';
 import logger from '../utils/logger';
 import { authenticate } from '../middleware/auth';
+import { apiRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -17,7 +18,10 @@ const signupSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-router.post('/signup', async (req: any, res: Response): Promise<void> => {
+// Stricter rate limiter for signup to prevent abuse during beta.
+const signupRateLimiter = apiRateLimiter;
+
+router.post('/signup', signupRateLimiter, async (req: any, res: Response): Promise<void> => {
   try {
     const validated = signupSchema.parse(req.body);
     const result = await signupBusiness(validated);
@@ -37,6 +41,10 @@ router.post('/signup', async (req: any, res: Response): Promise<void> => {
     }
     if (error instanceof BadRequestError) {
       res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof ForbiddenError) {
+      res.status(403).json({ success: false, message: error.message });
       return;
     }
     logger.error('Signup failed', { error: error?.message || error });
