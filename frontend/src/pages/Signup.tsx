@@ -217,7 +217,7 @@ export default function SignupPage() {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-surface-900 mb-2">Get Started</h1>
-          <p className="text-surface-500">Create your WhatsApp sales assistant in 30 seconds.</p>
+          <p className="text-surface-500">Create your WhatsApp sales assistant in 20 minutes.</p>
         </div>
         <form onSubmit={handleSignup} className="card p-6 space-y-4" noValidate>
           <Field label="Business Name" error={touched.businessName ? errors.businessName : undefined}>

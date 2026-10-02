@@ -124,7 +124,7 @@ const testimonials = [
 const faqs = [
   {
     q: 'Do I need technical skills to set this up?',
-    a: 'No. Most businesses are live in 10 minutes. If you can use WhatsApp, you can use WAFLO.',
+    a: 'No. Most businesses are live in 20 minutes. If you can use WhatsApp, you can use WAFLO.',
   },
   {
     q: 'Will the AI sound like a robot?',
@@ -265,7 +265,7 @@ export default function LandingPage() {
                   <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Setup in 10 minutes
+                   Setup in 20 minutes
                 </span>
               </div>
             </div>
