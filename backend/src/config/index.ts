@@ -25,10 +25,15 @@ export interface Config {
     host: string;
     port: number;
   };
-  gemini: {
-    apiKey: string;
-  };
-  ai: {
+   gemini: {
+     apiKey: string;
+   };
+
+   sendgrid: {
+     apiKey: string;
+   };
+
+   ai: {
     defaultModel: string;
     embeddingModel: string;
   };
@@ -104,7 +109,12 @@ export const config: Config = {
   },
   gemini: {
     apiKey: getEnv('GEMINI_API_KEY', ''),
-  },
+  };
+
+  sendgrid: {
+    apiKey: getEnv('SENDGRID_API_KEY', ''),
+  };
+
   ai: {
     // Must stay in sync with the model configured on the n8n 'Workflow 2 - AI Brain' Groq node.
     defaultModel: getEnv('AI_DEFAULT_MODEL', 'qwen/qwen3.8-27b'),

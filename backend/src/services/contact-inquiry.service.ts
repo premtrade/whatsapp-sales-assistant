@@ -17,16 +17,18 @@ export interface ContactInquiry {
   updated_at: Date;
 }
 
-export interface CreateContactInquiryInput {
-  name: string;
-  business?: string;
-  email: string;
-  whatsapp?: string;
-  message: string;
-  source?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  metadata?: Record<string, unknown>;
+export interface ContactInquiryInput extends CreateContactInquiryInput {
+  trialEndsAt?: Date;
+}
+
+/**
+ * Placeholder for email autoresponder.
+ * When an email provider is configured (SendGrid, SES, Resend, etc.),
+ * implement sendAutoresponder(email, name, source) here and call it
+ * from createContactInquiry after the DB insert.
+ */
+async function sendAutoresponder(_email: string, _name: string, _source: string): Promise<void> {
+  logger.info('Autoresender hook triggered', { email: _email, source: _source });
 }
 
 export async function createContactInquiry(input: CreateContactInquiryInput): Promise<ContactInquiry> {
@@ -66,6 +68,11 @@ export async function createContactInquiry(input: CreateContactInquiryInput): Pr
     inquiryId: inquiry.id,
     email: inquiry.email,
     source: inquiry.source,
+  });
+
+  // Fire-and-forget autoresponder. Do not block the response on email delivery.
+  sendAutoresponder(inquiry.email, inquiry.name, inquiry.source).catch((err) => {
+    logger.warn('Autoresponder failed', { error: err instanceof Error ? err.message : err });
   });
 
   return inquiry;

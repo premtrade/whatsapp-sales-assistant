@@ -23,6 +23,44 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
 
+  # Daily cron job for trial reminders
+  cron:
+    image: alpine:latest
+    container_name: trial-reminders
+    command: /bin/sh -c "while true; do sleep 86400; do /opt/cron-job/bin/cron.sh; done"
+    volumes:
+      - /etc/crontab:/etc/crontab:ro
+    restart: unless-stopped
+    network_mode: host
+    working_dir: /opt/cron-job
+    environment:
+      - CRON_JOB_PATH=/opt/cron-job/trial-reminders.sh
+    depends_on:
+      - backend
+      - postgres
+      - redis
+    profiles:
+      - trial-reminders
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  waha_data:
+  backend_data:
+  frontend_data:
+  cron_job_data:
+
+networks:
+  backend:
+    name: backend
+  frontend:
+    name: frontend
   pgadmin:
-    ports:
-      - "127.0.0.1:5050:80"
+    name: pgadmin
+  waha:
+    name: waha
+  n8n:
+    name: n8n
+  cron:
+    name: cron
