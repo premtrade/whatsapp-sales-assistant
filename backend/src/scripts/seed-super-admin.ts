@@ -20,7 +20,8 @@ async function seedSuperAdmin() {
     `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, password_hash, business_id)
      VALUES ($1, $2, $3, $4, 'super_admin', 'active', $5, $6, NULL)
      ON CONFLICT (email) DO UPDATE
-       SET role = 'super_admin', status = 'active', password_hash = EXCLUDED.password_hash, updated_at = NOW()
+       SET role = 'super_admin', status = 'active', password_hash = EXCLUDED.password_hash,
+           business_id = NULL, updated_at = NOW()
      RETURNING id, email, role`,
     ['OWNER-001', 'Platform', 'Owner', email, 'America/Jamaica', passwordHash]
   );

@@ -43,10 +43,13 @@ export const authenticate = async (
 
     const tokenBusinessId = (decoded.businessId || decoded.tenantId || decoded.business_id) as string | undefined;
     const headerTenantId = req.headers['x-tenant-id'] as string | undefined;
-    const userRole = (decoded.role as string) || dbUser.role || '';
+    const userRole = dbUser.role || '';
 
-    let effectiveTenantId = dbUser.business_id || tokenBusinessId;
-    const impersonated = false;
+    // A platform owner is global unless explicitly operating within a tenant.
+    // Do not inherit a stale tenant assignment or an older token's tenant claim.
+    let effectiveTenantId = userRole === 'super_admin'
+      ? undefined
+      : dbUser.business_id || tokenBusinessId;
 
     if (userRole === 'super_admin' && headerTenantId) {
       // Verify the target tenant exists
@@ -138,6 +141,7 @@ export const optionalAuth = async (
 
         const dbUser = userResult.rows[0];
         if (dbUser) {
+          const tenantId = dbUser.role === 'super_admin' ? undefined : dbUser.business_id;
           req.user = {
             id: dbUser.id,
             email: dbUser.email,
@@ -145,8 +149,8 @@ export const optionalAuth = async (
             employeeNumber: dbUser.employee_number,
             firstName: dbUser.first_name || '',
             lastName: dbUser.last_name || '',
-            businessId: dbUser.business_id,
-            tenantId: dbUser.business_id,
+            businessId: tenantId,
+            tenantId,
           };
         } else {
           req.user = {

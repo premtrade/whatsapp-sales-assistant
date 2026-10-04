@@ -23,6 +23,19 @@ Base revision: `fcc21539655dc90f2d7472561d2ffd27e8d58d9f` (`main`).
 - Resolve database credentials and backend port from the server's production
   Compose model, and prevent GitHub Actions environment variables from
   overriding values in the server `.env` during deployment.
+- Reconcile the legacy migration baseline where pgvector columns and
+  tenant-owned row assignments were marked applied despite missing from the
+  existing database, before dependent migrations run.
+- Repair the single remaining unassigned knowledge document only when
+  migration 046 is pending, Garco is the sole live business, and all other
+  tenant-owned tables have no unassigned rows.
+- Keep `super_admin` accounts global during login and request authentication;
+  do not attach a platform owner to the first tenant (Garco). Tenant access is
+  explicit through the existing `X-Tenant-ID` mechanism.
+- Clear legacy `business_id` assignments from platform-owner accounts in
+  migration 062, and ensure owner recovery clears the assignment as well.
+- Correct platform business-list/detail calls to pass the authenticated user
+  role and tenant scope expected by the business service.
 
 ## Validation
 
@@ -47,3 +60,22 @@ commit and places release files in a sibling `waflo-releases` directory. It
 expects the existing production `.env` to be readable from `DEPLOY_PATH`.
 It runs the migration runner against the existing database; SQL init mounts are
 not used to reset the platform owner's account or alter an existing volume.
+
+## Production follow-up required
+
+The latest production migration attempt applied the pgvector reconciliation
+and dummy knowledge chunk migrations, then stopped at migration 046. The
+read-only production inventory now shows Garco is the only business and there
+is exactly one unassigned row in `knowledge_documents`; all other checked
+tenant-owned tables have zero unassigned rows. Migration
+`045_reconcile_null_knowledge_business_id.sql` encodes those exact preconditions
+and fails closed if production has changed before it runs. Once deployed, the
+runner should apply that repair before retrying migration 046 and the remaining
+chain.
+
+The existing public signup flow is the current tenant onboarding path: it
+creates a business, an admin user with that business's own credentials, trial
+subscription, and settings. Use it for Rolin IO after production migrations are
+complete and the dedicated WhatsApp number, owner name, and tenant login email
+are known. Keep the platform-owner login separate from the Rolin IO tenant
+admin login. No production tenant has been created by this review branch.

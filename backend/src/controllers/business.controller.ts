@@ -15,8 +15,8 @@ import logger from '../utils/logger';
 export const listBusinesses = async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.businessId || user?.tenantId;
-  
-  const businesses = await getBusinesses(tenantId);
+
+  const businesses = await getBusinesses(user, tenantId);
   res.json({
     success: true,
     data: businesses,
@@ -26,8 +26,8 @@ export const listBusinesses = async (req: Request, res: Response): Promise<void>
 export const getBusiness = async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user;
   const tenantId = user?.businessId || user?.tenantId;
-  
-  const business = await getBusinessById(req.params.id!, tenantId);
+
+  const business = await getBusinessById(req.params.id!, user, tenantId);
   res.json({
     success: true,
     data: business,
