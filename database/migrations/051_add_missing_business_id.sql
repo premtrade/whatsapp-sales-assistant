@@ -129,8 +129,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_messages_business ON messages(business_id);
-CREATE INDEX IF NOT EXISTS idx_messages_business_conversation ON messages(business_id, conversation_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_messages_business ON messages(business_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_business_conversation ON messages(business_id, conversation_id);
+    END IF;
+END $$;
 
 -- Quote Items
 DO $$
@@ -148,8 +153,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_quote_items_business ON quote_items(business_id);
-CREATE INDEX IF NOT EXISTS idx_quote_items_business_quote ON quote_items(business_id, quote_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quote_items' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_quote_items_business ON quote_items(business_id);
+        CREATE INDEX IF NOT EXISTS idx_quote_items_business_quote ON quote_items(business_id, quote_id);
+    END IF;
+END $$;
 
 -- Knowledge Chunks
 DO $$
@@ -167,8 +177,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_business ON knowledge_chunks(business_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_business_document ON knowledge_chunks(business_id, document_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'knowledge_chunks' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_business ON knowledge_chunks(business_id);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_business_document ON knowledge_chunks(business_id, document_id);
+    END IF;
+END $$;
 
 -- Customer Facts
 DO $$
@@ -186,8 +201,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_customer_facts_business ON customer_facts(business_id);
-CREATE INDEX IF NOT EXISTS idx_customer_facts_business_contact ON customer_facts(business_id, contact_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customer_facts' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_customer_facts_business ON customer_facts(business_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_facts_business_contact ON customer_facts(business_id, contact_id);
+    END IF;
+END $$;
 -- Update unique constraint to be tenant-aware.
 -- uq_customer_fact may exist as a standalone index OR as a UNIQUE CONSTRAINT
 -- (backed by an index). DROP INDEX alone fails in the constraint case, so drop
@@ -209,8 +229,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-DROP INDEX IF EXISTS uq_customer_fact;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_customer_facts_business_key ON customer_facts(business_id, contact_id, fact_key);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customer_facts' AND column_name = 'business_id') THEN
+        DROP INDEX IF EXISTS uq_customer_fact;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_customer_facts_business_key ON customer_facts(business_id, contact_id, fact_key);
+    END IF;
+END $$;
 
 -- Conversation Summaries
 DO $$
@@ -228,8 +253,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_conversation_summaries_business ON conversation_summaries(business_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_summaries_business_conversation ON conversation_summaries(business_id, conversation_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'conversation_summaries' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_conversation_summaries_business ON conversation_summaries(business_id);
+        CREATE INDEX IF NOT EXISTS idx_conversation_summaries_business_conversation ON conversation_summaries(business_id, conversation_id);
+    END IF;
+END $$;
 
 -- Memory Embeddings
 DO $$
@@ -247,9 +277,14 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_memory_embeddings_business ON memory_embeddings(business_id);
-CREATE INDEX IF NOT EXISTS idx_memory_embeddings_business_contact ON memory_embeddings(business_id, contact_id);
-CREATE INDEX IF NOT EXISTS idx_memory_embeddings_business_conversation ON memory_embeddings(business_id, conversation_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'memory_embeddings' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_business ON memory_embeddings(business_id);
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_business_contact ON memory_embeddings(business_id, contact_id);
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_business_conversation ON memory_embeddings(business_id, conversation_id);
+    END IF;
+END $$;
 
 -- Lead Scores
 DO $$
@@ -267,8 +302,13 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_lead_scores_business ON lead_scores(business_id);
-CREATE INDEX IF NOT EXISTS idx_lead_scores_business_contact ON lead_scores(business_id, contact_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'lead_scores' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_lead_scores_business ON lead_scores(business_id);
+        CREATE INDEX IF NOT EXISTS idx_lead_scores_business_contact ON lead_scores(business_id, contact_id);
+    END IF;
+END $$;
 
 -- Conversation Notes
 DO $$
@@ -286,5 +326,10 @@ BEGIN
         END IF;
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_conversation_notes_business ON conversation_notes(business_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_notes_business_conversation ON conversation_notes(business_id, conversation_id);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'conversation_notes' AND column_name = 'business_id') THEN
+        CREATE INDEX IF NOT EXISTS idx_conversation_notes_business ON conversation_notes(business_id);
+        CREATE INDEX IF NOT EXISTS idx_conversation_notes_business_conversation ON conversation_notes(business_id, conversation_id);
+    END IF;
+END $$;

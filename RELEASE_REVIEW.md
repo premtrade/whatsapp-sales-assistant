@@ -64,14 +64,15 @@ not used to reset the platform owner's account or alter an existing volume.
 ## Production follow-up required
 
 The latest production migration attempt applied the pgvector reconciliation
-and dummy knowledge chunk migrations, then stopped at migration 046. The
-read-only production inventory now shows Garco is the only business and there
-is exactly one unassigned row in `knowledge_documents`; all other checked
-tenant-owned tables have zero unassigned rows. Migration
-`045_reconcile_null_knowledge_business_id.sql` encodes those exact preconditions
-and fails closed if production has changed before it runs. Once deployed, the
-runner should apply that repair before retrying migration 046 and the remaining
-chain.
+and dummy knowledge chunk migrations. The read-only production inventory
+showed Garco as the only business and exactly one unassigned row in
+`knowledge_documents`; the guarded 045 reconciliation then ran, and 046 through
+050 completed successfully. The current deployment stops in 051 because the
+legacy migration tracker says `019_customer_facts.sql` was applied although
+`customer_facts` is absent. Migration 051 guards its ALTER operations but
+unconditionally creates indexes on that missing table. The revised 051 now
+guards index creation for optional tenant tables, allowing migration 055 to
+recreate the missing memory-layer tables before later migrations run.
 
 The existing public signup flow is the current tenant onboarding path: it
 creates a business, an admin user with that business's own credentials, trial
