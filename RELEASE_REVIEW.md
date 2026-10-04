@@ -14,14 +14,20 @@ Base revision: `fcc21539655dc90f2d7472561d2ffd27e8d58d9f` (`main`).
   `main` revision.
 - Keep production service ports bound to localhost with Compose `!override`;
   retain the existing named network configuration.
+- Deploy the exact GitHub Actions commit from a clean archive directory rather
+  than pulling into the server's modified checkout. Validate the two-file
+  production Compose model and create a compressed PostgreSQL cluster backup
+  before rebuilding containers or running migrations.
 
 ## Validation
 
 - Backend TypeScript build: passed.
-- Backend lint: passed with warnings only.
-- Backend Jest: 10 suites, 107 tests passed.
+- Backend lint: passed with 0 errors and 218 existing warnings.
+- Backend Jest: 11 suites, 108 tests passed, including mixed-case login and
+  existing bcrypt-hash coverage.
 - Production Compose config: parsed successfully. The isolated copy has no
   production `.env`, so Compose emitted missing-variable warnings.
+- Deployment workflow YAML parsed and its remote Bash script passed `bash -n`.
 - Docker image build and clean `npm ci` were not verified in this environment:
   Docker Engine access was denied and npm could not write its user cache. GitHub
   Actions must verify those steps before release.
@@ -30,6 +36,7 @@ Base revision: `fcc21539655dc90f2d7472561d2ffd27e8d58d9f` (`main`).
 
 This is a local review copy only. It has not been pushed or deployed. The wider
 billing, onboarding, workflow, and beta launch changes in the main workspace are
-not included. Before deploy, reconcile the server's local production Compose
-edits so the workflow's fast-forward pull can run without losing its port
-bindings.
+not included. The deployment workflow leaves the server's existing checkout and
+untracked project copy intact; it uses the checkout only to fetch the exact
+commit and places release files in a sibling `waflo-releases` directory. It
+expects the existing production `.env` to be readable from `DEPLOY_PATH`.
