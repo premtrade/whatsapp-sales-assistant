@@ -75,15 +75,15 @@ export async function login(req: LoginRequest): Promise<AuthResponse> {
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  // Ensure tenant identifier is resolved
-  let tenantId = user.business_id;
-  if (!tenantId) {
-    const defaultBiz = await query<{ id: string }>('SELECT id FROM businesses ORDER BY created_at ASC LIMIT 1');
-    tenantId = defaultBiz.rows[0]?.id;
-    if (tenantId) {
-      await query('UPDATE staff_users SET business_id = $1 WHERE id = $2', [tenantId, user.id]);
-      user.business_id = tenantId;
-    }
+  // Platform owners are global operators. Never attach them to the first tenant;
+  // that could silently scope them to the sample business (Garco).
+  if (user.role !== 'super_admin' && !user.business_id) {
+    throw new UnauthorizedError('This account is not assigned to a business');
+  }
+
+  const tenantId = user.role === 'super_admin' ? undefined : user.business_id;
+  if (user.role === 'super_admin') {
+    user.business_id = undefined;
   }
 
   const token = jwt.sign(
@@ -93,14 +93,13 @@ export async function login(req: LoginRequest): Promise<AuthResponse> {
       role: user.role,
       firstName: user.first_name,
       lastName: user.last_name,
-      businessId: user.business_id,
-      tenantId: user.business_id,
+      ...(tenantId ? { businessId: tenantId, tenantId } : {}),
     },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'] }
   );
 
-  logger.info('User logged in successfully', { userId: user.id, email: normalizedEmail, businessId: user.business_id });
+  logger.info('User logged in successfully', { userId: user.id, email: normalizedEmail, role: user.role, businessId: tenantId });
 
   const { password_hash: _, ...safeUser } = user;
 
@@ -119,7 +118,7 @@ export async function validateToken(token: string): Promise<StaffUser | null> {
       [decoded.userId, 'active']
     );
     const user = result.rows[0];
-    if (user && !user.business_id && (decoded.businessId || decoded.tenantId)) {
+    if (user && user.role !== 'super_admin' && !user.business_id && (decoded.businessId || decoded.tenantId)) {
       user.business_id = decoded.businessId || decoded.tenantId;
     }
     return user || null;
