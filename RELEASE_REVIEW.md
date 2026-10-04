@@ -14,6 +14,8 @@ Base revision: `fcc21539655dc90f2d7472561d2ffd27e8d58d9f` (`main`).
   `main` revision.
 - Keep production service ports bound to localhost with Compose `!override`;
   retain the existing named network configuration.
+- Keep the WAHA health check authenticated with the configured API key, matching
+  the currently healthy server container.
 - Deploy the exact GitHub Actions commit from a clean archive directory rather
   than pulling into the server's modified checkout. Validate the two-file
   production Compose model and create a compressed PostgreSQL cluster backup
@@ -40,3 +42,5 @@ not included. The deployment workflow leaves the server's existing checkout and
 untracked project copy intact; it uses the checkout only to fetch the exact
 commit and places release files in a sibling `waflo-releases` directory. It
 expects the existing production `.env` to be readable from `DEPLOY_PATH`.
+It runs the migration runner against the existing database; SQL init mounts are
+not used to reset the platform owner's account or alter an existing volume.

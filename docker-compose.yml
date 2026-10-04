@@ -230,7 +230,7 @@ services:
       - backend
 
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/sessions >/dev/null 2>&1; code=$$?; test $$code -eq 0 -o $$code -eq 6"]
+      test: ["CMD-SHELL", "wget -qO- --header='X-Api-Key: ${WAHA_API_KEY}' http://localhost:3000/api/sessions >/dev/null 2>&1"]
       interval: 15s
       timeout: 10s
       retries: 10
