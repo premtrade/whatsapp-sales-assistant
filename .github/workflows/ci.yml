@@ -299,7 +299,7 @@ jobs:
               echo "Backup already exists: $BACKUP_FILE" >&2
               exit 1
             fi
-            compose exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -U "$POSTGRES_USER"' | gzip > "$BACKUP_FILE"
+            compose exec -T -e "PGPASSWORD=$POSTGRES_PASSWORD" postgres pg_dumpall -U "$POSTGRES_USER" | gzip > "$BACKUP_FILE"
             chmod 600 "$BACKUP_FILE"
             test -s "$BACKUP_FILE"
 
