@@ -1,10 +1,11 @@
 import { createContactInquiry, listContactInquiries } from '../services/contact-inquiry.service';
+import { query } from '../utils/database';
 
 jest.mock('../utils/database', () => ({
   query: jest.fn(),
 }));
 
-const mockQuery = require('../utils/database').query as jest.MockedFunction<jest.MockedFunction<any>>;
+const mockQuery = query as jest.Mock;
 
 describe('Contact Inquiry Service', () => {
   beforeEach(() => {

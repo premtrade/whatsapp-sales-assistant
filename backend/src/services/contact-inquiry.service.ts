@@ -17,6 +17,18 @@ export interface ContactInquiry {
   updated_at: Date;
 }
 
+export interface CreateContactInquiryInput {
+  name: string;
+  business?: string | null;
+  email: string;
+  whatsapp?: string | null;
+  message: string;
+  source?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ContactInquiryInput extends CreateContactInquiryInput {
   trialEndsAt?: Date;
 }

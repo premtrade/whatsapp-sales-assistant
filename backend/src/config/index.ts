@@ -109,11 +109,11 @@ export const config: Config = {
   },
   gemini: {
     apiKey: getEnv('GEMINI_API_KEY', ''),
-  };
+   },
 
   sendgrid: {
     apiKey: getEnv('SENDGRID_API_KEY', ''),
-  };
+   },
 
   ai: {
     // Must stay in sync with the model configured on the n8n 'Workflow 2 - AI Brain' Groq node.

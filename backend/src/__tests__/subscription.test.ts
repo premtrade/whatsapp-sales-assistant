@@ -10,6 +10,7 @@ import {
 } from '../services/subscription.service';
 import { PaymentRequiredError, ForbiddenError } from '../utils/errors';
 import { Plan, SubscriptionWithPlan, UserPayload } from '../types';
+import { MAX_TRIAL_DAYS } from '../services/subscription.service';
 
 jest.mock('../services/subscription.service', () => {
   const actual = jest.requireActual('../services/subscription.service');
@@ -296,7 +297,6 @@ describe('Subscription hardening (MAX_TRIAL_DAYS)', () => {
     // createTrialSubscription should cap at MAX_TRIAL_DAYS (30 days).
     // The actual DB interaction is tested in integration tests; here we verify
     // the exported constant is reasonable.
-    const { MAX_TRIAL_DAYS } = require('../services/subscription.service');
     expect(MAX_TRIAL_DAYS).toBeGreaterThanOrEqual(14);
     expect(MAX_TRIAL_DAYS).toBeLessThanOrEqual(30);
   });

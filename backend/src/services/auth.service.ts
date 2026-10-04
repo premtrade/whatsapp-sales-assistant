@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { query } from '../utils/database';
 import { config } from '../config';
@@ -48,7 +48,7 @@ export async function login(req: LoginRequest): Promise<AuthResponse> {
   const sanitizedPassword = req.password;
 
   const result = await query<StaffUser>(
-    'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, password_hash, created_at, updated_at, business_id FROM staff_users WHERE email = $1',
+    'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, password_hash, created_at, updated_at, business_id FROM staff_users WHERE LOWER(email::text) = $1',
     [normalizedEmail]
   );
 

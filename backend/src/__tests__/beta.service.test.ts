@@ -8,12 +8,13 @@ import {
   setBetaOpen,
   getBetaStatus,
 } from '../services/beta.service';
+import { query } from '../utils/database';
 
 jest.mock('../utils/database', () => ({
   query: jest.fn(),
 }));
 
-const mockQuery = require('../utils/database').query as jest.MockedFunction<typeof require('../utils/database').query>;
+const mockQuery = query as jest.Mock;
 
 describe('Beta Service', () => {
   beforeEach(() => {
@@ -115,6 +116,7 @@ describe('Beta Service', () => {
 
     it('returns invalid when no invite exists', async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
+      mockQuery.mockResolvedValueOnce({ rows: [] });
 
       const result = await validateBetaInvite('user@example.com');
       expect(result.valid).toBe(false);
@@ -199,7 +201,7 @@ describe('Beta Service', () => {
 
       const invites = await listBetaInvites();
       expect(invites).toHaveLength(1);
-      expect(invites[0].token).toBe('P1');
+      expect(invites[0]!.token).toBe('P1');
     });
   });
 
