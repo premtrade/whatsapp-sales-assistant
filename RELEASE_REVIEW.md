@@ -64,14 +64,18 @@ not used to reset the platform owner's account or alter an existing volume.
 ## Production follow-up required
 
 The latest production migration attempt applied the pgvector reconciliation
-and dummy knowledge chunk migrations, then stopped at migration 046. The
-read-only production inventory now shows Garco is the only business and there
-is exactly one unassigned row in `knowledge_documents`; all other checked
-tenant-owned tables have zero unassigned rows. Migration
-`045_reconcile_null_knowledge_business_id.sql` encodes those exact preconditions
-and fails closed if production has changed before it runs. Once deployed, the
-runner should apply that repair before retrying migration 046 and the remaining
-chain.
+and dummy knowledge chunk migrations. The read-only production inventory
+showed Garco as the only business and exactly one unassigned row in
+`knowledge_documents`; the guarded 045 reconciliation then ran, and 046 through
+050 completed successfully. The subsequent 051 attempt stopped because the
+legacy migration tracker says `019_customer_facts.sql` was applied although
+`customer_facts` is absent. The revised 051 guards index creation for optional
+tenant tables, allowing migration 055 to recreate the missing memory-layer
+tables. That fix has not yet run in production: the latest workflow build
+currently fails earlier while generating Docker image tags. The workflow used
+an empty branch template as the SHA tag prefix and passed both images' tags to
+each build. The current workflow change gives each image its own metadata and
+uses a fixed `sha-` prefix.
 
 The existing public signup flow is the current tenant onboarding path: it
 creates a business, an admin user with that business's own credentials, trial
