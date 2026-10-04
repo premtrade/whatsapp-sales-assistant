@@ -67,12 +67,15 @@ The latest production migration attempt applied the pgvector reconciliation
 and dummy knowledge chunk migrations. The read-only production inventory
 showed Garco as the only business and exactly one unassigned row in
 `knowledge_documents`; the guarded 045 reconciliation then ran, and 046 through
-050 completed successfully. The current deployment stops in 051 because the
+050 completed successfully. The subsequent 051 attempt stopped because the
 legacy migration tracker says `019_customer_facts.sql` was applied although
-`customer_facts` is absent. Migration 051 guards its ALTER operations but
-unconditionally creates indexes on that missing table. The revised 051 now
-guards index creation for optional tenant tables, allowing migration 055 to
-recreate the missing memory-layer tables before later migrations run.
+`customer_facts` is absent. The revised 051 guards index creation for optional
+tenant tables, allowing migration 055 to recreate the missing memory-layer
+tables. That fix has not yet run in production: the latest workflow build
+currently fails earlier while generating Docker image tags. The workflow used
+an empty branch template as the SHA tag prefix and passed both images' tags to
+each build. The current workflow change gives each image its own metadata and
+uses a fixed `sha-` prefix.
 
 The existing public signup flow is the current tenant onboarding path: it
 creates a business, an admin user with that business's own credentials, trial
