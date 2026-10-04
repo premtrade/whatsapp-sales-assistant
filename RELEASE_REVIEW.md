@@ -20,6 +20,9 @@ Base revision: `fcc21539655dc90f2d7472561d2ffd27e8d58d9f` (`main`).
   than pulling into the server's modified checkout. Validate the two-file
   production Compose model and create a compressed PostgreSQL cluster backup
   before rebuilding containers or running migrations.
+- Resolve database credentials and backend port from the server's production
+  Compose model, and prevent GitHub Actions environment variables from
+  overriding values in the server `.env` during deployment.
 
 ## Validation
 
