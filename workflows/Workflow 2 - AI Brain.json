@@ -154,9 +154,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, gen_random_uuid()::text, 'outgoing',\n    'ai', 'text', $2, '{}'::jsonb\n)\nRETURNING id;",
+        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata, business_id\n)\nVALUES (\n    $1, gen_random_uuid()::text, 'outgoing',\n    'ai', 'text', $2, '{}'::jsonb,\n    COALESCE(NULLIF($3, '')::uuid, (SELECT business_id FROM conversations WHERE id = $1::uuid))\n)\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('Parse AI Output').first().json.reply || '') }}"
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('Parse AI Output').first().json.reply || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
