@@ -19,7 +19,7 @@ SET search_path TO public;
 UPDATE plans
 SET 
     limits = '{"ai_responses": 10000, "staff_users": 10, "locations": 10, "whatsapp_numbers": 5}'::jsonb,
-    metadata = metadata || '{"limit_note": "AI responses capped at 10000/month. WhatsApp charges are passed through."'::jsonb,
+    metadata = metadata || '{"limit_note": "AI responses capped at 10000/month. WhatsApp charges are passed through."}'::jsonb,
     updated_at = NOW()
 WHERE slug = 'business';
 
