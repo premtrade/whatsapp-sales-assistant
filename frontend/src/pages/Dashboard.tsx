@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getDashboardStats, getConversations } from '@/services/api'
+import { getDashboardStats, getConversations, getSubscription, createCheckoutSession } from '@/services/api'
 import { MetricCard } from '@/components/MetricCard/MetricCard'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { PageHeader } from '@/components/ErrorState/ErrorState'
@@ -8,17 +8,20 @@ import { ErrorState, LoadingState } from '@/components/ErrorState/ErrorState'
 import { useNavigate } from 'react-router-dom'
 import { useWebSocket } from '@/context/WebSocketContext'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import UsageWarningBanner from '@/components/Billing/UsageWarningBanner'
+import OnboardingChecklist from '@/components/Onboarding/OnboardingChecklist'
+import toast from 'react-hot-toast'
 
 export function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { subscribe, isConnected } = useWebSocket()
+  const [upgrading, setUpgrading] = useState(false)
 
   const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
-    // Poll while the realtime socket is down (Vercel relay recycled, flaky network, ...).
     refetchInterval: isConnected ? false : 10_000,
   })
 
@@ -26,6 +29,31 @@ export function DashboardPage() {
     queryKey: ['conversations', 'recent'],
     queryFn: () => getConversations({ page: 1, limit: 5, status: 'active' }),
   })
+
+  const { data: subData } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: getSubscription,
+  })
+
+  const isTrialing = subData?.subscription?.status === 'trialing'
+  const isGrace = !!subData?.isInGracePeriod
+  const showUpgrade = isTrialing || isGrace
+
+  const handleQuickUpgrade = async () => {
+    if (!subData?.subscription?.plan?.slug) return
+    try {
+      setUpgrading(true)
+      const result = await createCheckoutSession({
+        planSlug: subData.subscription.plan.slug,
+        successUrl: window.location.origin + '/billing?success=1',
+        cancelUrl: window.location.origin + '/billing?canceled=1',
+      })
+      window.location.href = result.url
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to start checkout')
+      setUpgrading(false)
+    }
+  }
 
   // Subscribe to real-time dashboard stats updates
   useEffect(() => {
@@ -44,7 +72,21 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle="Overview of your WhatsApp sales operation"
+        actions={
+          showUpgrade && subData?.paymentsConfigured !== false ? (
+            <button
+              onClick={handleQuickUpgrade}
+              disabled={upgrading}
+              className="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {upgrading ? 'Loading...' : 'Upgrade now'}
+            </button>
+          ) : undefined
+        }
       />
+
+      <UsageWarningBanner />
+      <OnboardingChecklist />
 
       {/* KPI Cards */}
       {statsLoading ? (

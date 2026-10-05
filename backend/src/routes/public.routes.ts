@@ -24,7 +24,15 @@ const contactSchema = z.object({
   business: z.string().max(255).optional().default(''),
   email: z.string().email('Invalid email format'),
   whatsapp: z.string().max(50).optional().default(''),
-  message: z.string().min(1, 'Message is required'),
+  message: z.string().min(1, 'Message is required').max(10000, 'Message is too long'),
+});
+
+const supportSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  email: z.string().email('Invalid email format'),
+  subject: z.string().min(1, 'Subject is required').max(255),
+  message: z.string().min(1, 'Message is required').max(10000, 'Message is too long'),
+  category: z.enum(['technical', 'billing', 'feature', 'other']).default('other'),
 });
 
 // Stricter rate limiter for signup to prevent abuse during beta.
@@ -81,6 +89,41 @@ router.post('/contact', async (req: any, res: Response): Promise<void> => {
       return;
     }
     logger.error('Contact inquiry failed', { error: error?.message || error });
+    res.status(500).json({ success: false, message: 'Something went wrong. Please try again later.' });
+  }
+});
+
+router.post('/support', async (req: any, res: Response): Promise<void> => {
+  try {
+    const validated = supportSchema.parse(req.body);
+    const result = await createContactInquiry({
+      name: validated.name,
+      email: validated.email,
+      message: validated.message,
+      source: 'support-ticket',
+      ipAddress: req.ip || req.connection.remoteAddress || undefined,
+      userAgent: req.get('user-agent') || undefined,
+      metadata: {
+        category: validated.category,
+        subject: validated.subject,
+        status: 'open',
+      },
+    });
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: 'Support request received and recorded.',
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ success: false, message: error.errors.map((e: any) => e.message).join(', ') });
+      return;
+    }
+    if (error instanceof BadRequestError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    logger.error('Support ticket creation failed', { error: error?.message || error });
     res.status(500).json({ success: false, message: 'Something went wrong. Please try again later.' });
   }
 });

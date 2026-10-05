@@ -38,27 +38,57 @@ export interface OwnerDashboardStats {
 
 export interface FinancialMetrics {
   revenue: {
-    mrr: number;
-    arr: number;
-    currency: string;
-    byPlan: { plan: string; count: number; mrr: number }[];
-  };
+    mrr: number
+    arr: number
+    currency: string
+    byPlan: { plan: string; count: number; mrr: number }[]
+  }
   subscriptions: {
-    total: number;
-    active: number;
-    trialing: number;
-    past_due: number;
-    canceled: number;
-    expired: number;
-  };
+    total: number
+    active: number
+    trialing: number
+    past_due: number
+    canceled: number
+    expired: number
+  }
   conversions: {
-    trialToPaid: number;
-    trialConversionRate: number;
-  };
+    trialToPaid: number
+    trialConversionRate: number
+  }
   churn: {
-    canceledLast30Days: number;
-    churnRate: number;
-  };
+    canceledLast30Days: number
+    churnRate: number
+  }
+}
+
+export interface ConversionMetrics {
+  overall: {
+    totalTrials: number
+    converted: number
+    conversionRate: number
+    avgDaysToConvert: number | null
+  }
+  byPlan: {
+    plan: string
+    totalTrials: number
+    converted: number
+    conversionRate: number
+    avgDaysToConvert: number | null
+  }[]
+  featureUsage: {
+    conversionStatus: string
+    businesses: number
+    avgConversations: number | null
+    avgMessages: number | null
+    avgQuotes: number | null
+    avgAppointments: number | null
+    avgHandoffs: number | null
+    pctWithConversations: number | null
+    pctWithMessages: number | null
+    pctWithQuotes: number | null
+    pctWithAppointments: number | null
+    pctWithHandoffs: number | null
+  }[]
 }
 
 export async function getOwnerDashboardStats(): Promise<OwnerDashboardStats> {
@@ -226,6 +256,162 @@ export async function getFinancialMetrics(): Promise<FinancialMetrics> {
     };
   } catch (error) {
     logger.error('Failed to fetch financial metrics', { error });
+    throw error;
+  }
+}
+
+export async function getConversionMetrics(): Promise<ConversionMetrics> {
+  try {
+    const [
+      overallResult,
+      byPlanResult,
+      featureUsageResult,
+    ] = await Promise.all([
+      query<{
+        total_trials: string
+        converted: string
+        conversion_rate: string
+        avg_days_to_convert: string | null
+      }>(`
+        SELECT
+          COUNT(*) as total_trials,
+          SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as converted,
+          ROUND(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100, 2) as conversion_rate,
+          ROUND(AVG(CASE WHEN status = 'active' AND COALESCE((metadata->>'converted_at')::timestamptz, first_paid.paid_at) IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (COALESCE((metadata->>'converted_at')::timestamptz, first_paid.paid_at) - created_at)) / 86400 ELSE NULL END), 1) as avg_days_to_convert
+        FROM subscriptions s
+        LEFT JOIN LATERAL (
+          SELECT MIN(paid_at) AS paid_at FROM payments p
+          WHERE p.subscription_id = s.id AND p.business_id = s.business_id AND p.status = 'succeeded' AND p.paid_at IS NOT NULL
+        ) first_paid ON TRUE
+        WHERE status IN ('active', 'trialing', 'past_due', 'expired', 'canceled')
+          AND trial_ends_at IS NOT NULL
+      `),
+      query<{
+        plan: string
+        total_trials: string
+        converted: string
+        conversion_rate: string
+        avg_days_to_convert: string | null
+      }>(`
+        SELECT
+          p.name as plan,
+          COUNT(s.id) as total_trials,
+          SUM(CASE WHEN s.status = 'active' THEN 1 ELSE 0 END) as converted,
+          ROUND(SUM(CASE WHEN s.status = 'active' THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(s.id), 0) * 100, 2) as conversion_rate,
+          ROUND(AVG(CASE WHEN s.status = 'active' AND COALESCE((s.metadata->>'converted_at')::timestamptz, first_paid.paid_at) IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (COALESCE((s.metadata->>'converted_at')::timestamptz, first_paid.paid_at) - s.created_at)) / 86400 ELSE NULL END), 1) as avg_days_to_convert
+        FROM subscriptions s
+        JOIN plans p ON p.id = s.plan_id
+        LEFT JOIN LATERAL (
+          SELECT MIN(paid_at) AS paid_at FROM payments payment
+          WHERE payment.subscription_id = s.id AND payment.business_id = s.business_id AND payment.status = 'succeeded' AND payment.paid_at IS NOT NULL
+        ) first_paid ON TRUE
+        WHERE s.status IN ('active', 'trialing', 'past_due', 'expired', 'canceled')
+          AND s.trial_ends_at IS NOT NULL
+        GROUP BY p.name
+        ORDER BY conversion_rate DESC
+      `),
+      query<{
+        conversion_status: string
+        businesses: string
+        avg_conversations: string | null
+        avg_messages: string | null
+        avg_quotes: string | null
+        avg_appointments: string | null
+        avg_handoffs: string | null
+        pct_with_conversations: string | null
+        pct_with_messages: string | null
+        pct_with_quotes: string | null
+        pct_with_appointments: string | null
+        pct_with_handoffs: string | null
+      }>(`
+        WITH trial_periods AS (
+          SELECT
+            s.business_id,
+            s.status,
+            s.created_at as trial_start,
+            COALESCE(s.trial_ends_at, s.updated_at) as trial_end
+          FROM subscriptions s
+          WHERE s.status IN ('active', 'trialing', 'past_due', 'expired', 'canceled')
+            AND s.trial_ends_at IS NOT NULL
+        ),
+        biz_features AS (
+          SELECT
+            tb.business_id,
+            tb.status,
+            COUNT(DISTINCT c.id) as conversations,
+            COUNT(DISTINCT m.id) as messages,
+            COUNT(DISTINCT q.id) as quotes,
+            COUNT(DISTINCT a.id) as appointments,
+            COUNT(DISTINCT h.id) as handoffs
+          FROM trial_periods tb
+          LEFT JOIN conversations c ON c.business_id = tb.business_id
+            AND c.created_at BETWEEN tb.trial_start AND tb.trial_end
+          LEFT JOIN messages m ON m.conversation_id = c.id
+            AND m.created_at BETWEEN tb.trial_start AND tb.trial_end
+          LEFT JOIN contacts ct ON ct.business_id = tb.business_id
+          LEFT JOIN quotes q ON q.contact_id = ct.id
+            AND q.created_at BETWEEN tb.trial_start AND tb.trial_end
+          LEFT JOIN appointments a ON a.contact_id = ct.id
+            AND a.created_at BETWEEN tb.trial_start AND tb.trial_end
+          LEFT JOIN handoffs h ON h.conversation_id = c.id
+            AND h.created_at BETWEEN tb.trial_start AND tb.trial_end
+          GROUP BY tb.business_id, tb.status
+        )
+        SELECT
+          CASE WHEN status = 'active' THEN 'converted' ELSE 'not_converted' END as conversion_status,
+          COUNT(*) as businesses,
+          ROUND(AVG(conversations), 1) as avg_conversations,
+          ROUND(AVG(messages), 1) as avg_messages,
+          ROUND(AVG(quotes), 1) as avg_quotes,
+          ROUND(AVG(appointments), 1) as avg_appointments,
+          ROUND(AVG(handoffs), 1) as avg_handoffs,
+          ROUND(SUM(CASE WHEN conversations > 0 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as pct_with_conversations,
+          ROUND(SUM(CASE WHEN messages > 0 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as pct_with_messages,
+          ROUND(SUM(CASE WHEN quotes > 0 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as pct_with_quotes,
+          ROUND(SUM(CASE WHEN appointments > 0 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as pct_with_appointments,
+          ROUND(SUM(CASE WHEN handoffs > 0 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as pct_with_handoffs
+        FROM biz_features
+        GROUP BY conversion_status
+      `),
+    ]);
+
+    const overall = overallResult.rows[0];
+    const byPlan = byPlanResult.rows.map((r) => ({
+      plan: r.plan,
+      totalTrials: parseInt(r.total_trials, 10),
+      converted: parseInt(r.converted, 10),
+      conversionRate: parseFloat(r.conversion_rate || '0'),
+      avgDaysToConvert: r.avg_days_to_convert !== null ? parseFloat(r.avg_days_to_convert) : null,
+    }));
+    const featureUsage = featureUsageResult.rows.map((r) => ({
+      conversionStatus: r.conversion_status,
+      businesses: parseInt(r.businesses, 10),
+      avgConversations: r.avg_conversations !== null ? parseFloat(r.avg_conversations) : null,
+      avgMessages: r.avg_messages !== null ? parseFloat(r.avg_messages) : null,
+      avgQuotes: r.avg_quotes !== null ? parseFloat(r.avg_quotes) : null,
+      avgAppointments: r.avg_appointments !== null ? parseFloat(r.avg_appointments) : null,
+      avgHandoffs: r.avg_handoffs !== null ? parseFloat(r.avg_handoffs) : null,
+      pctWithConversations: r.pct_with_conversations !== null ? parseFloat(r.pct_with_conversations) : null,
+      pctWithMessages: r.pct_with_messages !== null ? parseFloat(r.pct_with_messages) : null,
+      pctWithQuotes: r.pct_with_quotes !== null ? parseFloat(r.pct_with_quotes) : null,
+      pctWithAppointments: r.pct_with_appointments !== null ? parseFloat(r.pct_with_appointments) : null,
+      pctWithHandoffs: r.pct_with_handoffs !== null ? parseFloat(r.pct_with_handoffs) : null,
+    }));
+
+    return {
+      overall: {
+        totalTrials: parseInt(overall?.total_trials || '0', 10),
+        converted: parseInt(overall?.converted || '0', 10),
+        conversionRate: parseFloat(overall?.conversion_rate || '0'),
+        avgDaysToConvert: overall?.avg_days_to_convert != null ? parseFloat(overall.avg_days_to_convert) : null,
+      },
+      byPlan,
+      featureUsage,
+    };
+  } catch (error) {
+    logger.error('Failed to fetch conversion metrics', { error });
     throw error;
   }
 }

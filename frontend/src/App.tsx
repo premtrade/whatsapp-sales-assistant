@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext'
 import { AppLayout } from './components/Layout/AppLayout'
 import LandingPage from './pages/LandingPage'
 import BlogPage from './pages/Blog'
+import FAQPage from './pages/FAQ'
 import { LoginPage } from './pages/Login'
 import SignupPage from './pages/Signup'
 import SetupPage from './pages/Setup'
@@ -55,6 +56,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/blog" element={<BlogPage />} />
+      <Route path="/faq" element={<FAQPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/setup" element={<SetupPage />} />

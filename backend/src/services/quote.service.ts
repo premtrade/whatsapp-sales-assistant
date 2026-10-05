@@ -2,6 +2,65 @@ import { query } from '../utils/database';
 import { NotFoundError, BadRequestError } from '../utils/errors';
 import { QuoteFilters, Quote } from '../types';
 import { emitDashboardStatsUpdated } from '../websocketServer';
+import { generateQuotePDF } from './pdf.service';
+import { sendWahaDocument } from './waha.service';
+import { config } from '../config';
+import { requirePlanFeature } from './subscription.service';
+
+export async function sendQuotePdfToCustomer(quoteId: string, businessId: string): Promise<{ pdfUrl: string; quoteNumber: string; alreadySent: boolean }> {
+  await requirePlanFeature(businessId, 'pdf_quotes');
+  const result = await query<{
+    quote_number: string;
+    pdf_url: string | null;
+    status: string;
+    valid_until: Date | null;
+    customer_phone: string;
+    customer_name: string;
+    requires_review: boolean;
+    waha_session_name: string | null;
+  }>(
+    `SELECT q.quote_number, q.pdf_url, q.status, q.valid_until, c.phone AS customer_phone,
+            c.display_name AS customer_name,
+            COALESCE((q.metadata->>'requires_review')::boolean, false) AS requires_review,
+            b.waha_session_name
+     FROM quotes q
+     JOIN contacts c ON c.id = q.contact_id AND c.business_id = q.business_id
+     JOIN businesses b ON b.id = q.business_id
+     WHERE q.id = $1 AND q.business_id = $2`,
+    [quoteId, businessId]
+  );
+  const quote = result.rows[0];
+  if (!quote) throw new NotFoundError('Quote not found for this business');
+  if (quote.requires_review) throw new BadRequestError('Quote requires staff review before it can be sent');
+  if (quote.valid_until && new Date(quote.valid_until).getTime() < Date.now()) {
+    throw new BadRequestError('This quote has expired and cannot be sent');
+  }
+  if (quote.status === 'sent') {
+    return { pdfUrl: quote.pdf_url || '', quoteNumber: quote.quote_number, alreadySent: true };
+  }
+  if (!['draft'].includes(quote.status)) throw new BadRequestError(`Quote cannot be sent from status '${quote.status}'`);
+  const phone = quote.customer_phone.replace(/\D/g, '');
+  if (!phone) throw new BadRequestError('Customer does not have a valid WhatsApp number');
+
+  const filePath = await generateQuotePDF(quoteId);
+  const filename = `${filePath.split(/[\\/]/).pop() || `Quote_${quote.quote_number}.pdf`}`;
+  await sendWahaDocument({
+    session: quote.waha_session_name || config.waha.session || 'default',
+    chatId: `${phone}@c.us`,
+    filePath,
+    filename,
+    caption: `Here is your quote ${quote.quote_number} for ${quote.customer_name}. It is valid until ${quote.valid_until ? new Date(quote.valid_until).toLocaleDateString() : 'further notice'}. Reply “I accept” to accept it.`,
+  });
+
+  const pdfUrl = `/storage/quotes/${encodeURIComponent(filename)}`;
+  await query(
+    `UPDATE quotes SET pdf_url = $1, sent_at = NOW(), sent_via = 'whatsapp',
+       status = 'sent', updated_at = NOW()
+     WHERE id = $2 AND business_id = $3 AND status = 'draft'`,
+    [pdfUrl, quoteId, businessId]
+  );
+  return { pdfUrl, quoteNumber: quote.quote_number, alreadySent: false };
+}
 
 export interface QuoteWithDetails extends Quote {
   contactName: string;
@@ -147,5 +206,43 @@ export async function updateQuoteStatus(id: string, status: string, tenantId?: s
     ...quote,
     requires_review: Boolean((quote as { metadata?: { requires_review?: boolean } }).metadata?.requires_review),
   } as Quote;
+}
+
+/**
+ * Accept a quote from a webhook callback (e.g., when a customer replies 'yes'/'I accept').
+ * Finds the quote(s) in 'sent' status for the given conversation and updates to 'accepted'.
+ */
+export async function acceptQuoteFromWebhook(
+  conversationId: string,
+  businessId?: string
+): Promise<{ success: boolean; quoteId?: string; businessId?: string; contactId?: string }> {
+  const result = await query<{ id: string; business_id: string; contact_id: string }>(
+    `WITH target AS (
+       SELECT q.id
+       FROM quotes q
+       JOIN conversations c ON c.id = q.conversation_id AND c.business_id = q.business_id
+       WHERE q.conversation_id = $1
+         AND ($2::uuid IS NULL OR q.business_id = $2::uuid)
+         AND q.status = 'sent'
+         AND (q.valid_until IS NULL OR q.valid_until >= CURRENT_DATE)
+       ORDER BY q.created_at DESC
+       LIMIT 1
+       FOR UPDATE OF q
+     )
+     UPDATE quotes q
+     SET status = 'accepted', updated_at = NOW()
+     FROM target
+     WHERE q.id = target.id
+     RETURNING q.id, q.business_id, q.contact_id`,
+    [conversationId, businessId || null]
+  );
+  const accepted = result.rows[0];
+  if (!accepted) return { success: false };
+  return {
+    success: true,
+    quoteId: accepted.id,
+    businessId: accepted.business_id,
+    contactId: accepted.contact_id,
+  };
 }
 

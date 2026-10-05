@@ -94,9 +94,15 @@ describe('Subscription gating (pure functions)', () => {
       ).toBe(true);
     });
 
-    it('rejects a trial past its end date', () => {
+    it('accepts a trial during the grace period', () => {
       expect(
         isUsable(makeSub({ status: 'trialing', trial_ends_at: new Date(Date.now() - 86400000) }))
+      ).toBe(true);
+    });
+
+    it('rejects a trial after the grace period', () => {
+      expect(
+        isUsable(makeSub({ status: 'trialing', trial_ends_at: new Date(Date.now() - 4 * 86400000) }))
       ).toBe(false);
     });
 
@@ -231,7 +237,7 @@ describe('requireActiveSubscription middleware', () => {
 
   it('rejects an expired trial with 402', async () => {
     mockGetActiveSubscription.mockResolvedValue(
-      makeSub({ status: 'trialing', trial_ends_at: new Date(Date.now() - 1000) })
+      makeSub({ status: 'trialing', trial_ends_at: new Date(Date.now() - 4 * 86400000) })
     );
 
     const next = jest.fn();

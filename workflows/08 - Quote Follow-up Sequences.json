@@ -14,19 +14,25 @@
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-1040, 0],
+      "position": [
+        -1040,
+        0
+      ],
       "id": "schedule-trigger",
       "name": "Schedule Trigger"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-         "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email, c.business_id, b.waha_session_name FROM quotes q JOIN contacts c ON q.contact_id = c.id JOIN businesses b ON b.id = c.business_id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '24 hours' AND q.sent_at > NOW() - INTERVAL '25 hours' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff') LIMIT 10;",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email, c.business_id, b.waha_session_name\nFROM quotes q\nJOIN contacts c ON q.contact_id = c.id AND c.business_id = q.business_id\nJOIN businesses b ON b.id = q.business_id\nWHERE q.status = 'sent' AND q.sent_at IS NOT NULL\n  AND q.sent_at < NOW() - INTERVAL '24 hours' AND q.sent_at > NOW() - INTERVAL '25 hours'\n  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.business_id = q.business_id\n    AND m.created_at > q.sent_at AND (m.direction = 'in' OR (m.sender_type = 'staff' AND (m.metadata->>'automated' IS DISTINCT FROM 'true' OR COALESCE(m.metadata->>'delivery_status', 'sent') = 'sent'))))\nLIMIT 10;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-800, 0],
+      "position": [
+        -800,
+        0
+      ],
       "id": "find-24h-followup",
       "name": "Find 24h Follow-ups",
       "credentials": {
@@ -39,12 +45,15 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email FROM quotes q JOIN contacts c ON q.contact_id = c.id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '3 days' AND q.sent_at > NOW() - INTERVAL '3 days 1 hour' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '3day') LIMIT 10;",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email, c.business_id, b.waha_session_name\nFROM quotes q\nJOIN contacts c ON q.contact_id = c.id AND c.business_id = q.business_id\nJOIN businesses b ON b.id = q.business_id\nWHERE q.status = 'sent' AND q.sent_at IS NOT NULL\n  AND q.sent_at < NOW() - INTERVAL '3 days' AND q.sent_at > NOW() - INTERVAL '3 days 1 hour'\n  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.business_id = q.business_id\n    AND m.created_at > q.sent_at AND (m.direction = 'in' OR (m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '3day' AND COALESCE(m.metadata->>'delivery_status', 'sent') = 'sent')))\nLIMIT 10;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-800, 200],
+      "position": [
+        -800,
+        200
+      ],
       "id": "find-3day-followup",
       "name": "Find 3-Day Follow-ups",
       "credentials": {
@@ -57,12 +66,36 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email FROM quotes q JOIN contacts c ON q.contact_id = c.id WHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND q.sent_at < NOW() - INTERVAL '7 days' AND q.sent_at > NOW() - INTERVAL '7 days 1 hour' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.created_at > q.sent_at AND m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '7day') LIMIT 10;",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email, c.business_id, b.waha_session_name\nFROM quotes q\nJOIN contacts c ON q.contact_id = c.id AND c.business_id = q.business_id\nJOIN businesses b ON b.id = q.business_id\nWHERE q.status = 'sent' AND q.sent_at IS NOT NULL AND (q.valid_until IS NULL OR q.valid_until > NOW())\n  AND q.sent_at < NOW() - INTERVAL '48 hours' AND q.sent_at > NOW() - INTERVAL '72 hours'\n  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.business_id = q.business_id\n    AND m.created_at > q.sent_at AND (m.direction = 'in' OR (m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '48h' AND COALESCE(m.metadata->>'delivery_status', 'sent') = 'sent')))\nLIMIT 10;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-800, 400],
+      "position": [
+        -800,
+        400
+      ],
+      "id": "find-48h-followup",
+      "name": "Find 48h Unaccepted",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT q.id, q.quote_number, q.contact_id, q.conversation_id, q.created_at, q.status, q.sent_at, c.display_name, c.phone, c.email, c.business_id, b.waha_session_name\nFROM quotes q\nJOIN contacts c ON q.contact_id = c.id AND c.business_id = q.business_id\nJOIN businesses b ON b.id = q.business_id\nWHERE q.status = 'sent' AND q.sent_at IS NOT NULL\n  AND q.sent_at < NOW() - INTERVAL '7 days' AND q.sent_at > NOW() - INTERVAL '7 days 1 hour'\n  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = q.conversation_id AND m.business_id = q.business_id\n    AND m.created_at > q.sent_at AND (m.direction = 'in' OR (m.sender_type = 'staff' AND m.metadata->>'follow_up_type' = '7day' AND COALESCE(m.metadata->>'delivery_status', 'sent') = 'sent')))\nLIMIT 10;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -800,
+        560
+      ],
       "id": "find-7day-followup",
       "name": "Find 7-Day Follow-ups",
       "credentials": {
@@ -78,9 +111,25 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-560, 0],
+      "position": [
+        -560,
+        0
+      ],
       "id": "format-24h-message",
       "name": "Format 24h Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const name = item.json.display_name || 'there';\n  const message = `Hi ${name}, just checking in on the quote we sent for your construction project. We understand timing matters - would you like to proceed, have any questions, or need us to revise anything? We're happy to schedule a site visit if that helps.`;\n  return { json: { ...item.json, message, follow_up_type: '48h', template_used: 'quote_follow_up_48h' } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        400
+      ],
+      "id": "format-48h-message",
+      "name": "Format 48h Message"
     },
     {
       "parameters": {
@@ -88,7 +137,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-560, 200],
+      "position": [
+        -560,
+        200
+      ],
       "id": "format-3day-message",
       "name": "Format 3-Day Message"
     },
@@ -98,21 +150,27 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-560, 400],
+      "position": [
+        -560,
+        400
+      ],
       "id": "format-7day-message",
       "name": "Format 7-Day Message"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES ($1::uuid, 'outgoing', 'staff', 'text', $2, $3, NOW(), NOW());",
+        "query": "INSERT INTO messages (business_id, conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES ($1::uuid, $2::uuid, 'outgoing', 'staff', 'text', $3, $4::jsonb, NOW(), NOW()) RETURNING id, business_id, conversation_id, text_body, metadata;",
         "options": {
-          "queryReplacement": "={{ $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ follow_up_type: $json.follow_up_type, template_used: $json.template_used, quote_id: $json.id, automated: true }) }}"
+          "queryReplacement": "={{ $json.business_id }}\n={{ $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ follow_up_type: $json.follow_up_type, template_used: $json.template_used, quote_id: $json.id, quote_number: $json.quote_number, contact_id: $json.contact_id, phone: $json.phone, display_name: $json.display_name, waha_session_name: $json.waha_session_name, automated: true, delivery_status: 'pending' }) }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-320, 200],
+      "position": [
+        -320,
+        200
+      ],
       "id": "insert-followup-message",
       "name": "Insert Follow-up Message",
       "credentials": {
@@ -137,27 +195,33 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"session\": \"{{ $json.waha_session_name || 'default' }}\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "jsonBody": "={\n  \"session\": \"{{ $json.metadata.waha_session_name || 'default' }}\",\n  \"chatId\": \"{{ String($json.metadata.phone || '').replace(/\\D/g, '') }}@c.us\",\n  \"text\": \"{{ $json.text_body }}\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [-200, 200],
+      "position": [
+        -200,
+        200
+      ],
       "id": "waha-send-followup",
-      "name": "WAHA Send Follow-up",
-      "continueOnFail": true
+      "name": "WAHA Send Follow-up"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('quote', $1::uuid, 'automated_follow_up', 'system', 'automation', $2, jsonb_build_object('follow_up_type', $3), jsonb_build_object('quote_number', $4, 'contact_id', $5::uuid, 'timestamp', NOW())) RETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata, business_id) VALUES ('quote', $1::uuid, 'automated_follow_up', NULL, 'automation', $2, jsonb_build_object('follow_up_type', $3), jsonb_build_object('quote_number', $4, 'contact_id', $5::uuid, 'timestamp', NOW()), $6::uuid) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $json.id }}\n={{ 'Automated ' + $json.follow_up_type + ' follow-up sent for quote ' + $json.quote_number }}\n={{ $json.follow_up_type }}\n={{ $json.quote_number }}\n={{ $json.contact_id }}"
-        }
+          "queryReplacement": "={{ $('Insert Follow-up Message').item.json.metadata.quote_id }}\n={{ 'Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.follow_up_type }}\n={{ $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.contact_id }}\n={{ $('Insert Follow-up Message').item.json.business_id }}"
+        },
+        "queryReplacement": "={{ $('Insert Follow-up Message').item.json.metadata.quote_id }}\n={{ 'Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.follow_up_type }}\n={{ $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.contact_id }}\n={{ $('Insert Follow-up Message').item.json.business_id }}"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-80, 200],
+      "position": [
+        -80,
+        200
+      ],
       "id": "audit-log",
       "name": "Audit Log",
       "credentials": {
@@ -169,38 +233,210 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nreturn items.map(item => ({ json: { ...item.json, success: true, message: `Follow-up sent for quote ${item.json.quote_number} to ${item.json.display_name || item.json.phone}` } }));"
+        "jsCode": "const row = $('Insert Follow-up Message').item.json;\nconst metadata = row.metadata || {};\nreturn [{ json: { success: true, message: `Follow-up sent for quote ${metadata.quote_number} to ${metadata.display_name || metadata.phone}` } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [160, 200],
+      "position": [
+        160,
+        200
+      ],
       "id": "format-output",
       "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE messages SET metadata = metadata || jsonb_build_object('delivery_status', 'sent', 'delivered_at', NOW()) WHERE id = $1::uuid RETURNING id, business_id, metadata;",
+        "options": {
+          "queryReplacement": "={{ $('Insert Follow-up Message').item.json.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        800,
+        600
+      ],
+      "id": "mark-followup-delivered",
+      "name": "Mark Follow-up Delivered",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "pinData": {},
   "connections": {
     "Schedule Trigger": {
-      "main": [[
-        { "node": "Find 24h Follow-ups", "type": "main", "index": 0 },
-        { "node": "Find 3-Day Follow-ups", "type": "main", "index": 0 },
-        { "node": "Find 7-Day Follow-ups", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Find 24h Follow-ups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find 3-Day Follow-ups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find 48h Unaccepted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find 7-Day Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Find 24h Follow-ups": { "main": [[{ "node": "Format 24h Message", "type": "main", "index": 0 }]] },
-    "Find 3-Day Follow-ups": { "main": [[{ "node": "Format 3-Day Message", "type": "main", "index": 0 }]] },
-    "Find 7-Day Follow-ups": { "main": [[{ "node": "Format 7-Day Message", "type": "main", "index": 0 }]] },
-    "Format 24h Message": { "main": [[{ "node": "Insert Follow-up Message", "type": "main", "index": 0 }]] },
-    "Format 3-Day Message": { "main": [[{ "node": "Insert Follow-up Message", "type": "main", "index": 0 }]] },
-    "Format 7-Day Message": { "main": [[{ "node": "Insert Follow-up Message", "type": "main", "index": 0 }]] },
-    "Insert Follow-up Message": { "main": [[{ "node": "WAHA Send Follow-up", "type": "main", "index": 0 }]] },
-    "WAHA Send Follow-up": { "main": [[{ "node": "Audit Log", "type": "main", "index": 0 }]] },
-    "Audit Log": { "main": [[{ "node": "Format Output", "type": "main", "index": 0 }]] }
+    "Find 24h Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Format 24h Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find 3-Day Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Format 3-Day Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find 48h Unaccepted": {
+      "main": [
+        [
+          {
+            "node": "Format 48h Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find 7-Day Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Format 7-Day Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format 24h Message": {
+      "main": [
+        [
+          {
+            "node": "Insert Follow-up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format 3-Day Message": {
+      "main": [
+        [
+          {
+            "node": "Insert Follow-up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format 48h Message": {
+      "main": [
+        [
+          {
+            "node": "Insert Follow-up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format 7-Day Message": {
+      "main": [
+        [
+          {
+            "node": "Insert Follow-up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Follow-up Message": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Mark Follow-up Delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Follow-up Delivered": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "1.0.0",
-  "meta": { "instanceId": "whatsapp-sales-assistant" },
+  "meta": {
+    "instanceId": "whatsapp-sales-assistant"
+  },
   "nodeGroups": [],
   "id": "quote-follow-up-sequences",
   "tags": []

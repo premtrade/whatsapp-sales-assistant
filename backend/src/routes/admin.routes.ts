@@ -196,7 +196,11 @@ router.post('/subscriptions/:id/activate', authenticate, requireOwnerAccess, asy
       return;
     }
     const sub = subResult.rows[0]!;
-    await query(`UPDATE subscriptions SET status = 'active', canceled_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *`, [req.params.id]);
+    await query(`UPDATE subscriptions
+      SET status = 'active', canceled_at = NULL,
+          metadata = metadata || CASE WHEN status <> 'active' THEN jsonb_build_object('converted_at', NOW()) ELSE '{}'::jsonb END,
+          updated_at = NOW()
+      WHERE id = $1 RETURNING *`, [req.params.id]);
     if (sub.external_subscription_id) {
       try {
         await resumeStripeSubscription(sub.external_subscription_id);
@@ -253,7 +257,10 @@ router.put('/api-config', authenticate, requireOwnerAccess, async (req, res: Res
 router.get('/settings', authenticate, requireOwnerAccess, async (_req, res: Response): Promise<void> => {
   try {
     const result = await query(
-      `SELECT setting_key, setting_value, data_type, description, is_system FROM settings WHERE is_system = true ORDER BY setting_key`
+      `SELECT setting_key, setting_value, data_type, description, is_system
+       FROM settings
+       WHERE business_id IS NULL AND is_system = true
+       ORDER BY setting_key`
     );
     const settings = result.rows.reduce((acc: any, row: any) => {
       acc[row.setting_key] = {
@@ -277,13 +284,18 @@ router.put('/settings', authenticate, requireOwnerAccess, async (req: Authentica
     const results: any[] = [];
     for (const [key, value] of Object.entries(settings)) {
       const existing = await query(
-        `SELECT data_type FROM settings WHERE setting_key = $1 AND is_system = true LIMIT 1`,
+        `SELECT data_type FROM settings WHERE setting_key = $1 AND business_id IS NULL AND is_system = true LIMIT 1`,
         [key]
       );
-      const dataType = existing.rows[0]?.data_type || 'string';
+      if (!existing.rows[0]) {
+        res.status(404).json({ success: false, error: `Global setting '${key}' not found` });
+        return;
+      }
+      const dataType = existing.rows[0].data_type;
       validateSettingValue(dataType, typeof value === 'string' ? value : String(value));
       const result = await query(
-        `UPDATE settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2 AND is_system = true RETURNING *`,
+        `UPDATE settings SET setting_value = $1, updated_at = NOW()
+         WHERE setting_key = $2 AND business_id IS NULL AND is_system = true RETURNING *`,
         [typeof value === 'string' ? value : String(value), key]
       );
       results.push(result.rows[0]);
@@ -295,6 +307,42 @@ router.put('/settings', authenticate, requireOwnerAccess, async (req: Authentica
   const message = error?.message || 'Failed to update settings';
   res.status(400).json({ success: false, error: message });
 }
+});
+
+router.post('/settings', authenticate, requireOwnerAccess, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { key, value = '', dataType = 'string', description = '' } = req.body ?? {};
+    if (typeof key !== 'string' || !/^[a-z0-9_]{1,100}$/i.test(key.trim())) {
+      res.status(400).json({ success: false, error: 'Key must contain 1-100 letters, numbers, or underscores' });
+      return;
+    }
+    const normalizedKey = key.trim();
+    const supportedTypes = ['string', 'integer', 'decimal', 'boolean', 'json'];
+    if (!supportedTypes.includes(dataType)) {
+      res.status(400).json({ success: false, error: `dataType must be one of: ${supportedTypes.join(', ')}` });
+      return;
+    }
+    if (typeof description !== 'string' || description.length > 500) {
+      res.status(400).json({ success: false, error: 'Description must be 500 characters or fewer' });
+      return;
+    }
+    const stringValue = typeof value === 'string' ? value : String(value);
+    validateSettingValue(dataType, stringValue);
+    const result = await query(
+      `INSERT INTO settings (setting_key, setting_value, data_type, description, is_system, business_id)
+       VALUES ($1, $2, $3, $4, true, NULL)
+       RETURNING setting_key, setting_value, data_type, description, is_system`,
+      [normalizedKey, stringValue, dataType, description.trim() || null]
+    );
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      res.status(409).json({ success: false, error: 'A global setting with this key already exists' });
+      return;
+    }
+    const message = error?.message || 'Failed to create global setting';
+    res.status(400).json({ success: false, error: message });
+  }
 });
 
 // Contact Inquiries

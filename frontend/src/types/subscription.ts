@@ -99,3 +99,33 @@ export interface FinancialMetrics {
     churnRate: number
   }
 }
+
+export interface ConversionMetrics {
+  overall: {
+    totalTrials: number
+    converted: number
+    conversionRate: number
+    avgDaysToConvert: number | null
+  }
+  byPlan: {
+    plan: string
+    totalTrials: number
+    converted: number
+    conversionRate: number
+    avgDaysToConvert: number | null
+  }[]
+  featureUsage: {
+    conversionStatus: string
+    businesses: number
+    avgConversations: number | null
+    avgMessages: number | null
+    avgQuotes: number | null
+    avgAppointments: number | null
+    avgHandoffs: number | null
+    pctWithConversations: number | null
+    pctWithMessages: number | null
+    pctWithQuotes: number | null
+    pctWithAppointments: number | null
+    pctWithHandoffs: number | null
+  }[]
+}

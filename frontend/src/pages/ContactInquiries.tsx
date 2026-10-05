@@ -10,6 +10,7 @@ type ContactInquiry = {
   whatsapp?: string | null
   message: string
   source: string
+  metadata?: { category?: string; subject?: string; status?: string }
   created_at: string
 }
 
@@ -47,7 +48,7 @@ export default function ContactInquiriesPage() {
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-surface-100">Contact Inquiries</h1>
-        <p className="text-sm text-surface-400">Messages from the landing page contact form.</p>
+        <p className="text-sm text-surface-400">Sales inquiries and support requests submitted through WAFLO.</p>
       </div>
 
       {meta && (
@@ -68,10 +69,15 @@ export default function ContactInquiriesPage() {
                     <p className="text-sm font-medium text-surface-100">{inquiry.name}</p>
                     {inquiry.business && <p className="text-xs text-surface-400">{inquiry.business}</p>}
                   </div>
-                  <div className="text-xs text-surface-500">
-                    {new Date(inquiry.created_at).toLocaleString()}
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-surface-800 px-2 py-1 text-[10px] uppercase tracking-wide text-surface-300">
+                      {inquiry.source === 'support-ticket' ? 'Support' : 'Sales inquiry'}
+                    </span>
+                    <span className="text-xs text-surface-500">{new Date(inquiry.created_at).toLocaleString()}</span>
                   </div>
                 </div>
+                {inquiry.metadata?.subject && <p className="text-sm font-medium text-surface-200">{inquiry.metadata.subject}</p>}
+                {inquiry.metadata?.category && <p className="text-xs text-surface-500 capitalize">{inquiry.metadata.category} · {inquiry.metadata.status || 'open'}</p>}
                 <div className="text-xs text-surface-400">
                   <a href={`mailto:${inquiry.email}`} className="text-primary-400 hover:underline">{inquiry.email}</a>
                   {inquiry.whatsapp && <span className="ml-3">{inquiry.whatsapp}</span>}

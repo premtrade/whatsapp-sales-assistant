@@ -47,6 +47,7 @@ import type {
   Plan,
   OwnerDashboardStats,
   FinancialMetrics,
+  ConversionMetrics,
 } from '../types'
 
 const rawApiUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
@@ -140,6 +141,11 @@ export async function getDashboardStats(): Promise<{
 }> {
   const response = await api.get('/stats/dashboard')
   return response.data.data || response.data
+}
+
+export async function getOnboardingStatus(): Promise<{ whatsappConnected: boolean; hasKnowledge: boolean; hasSentMessage: boolean }> {
+  const response = await api.get<{ success: boolean; data: { whatsappConnected: boolean; hasKnowledge: boolean; hasSentMessage: boolean } }>('/stats/onboarding')
+  return response.data.data
 }
 
 // Contacts
@@ -470,6 +476,11 @@ export async function submitContactInquiry(data: { name: string; business?: stri
   return { success: response.data.success, message: response.data.message }
 }
 
+export async function createSupportTicket(data: { name: string; email: string; subject: string; message: string; category?: 'technical' | 'billing' | 'feature' | 'other' }): Promise<{ success: boolean; message: string }> {
+  const response = await api.post<{ success: boolean; data: any; message: string }>('/public/support', data)
+  return { success: response.data.success, message: response.data.message }
+}
+
 export async function checkSlugAvailability(slug: string): Promise<{ available: boolean }> {
   const response = await api.get<{ success: boolean; data: { available: boolean } }>(`/public/business/slug/${encodeURIComponent(slug)}/available`)
   return response.data.data
@@ -491,7 +502,7 @@ export async function getPlans(): Promise<Plan[]> {
   return response.data.data
 }
 
-export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null; paymentsConfigured?: boolean } | null> {
+export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null; gracePeriodDaysLeft: number | null; isInGracePeriod: boolean; paymentsConfigured?: boolean } | null> {
   const response = await api.get<{ success: boolean; data: any }>('/billing/subscription')
   return response.data.data
 }
@@ -549,6 +560,11 @@ export async function getOwnerDashboard(): Promise<OwnerDashboardStats> {
 
 export async function getFinancialMetrics(): Promise<FinancialMetrics> {
   const response = await api.get<{ success: boolean; data: FinancialMetrics }>('/owner/financials')
+  return response.data.data
+}
+
+export async function getConversionMetrics(): Promise<ConversionMetrics> {
+  const response = await api.get<{ success: boolean; data: ConversionMetrics }>('/owner/conversion-metrics')
   return response.data.data
 }
 
@@ -669,13 +685,17 @@ export async function updateAdminApiConfig(configs: Record<string, string>): Pro
 }
 
 export async function getAdminSettings(): Promise<Record<string, string>> {
-  const response = await api.get<{ success: boolean; data: Record<string, string> }>('/admin/settings')
-  return response.data.data
+  const response = await api.get<{ success: boolean; data: Record<string, { value: string | null }> }>('/admin/settings')
+  return Object.fromEntries(Object.entries(response.data.data).map(([key, setting]) => [key, setting.value ?? '']))
 }
 
 export async function updateAdminSettings(settings: Record<string, string>): Promise<any> {
   const response = await api.put<{ success: boolean; data: any }>('/admin/settings', { settings })
   return response.data.data
+}
+
+export async function createAdminSetting(setting: { key: string; value: string; description?: string }): Promise<void> {
+  await api.post('/admin/settings', setting)
 }
 
 // Beta

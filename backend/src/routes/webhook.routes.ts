@@ -5,8 +5,14 @@ import { webhookRateLimiter, createWebhookSourceRateLimiter } from '../middlewar
 import { BadRequestError } from '../utils/errors';
 import logger from '../utils/logger';
 import { handleStripeWebhook } from '../services/stripe.service';
-import { requireFeatureLimit, incrementUsage } from '../services/subscription.service';
+import { requireFeatureLimit, incrementUsage, requirePlanFeature } from '../services/subscription.service';
 import { PaymentRequiredError } from '../utils/errors';
+import { acceptQuoteFromWebhook, sendQuotePdfToCustomer } from '../services/quote.service';
+import { createAuditLog } from '../services/audit.service';
+import { query } from '../utils/database';
+import { sendWahaText } from '../services/waha.service';
+import { config } from '../config';
+import { bookAppointment } from '../services/appointment.service';
 
 const router = Router();
 
@@ -40,6 +46,30 @@ const n8nWebhookSchema = z.object({
   tenantId: z.string().optional(),
   data: z.record(z.unknown()),
   timestamp: z.string().optional(),
+});
+
+const quoteAcceptSchema = z.object({
+  conversation_id: z.string().uuid(),
+  business_id: z.string().uuid().optional(),
+});
+
+const appointmentBookSchema = z.object({
+  business_id: z.string().uuid(),
+  contact_id: z.string().uuid(),
+  conversation_id: z.string().uuid(),
+  preferred_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  preferred_time: z.string().regex(/^\d{2}:\d{2}$/),
+  duration_minutes: z.number().int().min(15).max(480).default(60),
+  appointment_type: z.enum(['consultation', 'site_visit', 'installation', 'follow_up', 'delivery', 'other']).default('consultation'),
+  title: z.string().min(1).max(255).default('Appointment'),
+  location: z.string().max(1000).nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  assigned_to: z.string().uuid().optional(),
+});
+
+const quoteSendSchema = z.object({
+  quote_id: z.string().uuid(),
+  business_id: z.string().uuid(),
 });
 
 // Type for webhook processing config
@@ -159,6 +189,191 @@ router.post(
       message: 'Workflow callback processed',
       event,
     });
+  }
+);
+
+/**
+ * Handle quote acceptance from customer reply.
+ * Called by n8n when a customer replies 'yes', 'I accept', or similar.
+ * Expected payload: { conversation_id, contact_id, business_id, message }
+ */
+router.post(
+  '/quotes/send',
+  validateWebhookSource({ secretEnvVarName: 'N8N_WEBHOOK_SECRET', sourceName: 'n8n quote delivery' }),
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = quoteSendSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: 'Valid quote_id and business_id are required' });
+      return;
+    }
+    try {
+      const result = await sendQuotePdfToCustomer(parsed.data.quote_id, parsed.data.business_id);
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      const status = Number(error?.statusCode) || 500;
+      res.status(status).json({ success: false, error: error?.message || 'Quote PDF delivery failed' });
+    }
+  }
+);
+
+router.post(
+  '/appointments/book',
+  validateWebhookSource({ secretEnvVarName: 'N8N_WEBHOOK_SECRET', sourceName: 'n8n appointment booking' }),
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = appointmentBookSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: parsed.error.errors.map((entry) => entry.message).join(', ') });
+      return;
+    }
+
+    try {
+      const input = parsed.data;
+      await requirePlanFeature(input.business_id, 'appointments');
+      const booked = await bookAppointment({
+        businessId: input.business_id,
+        contactId: input.contact_id,
+        conversationId: input.conversation_id,
+        preferredDate: input.preferred_date,
+        preferredTime: input.preferred_time,
+        durationMinutes: input.duration_minutes,
+        appointmentType: input.appointment_type,
+        title: input.title,
+        location: input.location,
+        description: input.description,
+        assignedTo: input.assigned_to,
+      });
+
+      const startsAt = new Date(booked.appointment.starts_at);
+      const timeLabel = startsAt.toLocaleString('en-US', {
+        dateStyle: 'full',
+        timeStyle: 'short',
+        timeZone: booked.timezone,
+      });
+      let customerConfirmationSent = false;
+      let staffNotified = false;
+      const phoneDigits = booked.customerPhone.replace(/\D/g, '');
+      if (phoneDigits) {
+        try {
+          await sendWahaText({
+            session: booked.wahaSession || config.waha.session || 'default',
+            chatId: `${phoneDigits}@c.us`,
+            text: `Your ${booked.appointment.title} with ${booked.businessName} is confirmed for ${timeLabel}${booked.appointment.location ? ` at ${booked.appointment.location}` : ''}.`,
+          });
+          customerConfirmationSent = true;
+        } catch (error) {
+          logger.warn('Appointment created but customer confirmation could not be sent', {
+            appointmentId: booked.appointment.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+      const staffPhoneDigits = booked.assignedPhone?.replace(/\D/g, '') || '';
+      if (staffPhoneDigits && staffPhoneDigits !== phoneDigits) {
+        try {
+          await sendWahaText({
+            session: booked.wahaSession || config.waha.session || 'default',
+            chatId: `${staffPhoneDigits}@c.us`,
+            text: `New appointment assigned to you: ${booked.appointment.title}, ${timeLabel}. Customer: ${booked.customerName}, ${booked.customerPhone}${booked.appointment.location ? `, location: ${booked.appointment.location}` : ''}.`,
+          });
+          staffNotified = true;
+        } catch (error) {
+          logger.warn('Appointment created but staff WhatsApp notification failed', {
+            appointmentId: booked.appointment.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      await createAuditLog(
+        'appointments', 'create', null, 'system', 'Appointment booked from an AI WhatsApp conversation',
+        undefined, { appointmentId: booked.appointment.id, assignedTo: booked.appointment.assigned_to },
+        { conversationId: input.conversation_id, source: 'n8n' }, req.ip, req.get('user-agent'), input.business_id
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          appointment: booked.appointment,
+          localTimeLabel: timeLabel,
+          assignedTo: booked.appointment.assigned_to,
+          assignedName: booked.assignedName,
+          customerConfirmationSent,
+          staffNotified,
+        },
+      });
+    } catch (error: any) {
+      const status = Number(error?.statusCode) || 500;
+      res.status(status).json({ success: false, error: error?.message || 'Could not book appointment' });
+    }
+  }
+);
+
+router.post(
+  '/quote-accept',
+  validateWebhookSource({ secretEnvVarName: 'N8N_WEBHOOK_SECRET', sourceName: 'n8n quote acceptance' }),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const parsed = quoteAcceptSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: 'Valid conversation_id and optional business_id are required' });
+        return;
+      }
+      const { conversation_id, business_id } = parsed.data;
+
+      const result = await acceptQuoteFromWebhook(conversation_id, business_id);
+
+      if (!result.success) {
+        res.json({ success: false, error: 'No active quote found for this conversation' });
+        return;
+      }
+
+      let customerNotified = false;
+      try {
+        const details = await query<{ phone: string; waha_session_name: string | null }>(
+          `SELECT ct.phone, b.waha_session_name
+           FROM contacts ct
+           JOIN businesses b ON b.id = ct.business_id
+           WHERE ct.id = $1 AND ct.business_id = $2`,
+          [result.contactId, result.businessId]
+        );
+        const customer = details.rows[0];
+        if (customer?.phone) {
+          const phone = customer.phone.replace(/\D/g, '');
+          if (phone) {
+            await sendWahaText({
+              session: customer.waha_session_name || config.waha.session || 'default',
+              chatId: `${phone}@c.us`,
+              text: 'Thanks, your quote has been accepted. The business team will follow up with you shortly.',
+            });
+            customerNotified = true;
+          }
+        }
+      } catch (notificationError) {
+        logger.warn('Quote accepted but customer notification failed', {
+          quoteId: result.quoteId,
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+        });
+      }
+
+      // Create audit log entry
+      await createAuditLog(
+        'quotes',
+        'update_status',
+        result.contactId || null,
+        'system',
+        'Quote accepted via customer reply',
+        undefined,
+        { accepted_via: 'webhook', conversation_id },
+        result.quoteId ? { quoteId: result.quoteId } : undefined,
+        req.ip!,
+        req.get('user-agent')!,
+        result.businessId
+      );
+
+      res.json({ success: true, quoteId: result.quoteId, customerNotified, message: 'Quote marked as accepted' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ success: false, error: message });
+    }
   }
 );
 

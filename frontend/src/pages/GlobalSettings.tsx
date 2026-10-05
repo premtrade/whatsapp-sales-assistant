@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { getAdminSettings, updateAdminSettings } from '@/services/api'
+import { createAdminSetting, getAdminSettings, updateAdminSettings } from '@/services/api'
 
 interface SettingsForm {
   [key: string]: string
@@ -11,6 +11,9 @@ export default function GlobalSettingsPage() {
   const [originalSettings, setOriginalSettings] = useState<SettingsForm>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [newKey, setNewKey] = useState('')
+  const [newValue, setNewValue] = useState('')
+  const [newDescription, setNewDescription] = useState('')
 
   useEffect(() => {
     loadSettings()
@@ -46,6 +49,25 @@ export default function GlobalSettingsPage() {
     }
   }
 
+  async function handleCreate(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    try {
+      await createAdminSetting({ key: newKey.trim(), value: newValue, description: newDescription.trim() })
+      const data = await getAdminSettings()
+      setSettings(data)
+      setOriginalSettings(data)
+      setNewKey('')
+      setNewValue('')
+      setNewDescription('')
+      toast.success('Global setting added')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add global setting')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function handleReset() {
     setSettings(originalSettings)
   }
@@ -67,9 +89,17 @@ export default function GlobalSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-surface-100">Global Settings</h1>
         <p className="text-sm text-surface-400">Manage platform-wide configuration settings.</p>
+        <p className="text-xs text-surface-500 mt-1">These settings are shared across businesses. Business-specific details belong in that business’s Settings page.</p>
       </div>
 
       <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+          <input aria-label="Setting key" required pattern="[A-Za-z0-9_]{1,100}" maxLength={100} value={newKey} onChange={(e) => setNewKey(e.target.value)} className="bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100" placeholder="setting_key" />
+          <input aria-label="Setting value" value={newValue} onChange={(e) => setNewValue(e.target.value)} className="bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100" placeholder="Value" />
+          <input aria-label="Description" maxLength={500} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className="bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100" placeholder="Description (optional)" />
+          <button type="submit" disabled={saving || !newKey.trim()} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50">Add setting</button>
+        </form>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Object.keys(settings).map((key) => (
             <div key={key}>
@@ -89,7 +119,7 @@ export default function GlobalSettingsPage() {
 
         {Object.keys(settings).length === 0 && (
           <div className="text-center py-8 text-surface-500">
-            No global settings found.
+            No platform-wide settings yet. Add one above, or configure business-specific details from that business’s Settings page.
           </div>
         )}
 

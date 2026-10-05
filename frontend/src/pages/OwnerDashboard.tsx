@@ -1,27 +1,28 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getOwnerDashboard, getFinancialMetrics } from '@/services/api'
-import type { OwnerDashboardStats, FinancialMetrics } from '@/types'
+import { getOwnerDashboard, getFinancialMetrics, getConversionMetrics } from '@/services/api'
+import type { OwnerDashboardStats, FinancialMetrics, ConversionMetrics } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 
 export default function OwnerDashboardPage() {
   const [stats, setStats] = useState<OwnerDashboardStats | null>(null)
   const [financials, setFinancials] = useState<FinancialMetrics | null>(null)
+  const [conversions, setConversions] = useState<ConversionMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const { staff } = useAuth()
 
   useEffect(() => {
     async function load() {
       try {
-        const [dashboardData, financialData] = await Promise.all([
+        const [dashboardData, financialData, conversionData] = await Promise.all([
           getOwnerDashboard(),
           getFinancialMetrics().catch(() => null),
+          getConversionMetrics().catch(() => null),
         ])
         setStats(dashboardData)
         setFinancials(financialData)
+        setConversions(conversionData)
       } catch (err) {
-        // ErrorState shows on !stats; surface the cause to the user + console.
-        // eslint-disable-next-line no-console
         console.error('Owner dashboard load failed', err)
         toast.error('Failed to load owner dashboard')
       } finally {
@@ -100,6 +101,129 @@ export default function OwnerDashboardPage() {
             <p className="text-xs font-medium text-surface-400 uppercase tracking-wider">ARPU</p>
             <p className="text-2xl font-bold text-surface-100 mt-1">{formatCurrency(financials.revenue.byPlan.reduce((a, b) => a + b.mrr, 0) / (financials.subscriptions.active || 1), financials.revenue.currency)}</p>
           </div>
+        </div>
+      )}
+
+      {conversions && (
+        <div className="space-y-6">
+          <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-surface-100 mb-4">Conversion Overview</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-surface-800 rounded-lg p-4">
+                <p className="text-xs font-medium text-surface-400 uppercase tracking-wider">Total Trials</p>
+                <p className="text-2xl font-bold text-surface-100 mt-1">{conversions.overall.totalTrials}</p>
+              </div>
+              <div className="bg-surface-800 rounded-lg p-4">
+                <p className="text-xs font-medium text-surface-400 uppercase tracking-wider">Converted</p>
+                <p className="text-2xl font-bold text-success-400 mt-1">{conversions.overall.converted}</p>
+              </div>
+              <div className="bg-surface-800 rounded-lg p-4">
+                <p className="text-xs font-medium text-surface-400 uppercase tracking-wider">Conversion Rate</p>
+                <p className="text-2xl font-bold text-primary-400 mt-1">{conversions.overall.conversionRate.toFixed(1)}%</p>
+                <p className="text-xs text-surface-400 mt-1">
+                  Avg time to convert: {conversions.overall.avgDaysToConvert !== null ? `${conversions.overall.avgDaysToConvert} days` : 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {conversions.byPlan.length > 0 && (
+            <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold text-surface-100 mb-4">Conversion by Plan</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-950 text-surface-400">
+                    <tr>
+                      <th scope="col" className="text-left px-4 py-3 font-medium">Plan</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium">Trials</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium">Converted</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium">Rate</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium">Avg Days to Convert</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-800">
+                    {conversions.byPlan.map((plan) => (
+                      <tr key={plan.plan} className="hover:bg-surface-800/50">
+                        <td className="px-4 py-3 text-surface-100 font-medium">{plan.plan}</td>
+                        <td className="px-4 py-3 text-surface-300">{plan.totalTrials}</td>
+                        <td className="px-4 py-3 text-success-400">{plan.converted}</td>
+                        <td className="px-4 py-3 text-surface-300">{plan.conversionRate.toFixed(1)}%</td>
+                        <td className="px-4 py-3 text-surface-300">{plan.avgDaysToConvert !== null ? `${plan.avgDaysToConvert} days` : 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {conversions.featureUsage.length > 0 && (
+            <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold text-surface-100 mb-4">Feature Usage During Trial</h2>
+              <p className="text-xs text-surface-400 mb-4">Compare what converted vs non-converted businesses did during their trial.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-950 text-surface-400">
+                    <tr>
+                      <th scope="col" className="text-left px-4 py-3 font-medium">Metric</th>
+                      {conversions.featureUsage.map((group) => (
+                        <th key={group.conversionStatus} scope="col" className="text-left px-4 py-3 font-medium capitalize">
+                          {group.conversionStatus} ({group.businesses})
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-800">
+                    <tr className="hover:bg-surface-800/50">
+                      <td className="px-4 py-3 text-surface-300">Conversations</td>
+                      {conversions.featureUsage.map((group) => (
+                        <td key={group.conversionStatus} className="px-4 py-3 text-surface-100">
+                          {group.avgConversations !== null ? group.avgConversations.toFixed(1) : '0'} avg
+                          <span className="text-xs text-surface-400 ml-1">({group.pctWithConversations !== null ? `${group.pctWithConversations}%` : '0%'} used)</span>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="hover:bg-surface-800/50">
+                      <td className="px-4 py-3 text-surface-300">Messages</td>
+                      {conversions.featureUsage.map((group) => (
+                        <td key={group.conversionStatus} className="px-4 py-3 text-surface-100">
+                          {group.avgMessages !== null ? group.avgMessages.toFixed(1) : '0'} avg
+                          <span className="text-xs text-surface-400 ml-1">({group.pctWithMessages !== null ? `${group.pctWithMessages}%` : '0%'} used)</span>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="hover:bg-surface-800/50">
+                      <td className="px-4 py-3 text-surface-300">Quotes</td>
+                      {conversions.featureUsage.map((group) => (
+                        <td key={group.conversionStatus} className="px-4 py-3 text-surface-100">
+                          {group.avgQuotes !== null ? group.avgQuotes.toFixed(1) : '0'} avg
+                          <span className="text-xs text-surface-400 ml-1">({group.pctWithQuotes !== null ? `${group.pctWithQuotes}%` : '0%'} used)</span>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="hover:bg-surface-800/50">
+                      <td className="px-4 py-3 text-surface-300">Appointments</td>
+                      {conversions.featureUsage.map((group) => (
+                        <td key={group.conversionStatus} className="px-4 py-3 text-surface-100">
+                          {group.avgAppointments !== null ? group.avgAppointments.toFixed(1) : '0'} avg
+                          <span className="text-xs text-surface-400 ml-1">({group.pctWithAppointments !== null ? `${group.pctWithAppointments}%` : '0%'} used)</span>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="hover:bg-surface-800/50">
+                      <td className="px-4 py-3 text-surface-300">Handoffs</td>
+                      {conversions.featureUsage.map((group) => (
+                        <td key={group.conversionStatus} className="px-4 py-3 text-surface-100">
+                          {group.avgHandoffs !== null ? group.avgHandoffs.toFixed(1) : '0'} avg
+                          <span className="text-xs text-surface-400 ml-1">({group.pctWithHandoffs !== null ? `${group.pctWithHandoffs}%` : '0%'} used)</span>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

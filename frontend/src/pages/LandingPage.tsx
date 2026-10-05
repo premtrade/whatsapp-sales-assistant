@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { submitContactInquiry } from '@/services/api'
+import { submitContactInquiry, getPlans } from '@/services/api'
+import type { Plan } from '@/types'
 
 const whatsappGreen = '#25D366'
 const whatsappDark = '#075E54'
@@ -148,44 +149,35 @@ const faqs = [
   },
 ]
 
-const pricingTiers = [
-  {
-    name: 'Starter',
-    price: '79',
-    unit: '/month',
-    responses: '500 AI responses',
-    users: '1 staff user',
-    locations: '1 location',
-    cta: 'Start Free Trial',
-    highlight: false,
-  },
-  {
-    name: 'Professional',
-    price: '199',
-    unit: '/month',
-    responses: '2,000 AI responses',
-    users: '5 staff users',
-    locations: '3 locations',
-    cta: 'Start Free Trial',
-    highlight: true,
-  },
-  {
-    name: 'Business',
-    price: '399',
-    unit: '/month',
-    responses: 'Unlimited responses',
-    users: 'Unlimited users',
-    locations: 'Unlimited locations',
-    cta: 'Contact Sales',
-    highlight: false,
-  },
-]
-
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [contactSubmitted, setContactSubmitted] = useState(false)
   const [contactLoading, setContactLoading] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
+  const [plans, setPlans] = useState<Plan[] | null>(null)
+  const [plansLoading, setPlansLoading] = useState(true)
+  const [plansError, setPlansError] = useState<string | null>(null)
+
+  // Fetch pricing plans from backend API so the public page always agrees with enforcement.
+  useEffect(() => {
+    let cancelled = false
+    async function loadPlans() {
+      try {
+        const data = await getPlans()
+        if (!cancelled) {
+          setPlans(data)
+          setPlansLoading(false)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPlansError('Unable to load plans. Please refresh.')
+          setPlansLoading(false)
+        }
+      }
+    }
+    loadPlans()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
@@ -525,61 +517,191 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 bg-surface-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-surface-950 tracking-tight">
-              Simple Pricing for Growing Businesses
-            </h2>
-            <p className="mt-4 text-lg text-surface-600">
-              Start free. Upgrade when you’re ready. No hidden fees.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {pricingTiers.map((tier) => (
-              <div
-                key={tier.name}
-                className={`rounded-2xl p-6 ${tier.highlight ? 'bg-surface-900 text-white shadow-xl ring-1 ring-surface-700' : 'bg-white shadow-card border border-surface-200'}`}
-              >
-                {tier.highlight && (
-                  <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-600 text-white text-xs font-semibold mb-4">
-                    Most Popular
-                  </div>
-                )}
-                <h3 className={`text-lg font-semibold ${tier.highlight ? 'text-white' : 'text-surface-900'}`}>{tier.name}</h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className={`text-4xl font-bold ${tier.highlight ? 'text-white' : 'text-surface-900'}`}>${tier.price}</span>
-                  <span className={`text-sm ${tier.highlight ? 'text-surface-300' : 'text-surface-500'}`}>{tier.unit}</span>
-                </div>
-                <ul className="mt-6 space-y-3">
-                  {[tier.responses, tier.users, tier.locations, 'PDF quotes', 'Appointments', 'Knowledge base', 'AI handoffs'].map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm">
-                      <svg className={`w-4 h-4 shrink-0 ${tier.highlight ? 'text-primary-400' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className={tier.highlight ? 'text-surface-200' : 'text-surface-600'}>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a
-                  href="#"
-                  className={`mt-8 block text-center py-2.5 px-4 rounded-xl text-sm font-semibold ${
-                    tier.highlight
-                      ? 'bg-primary-600 text-white hover:bg-primary-500'
-                      : 'bg-surface-900 text-white hover:bg-surface-800'
-                  }`}
-                >
-                  {tier.cta}
-                </a>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-sm text-surface-500 mt-8">
-            30-day money-back guarantee. No questions asked.
-          </p>
-        </div>
-      </section>
+       {/* Pricing */}
+       <section id="pricing" className="py-20 bg-surface-50">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="text-center max-w-3xl mx-auto mb-16">
+             <h2 className="text-3xl sm:text-4xl font-bold text-surface-950 tracking-tight">
+               Simple Pricing for Growing Businesses
+             </h2>
+             <p className="mt-4 text-lg text-surface-600">
+               Start free. Upgrade when you're ready. No hidden fees.
+             </p>
+           </div>
+           {plansLoading ? (
+             <div className="text-center py-12">
+               <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent"></div>
+               <p className="mt-4 text-sm text-surface-500">Loading plans...</p>
+             </div>
+           ) : plansError ? (
+             <div className="text-center py-12 text-surface-600">
+               <p>{plansError}</p>
+               <p className="mt-2 text-sm">Please refresh the page or try again later.</p>
+             </div>
+           ) : (
+             <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+               {plans?.map((plan) => {
+                 // Calculate yearly price if available, otherwise calculate from monthly
+                 const yearlyPrice = plan.price_yearly || plan.price_monthly * 12;
+                 const savings = yearlyPrice > 0
+                   ? Math.round((1 - (plan.price_monthly * 12) / yearlyPrice) * 100)
+                   : 0;
+
+                 // Determine if this is the most popular (middle) plan
+                 const isMostPopular = plan.sort_order === 2; // Professional plan
+
+                 // Format limits for display
+                 const aiResponses = plan.limits?.ai_responses ?? 0;
+                 const aiResponsesDisplay = aiResponses === -1
+                   ? 'Unlimited'
+                   : aiResponses.toLocaleString() + ' AI responses/month';
+                 const staffUsers = plan.limits?.staff_users ?? 0;
+                 const staffUsersDisplay = staffUsers === -1
+                   ? 'Unlimited'
+                   : staffUsers.toString() + ' staff users';
+                 const locations = plan.limits?.locations ?? 0;
+                 const locationsDisplay = locations === -1
+                   ? 'Unlimited'
+                   : locations.toString() + ' locations';
+                 const whatsappNumbers = plan.limits?.whatsapp_numbers ?? 0;
+                 const whatsappNumbersDisplay = whatsappNumbers === -1
+                   ? 'Unlimited'
+                   : whatsappNumbers.toString() + ' WhatsApp numbers';
+
+                 return (
+                   <div
+                     key={plan.slug}
+                     className={`rounded-2xl p-6 ${isMostPopular ? 'bg-surface-900 text-white shadow-xl ring-1 ring-surface-700' : 'bg-white shadow-card border border-surface-200'}`}
+                   >
+                     {isMostPopular && (
+                       <div className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-600 text-white text-xs font-semibold mb-4">
+                         Most Popular
+                       </div>
+                     )}
+                     <h3 className={`text-lg font-semibold ${isMostPopular ? 'text-white' : 'text-surface-900'}`}>
+                       {plan.name}
+                     </h3>
+                     <div className="mt-4 flex items-baseline gap-1">
+                       <span className={`text-4xl font-bold ${isMostPopular ? 'text-white' : 'text-surface-900'}`}>
+                         ${plan.price_monthly}
+                       </span>
+                       <span className={`text-sm ${isMostPopular ? 'text-surface-300' : 'text-surface-500'}`}>
+                         /month
+                       </span>
+                     </div>
+                     <p className="mt-2 text-sm text-surface-500">
+                       Save {savings}% with annual billing (${yearlyPrice}/year)
+                     </p>
+                     <ul className="mt-6 space-y-2">
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.ai_responses ? 'text-surface-600' : 'text-surface-400'}>
+                           {aiResponsesDisplay}
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.pdf_quotes ? 'text-surface-600' : 'text-surface-400'}>
+                           PDF quotes to WhatsApp
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.appointments ? 'text-surface-600' : 'text-surface-400'}>
+                           Appointments & reminders
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.lead_scoring ? 'text-surface-600' : 'text-surface-400'}>
+                           Lead scoring
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.knowledge_base ? 'text-surface-600' : 'text-surface-400'}>
+                           Knowledge base
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.handoffs ? 'text-surface-600' : 'text-surface-400'}>
+                           AI handoffs
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.multi_location ? 'text-surface-600' : 'text-surface-400'}>
+                           Multi-location
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className={plan.features?.api_access ? 'text-surface-600' : 'text-surface-400'}>
+                           API access
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className="text-surface-500">
+                           {staffUsersDisplay}
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className="text-surface-500">
+                           {locationsDisplay}
+                         </span>
+                       </li>
+                       <li className="flex items-center gap-2 text-sm">
+                         <svg className="w-4 h-4 shrink-0 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         <span className="text-surface-500">
+                           {whatsappNumbersDisplay} <span className="text-xs text-surface-400">(WhatsApp charges may apply)</span>
+                         </span>
+                       </li>
+                     </ul>
+                     <a
+                       href="#"
+                       className={`mt-6 block text-center py-2.5 px-4 rounded-xl text-sm font-semibold ${
+                         isMostPopular
+                           ? 'bg-primary-600 text-white hover:bg-primary-500'
+                           : 'bg-surface-900 text-white hover:bg-surface-800'
+                       }`}
+                     >
+                       Start Free Trial
+                     </a>
+                   </div>
+                 );
+               })}
+             </div>
+           )}
+           <p className="text-center text-sm text-surface-500 mt-8">
+             30-day money-back guarantee. No questions asked.
+           </p>
+         </div>
+       </section>
 
       {/* FAQ */}
       <section id="faq" className="py-20">
@@ -669,7 +791,7 @@ export default function LandingPage() {
           >
             <div>
               <h3 className="text-xl font-semibold text-surface-900">Talk to our team</h3>
-              <p className="mt-1 text-sm text-surface-600">Share a few details and we’ll prepare an email draft for you to send.</p>
+              <p className="mt-1 text-sm text-surface-600">Share a few details and your inquiry will be recorded for the WAFLO team. We’ll send an email confirmation when email delivery is configured.</p>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <label className="block text-sm font-medium text-surface-700">
@@ -700,7 +822,7 @@ export default function LandingPage() {
                   </button>
                   {contactError && <p className="mt-2 text-xs text-red-600">{contactError}</p>}
                   <p className="mt-2 text-xs leading-relaxed text-surface-500">
-                    We usually reply within a few hours.
+                  The team can review your inquiry in the platform support inbox.
                   </p>
                 </>
               ) : (
@@ -740,6 +862,13 @@ export default function LandingPage() {
               <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Resources</h4>
               <ul className="space-y-2 text-sm">
                 <li><Link to="/blog" className="hover:text-white">Blog</Link></li>
+                <li><Link to="/faq" className="hover:text-white">FAQ</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Support</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="mailto:premtrade_ja@outlook.com" className="hover:text-white">premtrade_ja@outlook.com</a></li>
               </ul>
             </div>
           </div>
