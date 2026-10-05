@@ -30,8 +30,7 @@
               "name": "message_id"
             },
             {
-              "name": "hasMedia",
-              "type": "boolean"
+              "name": "hasMedia"
             },
             {
               "name": "timestamp"
@@ -352,8 +351,8 @@
               "removed": false
             }
           ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
         },
         "options": {}
       },

@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "01 - Incoming WhatsApp Message",
   "nodes": [
     {
@@ -178,7 +178,7 @@
             {
               "id": "64403737-4431-4f5d-b2e1-7a406e4009ce",
               "leftValue": "={{ $json.fromMe }}",
-              "rightValue": "false",
+              "rightValue": false,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
@@ -448,8 +448,8 @@
               "removed": false
             }
           ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
         },
         "options": {}
       },

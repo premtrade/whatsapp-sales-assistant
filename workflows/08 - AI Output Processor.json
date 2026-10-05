@@ -13,7 +13,7 @@
             { "name": "intent" },
             { "name": "lead_stage" },
             { "name": "sentiment" },
-            { "name": "escalate", "type": "boolean" },
+            { "name": "escalate" },
             { "name": "escalation_reason" },
             { "name": "customer_name" },
             { "name": "phone" },

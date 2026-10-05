@@ -30,8 +30,7 @@
               "name": "message_id"
             },
             {
-              "name": "hasMedia",
-              "type": "boolean"
+              "name": "hasMedia"
             },
             {
               "name": "timestamp"
