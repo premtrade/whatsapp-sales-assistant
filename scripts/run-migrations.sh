@@ -52,7 +52,8 @@ log_error() {
 # Function to run psql command
 run_psql() {
     local query="$1"
-    if ! command -v psql >/dev/null 2>&1; then
+    # If postgres docker container is running, execute directly inside container
+    if docker compose ps postgres --status running -q 2>/dev/null | grep -q .; then
         local -a docker_psql=(docker compose exec -T)
         if [ -n "$DB_PASSWORD" ]; then
             docker_psql+=( -e "PGPASSWORD=$DB_PASSWORD" )
@@ -72,7 +73,8 @@ run_psql() {
 # Function to run psql file
 run_psql_file() {
     local file="$1"
-    if ! command -v psql >/dev/null 2>&1; then
+    # If postgres docker container is running, execute directly inside container
+    if docker compose ps postgres --status running -q 2>/dev/null | grep -q .; then
         local -a docker_psql=(docker compose exec -T)
         if [ -n "$DB_PASSWORD" ]; then
             docker_psql+=( -e "PGPASSWORD=$DB_PASSWORD" )
