@@ -150,7 +150,7 @@ const SUB_COLS = `s.id, s.business_id, s.plan_id, s.status, s.current_period_sta
 
 export async function getActiveSubscription(businessId: string): Promise<SubscriptionWithPlan | null> {
   return getCached(`subscription:active:${businessId}`, async () => {
-    const r = await query<SubscriptionWithPlan>(`SELECT ${SUB_COLS} FROM subscriptions s JOIN plans p ON p.id = s.plan_id WHERE s.business_id = $1 AND s.status IN ('trialing','active','past_due') ORDER BY s.created_at DESC LIMIT 1`, [businessId]);
+    const r = await query<SubscriptionWithPlan>(`SELECT ${SUB_COLS} FROM subscriptions s JOIN plans p ON p.id = s.plan_id WHERE s.business_id = $1 AND s.status IN ('trialing','active','past_due','expired') ORDER BY s.created_at DESC LIMIT 1`, [businessId]);
     return r.rows[0] || null;
   }, SUBSCRIPTION_CACHE_TTL_SECONDS);
 }
@@ -160,17 +160,47 @@ export async function getHistory(businessId: string): Promise<SubscriptionWithPl
   return r.rows;
 }
 
+function effectiveGraceEnd(sub: SubscriptionWithPlan): Date | null {
+  if (sub.grace_period_ends_at) return new Date(sub.grace_period_ends_at);
+  if ((sub.status === 'trialing' || sub.status === 'expired') && sub.trial_ends_at) {
+    return new Date(new Date(sub.trial_ends_at).getTime() + GRACE_PERIOD_DAYS * 86400000);
+  }
+  return null;
+}
+
 export function isUsable(sub: SubscriptionWithPlan | null): boolean {
   if (!sub) return false;
   if (sub.status === 'active') return true;
-  if (sub.status === 'trialing') return !sub.trial_ends_at || new Date(sub.trial_ends_at).getTime() > Date.now();
-  if (sub.status === 'past_due') return !sub.grace_period_ends_at || new Date(sub.grace_period_ends_at).getTime() > Date.now();
+  if (sub.status === 'trialing') {
+    if (!sub.trial_ends_at || new Date(sub.trial_ends_at).getTime() > Date.now()) return true;
+    const graceEnd = effectiveGraceEnd(sub);
+    return !!graceEnd && graceEnd.getTime() > Date.now();
+  }
+  if (sub.status === 'past_due' || sub.status === 'expired') {
+    const graceEnd = effectiveGraceEnd(sub);
+    return !!graceEnd && graceEnd.getTime() > Date.now();
+  }
   return false;
 }
 
 export function trialDaysLeft(sub: SubscriptionWithPlan | null): number | null {
   if (!sub || sub.status !== 'trialing' || !sub.trial_ends_at) return null;
   return Math.max(0, Math.ceil((new Date(sub.trial_ends_at).getTime() - Date.now()) / 86400000));
+}
+
+export function gracePeriodDaysLeft(sub: SubscriptionWithPlan | null): number | null {
+  if (!sub || !['trialing', 'past_due', 'expired'].includes(sub.status)) return null;
+  if (sub.status === 'trialing' && sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > Date.now()) return null;
+  const graceEnd = effectiveGraceEnd(sub);
+  if (!graceEnd) return null;
+  return Math.max(0, Math.ceil((graceEnd.getTime() - Date.now()) / 86400000));
+}
+
+export function isInGracePeriod(sub: SubscriptionWithPlan | null): boolean {
+  if (!sub || !['trialing', 'past_due', 'expired'].includes(sub.status)) return false;
+  if (sub.status === 'trialing' && sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > Date.now()) return false;
+  const graceEnd = effectiveGraceEnd(sub);
+  return !!graceEnd && graceEnd.getTime() > Date.now();
 }
 
 export function clearSubCache(businessId: string): void {
@@ -313,7 +343,7 @@ export async function expireDueTrials(): Promise<number> {
      )
      UPDATE subscriptions
      SET status = 'expired',
-         grace_period_ends_at = NOW() + make_interval(days => $1),
+         grace_period_ends_at = trial_ends_at + make_interval(days => $1),
          updated_at = NOW()
      WHERE id IN (SELECT id FROM to_expire)
      RETURNING id`,
@@ -358,6 +388,17 @@ export async function requireFeatureLimit(businessId: string, metric: string): P
   const u = await getUsage(businessId, metric);
   const used = u?.used || 0;
   if (used >= limit) throw new PaymentRequiredError(`Monthly quota for ${metric} reached (${used}/${limit}). Please upgrade.`);
+}
+
+export async function requirePlanFeature(businessId: string, feature: string): Promise<void> {
+  const sub = await getActiveSubscription(businessId);
+  if (!sub || !isUsable(sub)) {
+    assertUsable(sub);
+  }
+  const features = (sub!.plan as Plan).features || {};
+  if (features[feature] === false) {
+    throw new PaymentRequiredError(`The ${feature.replace(/_/g, ' ')} feature is not included in your plan. Please upgrade.`);
+  }
 }
 
 export async function requireStaffSeat(businessId: string): Promise<void> {

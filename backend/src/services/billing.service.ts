@@ -71,7 +71,7 @@ export async function getRevenueTimeSeries(days = 30): Promise<RevenueTimeSeries
   try {
     const result = await query<RevenueTimeSeries>(`
       WITH daily AS (
-        SELECT 
+        SELECT
           DATE(created_at) as date,
           COUNT(*) as new_businesses,
           COUNT(CASE WHEN status = 'canceled' THEN 1 END) as canceled_businesses
@@ -80,7 +80,7 @@ export async function getRevenueTimeSeries(days = 30): Promise<RevenueTimeSeries
         GROUP BY DATE(created_at)
       ),
       mrr_daily AS (
-        SELECT 
+        SELECT
           DATE(created_at) as date,
           SUM(p.price_monthly) as mrr
         FROM subscriptions s
@@ -89,7 +89,7 @@ export async function getRevenueTimeSeries(days = 30): Promise<RevenueTimeSeries
           AND s.created_at >= NOW() - INTERVAL '${days} days'
         GROUP BY DATE(created_at)
       )
-      SELECT 
+      SELECT
         d.date,
         COALESCE(m.mrr, 0) as mrr,
         d.new_businesses,
@@ -108,7 +108,7 @@ export async function getRevenueTimeSeries(days = 30): Promise<RevenueTimeSeries
 export async function getUsageByMetric(): Promise<{ metric: string; used: number; limit: number }[]> {
   try {
     const result = await query<{ metric: string; used: number; limit: number }>(`
-      SELECT 
+      SELECT
         u.metric,
         SUM(u.used) as used,
         MAX(u.limit_value) as limit
@@ -124,4 +124,39 @@ export async function getUsageByMetric(): Promise<{ metric: string; used: number
     logger.error('Failed to fetch usage by metric', { error });
     throw error;
   }
+}
+
+export interface ValueMetric {
+  key: string
+  label: string
+  used: number
+  unitValueUsd: number
+  totalValueUsd: number
+}
+
+const VALUE_RATES_USD: Record<string, number> = {
+  ai_responses: 0.45,
+  staff_users: 1.50,
+  locations: 0.25,
+  whatsapp_numbers: 0.25,
+}
+
+export function calculateValueMetrics(usage: Record<string, { used: number; limit: number | null }>): ValueMetric[] {
+  return Object.entries(usage)
+    .map(([key, data]) => {
+      const used = data.used || 0
+      const unitValueUsd = VALUE_RATES_USD[key] || 0
+      return {
+        key,
+        label: key.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
+        used,
+        unitValueUsd,
+        totalValueUsd: Math.round(used * unitValueUsd * 100) / 100,
+      }
+    })
+    .filter((m) => m.totalValueUsd > 0)
+}
+
+export function getTotalValueUsd(metrics: ValueMetric[]): number {
+  return Math.round(metrics.reduce((sum, m) => sum + m.totalValueUsd, 0) * 100) / 100
 }

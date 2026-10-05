@@ -26,14 +26,24 @@ N8N_WEBHOOK = os.environ.get("N8N_WEBHOOK", "http://localhost:5678/webhook/waha/
 PG_HOST = os.environ.get("PG_HOST", "localhost")
 PG_PORT = int(os.environ.get("PG_PORT", "5432"))
 PG_USER = os.environ.get("PG_USER", "postgres")
-PG_PASS = os.environ.get("PG_PASS", "Jappyjap16")
-PG_DB = os.environ.get("PG_DB", "whatsapp_sales")
+PG_PASS = os.environ.get("PG_PASS")
+PG_DB = os.environ.get("PG_DB", "whatsapp_sales_test")
+RUN_LIVE_REGRESSION = os.environ.get("RUN_LIVE_REGRESSION", "").lower() == "true"
+
+pytestmark = pytest.mark.skipif(
+    not RUN_LIVE_REGRESSION,
+    reason="Set RUN_LIVE_REGRESSION=true to enable webhook/database regression tests.",
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def pg_conn():
+    if not PG_PASS:
+        pytest.skip("Set PG_PASS to run the live regression suite.")
+    if not PG_DB.endswith("_test"):
+        pytest.fail("Live regression tests are restricted to databases ending in _test.")
     return psycopg2.connect(
         host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASS, dbname=PG_DB
     )

@@ -24,7 +24,7 @@ function tenantScope(req: Request): string | null {
 
 /**
  * Blocks tenant-scoped requests while the subscription is not usable
- * (missing, expired trial, past_due beyond grace, canceled, expired).
+ * (missing, expired trial after grace, past_due beyond grace, canceled).
  * Deliberate enforcement decisions surface as 402/403 via AppError;
  * infrastructure errors fail open with a warning so a billing table
  * outage or unapplied migration cannot take down tenant APIs.

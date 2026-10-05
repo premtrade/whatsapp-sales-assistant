@@ -1,7 +1,8 @@
-import { query } from '../utils/database';
+import { query, transaction } from '../utils/database';
 import { NotFoundError, BadRequestError } from '../utils/errors';
 import { AppointmentFilters, Appointment } from '../types';
 import { emitDashboardStatsUpdated } from '../websocketServer';
+import { PoolClient } from 'pg';
 
 function buildWhereClause(filters: AppointmentFilters): { where: string; params: unknown[] } {
   const conditions: string[] = [];
@@ -126,4 +127,136 @@ export async function updateAppointmentStatus(id: string, status: string, tenant
   }
 
   return appointment;
+}
+
+export interface BookAppointmentInput {
+  businessId: string;
+  contactId: string;
+  conversationId: string;
+  preferredDate: string;
+  preferredTime: string;
+  durationMinutes: number;
+  appointmentType: Appointment['appointment_type'];
+  title: string;
+  location?: string | null;
+  description?: string | null;
+  assignedTo?: string;
+}
+
+export interface BookedAppointmentDetails {
+  appointment: Appointment;
+  businessName: string;
+  timezone: string;
+  wahaSession: string | null;
+  customerName: string;
+  customerPhone: string;
+  assignedName: string | null;
+  assignedPhone: string | null;
+}
+
+export async function bookAppointment(input: BookAppointmentInput): Promise<BookedAppointmentDetails> {
+  return transaction(async (client: PoolClient) => {
+    const businessResult = await client.query<{
+      business_name: string;
+      timezone: string;
+      waha_session_name: string | null;
+      contact_name: string;
+      contact_phone: string;
+    }>(
+      `SELECT b.name AS business_name, b.timezone, b.waha_session_name,
+              c.display_name AS contact_name, c.phone AS contact_phone
+       FROM businesses b
+       JOIN contacts c ON c.business_id = b.id
+       WHERE b.id = $1 AND c.id = $2 AND b.status IN ('active', 'trialing')
+       FOR UPDATE OF c`,
+      [input.businessId, input.contactId]
+    );
+    const business = businessResult.rows[0];
+    if (!business) throw new NotFoundError('Business or contact not found');
+
+    const conversationResult = await client.query(
+      `SELECT id FROM conversations
+       WHERE id = $1 AND business_id = $2 AND contact_id = $3`,
+      [input.conversationId, input.businessId, input.contactId]
+    );
+    if (!conversationResult.rows[0]) throw new BadRequestError('Conversation does not belong to this contact and business');
+
+    const timeResult = await client.query<{ starts_at: Date; ends_at: Date }>(
+      `SELECT (($1::date + $2::time) AT TIME ZONE $3) AS starts_at,
+              (($1::date + $2::time) AT TIME ZONE $3) + make_interval(mins => $4) AS ends_at`,
+      [input.preferredDate, input.preferredTime, business.timezone || 'UTC', input.durationMinutes]
+    );
+    const resolvedTime = timeResult.rows[0];
+    if (!resolvedTime) throw new BadRequestError('Appointment time could not be resolved');
+    const { starts_at: startsAt, ends_at: endsAt } = resolvedTime;
+    if (!startsAt || startsAt.getTime() <= Date.now()) throw new BadRequestError('Appointment time must be in the future');
+
+    let assignedTo = input.assignedTo || null;
+    if (assignedTo) {
+      const assignedResult = await client.query(
+        `SELECT id FROM staff_users
+         WHERE id = $1 AND business_id = $2 AND status = 'active' AND deleted_at IS NULL
+         FOR UPDATE`,
+        [assignedTo, input.businessId]
+      );
+      if (!assignedResult.rows[0]) throw new BadRequestError('Assigned staff member is not active in this business');
+    } else {
+      const defaultAssignee = await client.query(
+        `SELECT id FROM staff_users
+         WHERE business_id = $1 AND status = 'active' AND deleted_at IS NULL
+         ORDER BY (role = 'admin') DESC, created_at ASC
+         LIMIT 1 FOR UPDATE`,
+        [input.businessId]
+      );
+      assignedTo = defaultAssignee.rows[0]?.id || null;
+    }
+
+    const conflict = await client.query(
+      `SELECT id FROM appointments
+       WHERE business_id = $1 AND status IN ('scheduled', 'confirmed')
+         AND starts_at < $3 AND ends_at > $2
+         AND (contact_id = $4 OR ($5::uuid IS NOT NULL AND assigned_to = $5::uuid))
+       LIMIT 1`,
+      [input.businessId, startsAt, endsAt, input.contactId, assignedTo]
+    );
+    if (conflict.rows[0]) throw new BadRequestError('The customer or assigned staff member already has an appointment at that time');
+
+    const appointmentResult = await client.query<Appointment>(
+      `INSERT INTO appointments
+         (business_id, contact_id, conversation_id, appointment_type, status, title,
+          description, location, starts_at, ends_at, assigned_to, metadata)
+       VALUES ($1, $2, $3, $4, 'confirmed', $5, $6, $7, $8, $9, $10,
+          jsonb_build_object('source', 'ai_whatsapp', 'timezone', $11))
+       RETURNING id, business_id, contact_id, conversation_id, quote_id, appointment_type,
+          status, title, description, location, starts_at, ends_at, assigned_to,
+          reminder_sent, metadata, created_at, updated_at`,
+      [input.businessId, input.contactId, input.conversationId, input.appointmentType,
+        input.title, input.description || null, input.location || null, startsAt, endsAt,
+        assignedTo, business.timezone || 'UTC']
+    );
+    const appointment = appointmentResult.rows[0];
+    if (!appointment) throw new BadRequestError('Appointment could not be created');
+
+    let assignedName: string | null = null;
+    let assignedPhone: string | null = null;
+    if (assignedTo) {
+      const staffResult = await client.query<{ display_name: string; phone: string | null }>(
+        'SELECT display_name, phone FROM staff_users WHERE id = $1',
+        [assignedTo]
+      );
+      assignedName = staffResult.rows[0]?.display_name || null;
+      assignedPhone = staffResult.rows[0]?.phone || null;
+    }
+
+    return {
+      appointment,
+      businessName: business.business_name,
+      timezone: business.timezone || 'UTC',
+      wahaSession: business.waha_session_name,
+      customerName: business.contact_name,
+      customerPhone: business.contact_phone,
+      assignedName,
+      assignedPhone,
+    };
+  });
 }

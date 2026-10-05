@@ -6,6 +6,8 @@ import {
   getUsage,
   getPlanLimit,
   trialDaysLeft,
+  gracePeriodDaysLeft,
+  isInGracePeriod,
   createPlan,
   updatePlan,
   deletePlan,
@@ -118,7 +120,17 @@ router.get('/subscription', async (req, res: Response): Promise<void> => {
   }
   try {
     const sub = await getActiveSubscription(businessId);
-    res.json({ success: true, data: { subscription: sub, trialDaysLeft: trialDaysLeft(sub), paymentsConfigured: paymentsConfigured() } });
+    const isGrace = isInGracePeriod(sub);
+    res.json({
+      success: true,
+      data: {
+        subscription: sub,
+        trialDaysLeft: isGrace ? null : trialDaysLeft(sub),
+        gracePeriodDaysLeft: isGrace ? gracePeriodDaysLeft(sub) : null,
+        isInGracePeriod: isGrace,
+        paymentsConfigured: paymentsConfigured(),
+      },
+    });
   } catch (error) {
     logger.warn('Subscription lookup failed, returning null subscription', {
       businessId,

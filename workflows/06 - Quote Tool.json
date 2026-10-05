@@ -36,8 +36,8 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
       "position": [
-        -720,
-        -16
+        -800,
+        0
       ],
       "id": "quote-trigger",
       "name": "When Executed by Another Workflow"
@@ -45,7 +45,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, sku, name, description, price, currency\nFROM products\nWHERE active = true\n  AND business_id = $2::uuid\n  AND (name ILIKE '%' || $1 || '%' OR sku ILIKE $1)\nLIMIT 1;",
+        "query": "SELECT id, sku, name, description, price, currency FROM products WHERE active = true AND business_id = $2::uuid AND (name ILIKE '%' || $1 || '%' OR sku ILIKE $1) LIMIT 1;",
         "options": {
           "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.product_name_or_sku || '' }}, {{ $('When Executed by Another Workflow').first().json.business_id }}"
         }
@@ -53,8 +53,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        -480,
-        -16
+        -600,
+        0
       ],
       "id": "find-product-node",
       "name": "Find Product",
@@ -68,13 +68,13 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nconst product = $('Find Product').first()?.json || null;\n\nif (!product || !product.id) {\n  return [{\n    json: {\n      success: false,\n      error: `Product or service matching '${input.product_name_or_sku}' was not found in active inventory.`\n    }\n  }];\n}\n\nconst quantity = Math.max(1, Number(input.quantity || 1));\nconst unitPrice = Number(product.price || 0);\nconst requiresReview = !product.price || Number(product.price) <= 0;\nconst subtotal = unitPrice * quantity;\nconst total = requiresReview ? 0 : subtotal;\nconst currency = input.currency || product.currency || 'JMD';\nconst dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');\nconst randomSuffix = Math.floor(1000 + Math.random() * 9000);\nconst quoteNumber = `QT-${dateStr}-${randomSuffix}`;\nconst status = 'draft';\nconst reviewNote = requiresReview\n  ? ' Pricing is not published; A representative will confirm the final price.'\n  : '';\n\nreturn [{\n  json: {\n    success: true,\n    contact_id: input.contact_id,\n    conversation_id: input.conversation_id,\n    quote_number: quoteNumber,\n    product_id: product.id,\n    product_name: product.name,\n    quantity,\n    unit_price: unitPrice,\n    subtotal,\n    total,\n    currency,\n    status,\n    requires_review: requiresReview,\n    notes: input.notes || 'Generated via AI Sales Tool',\n    metadata: { requires_review: requiresReview, review_note: reviewNote }\n  }\n}];"
+        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nconst product = $('Find Product').first()?.json || null;\n\nif (!product || !product.id) {\n  return [{\n    json: {\n      success: false,\n      error: `Product or service matching '${input.product_name_or_sku}' was not found in active inventory.`\n    }\n  }];\n}\n\nconst quantity = Math.max(1, Number(input.quantity || 1));\nconst unitPrice = Number(product.price || 0);\nconst requiresReview = !product.price || Number(product.price) <= 0;\nconst subtotal = unitPrice * quantity;\nconst total = requiresReview ? 0 : subtotal;\nconst currency = input.currency || product.currency || 'JMD';\nconst dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');\nconst randomSuffix = Math.floor(10000000 + Math.random() * 90000000);\nconst quoteNumber = `QT-${dateStr}-${randomSuffix}`;\nconst status = 'draft';\nconst reviewNote = requiresReview\n  ? ' Pricing is not published; A representative will confirm the final price.'\n  : '';\n\nreturn [{\n  json: {\n    success: true,\n    contact_id: input.contact_id,\n    conversation_id: input.conversation_id,\n    business_id: input.business_id,\n    quote_number: quoteNumber,\n    product_id: product.id,\n    product_name: product.name,\n    quantity,\n    unit_price: unitPrice,\n    subtotal,\n    total,\n    currency,\n    status,\n    requires_review: requiresReview,\n    notes: input.notes || 'Generated via AI Sales Tool',\n    metadata: { requires_review: requiresReview, review_note: reviewNote }\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -240,
-        -16
+        -400,
+        0
       ],
       "id": "calculate-quote-node",
       "name": "Calculate Quote Details"
@@ -107,8 +107,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -32,
-        -16
+        -200,
+        0
       ],
       "id": "quote-valid-if",
       "name": "Product Found?"
@@ -116,7 +116,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO quotes (business_id, contact_id, conversation_id, quote_number, status, subtotal, tax, discount, total, currency, notes, valid_until, metadata)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4, $9, $5, 0, 0, $6, $7, $8, NOW() + INTERVAL '14 days', $10)\nON CONFLICT (quote_number) DO NOTHING\nRETURNING id, quote_number, total, currency, valid_until;",
+        "query": "INSERT INTO quotes (business_id, contact_id, conversation_id, quote_number, status, subtotal, tax, discount, total, currency, notes, valid_until, metadata) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $9, $5, 0, 0, $6, $7, $8, NOW() + INTERVAL '14 days', $10) ON CONFLICT (quote_number) DO NOTHING RETURNING id, quote_number, total, currency, valid_until;",
         "options": {
           "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.business_id }}\n{{ $json.contact_id }}\n{{ $json.conversation_id }}\n{{ $json.quote_number }}\n{{ $json.subtotal }}\n{{ $json.total }}\n{{ $json.currency }}\n{{ $json.notes }}\n{{ $json.status }}\n{{ JSON.stringify($json.metadata || {}) }}"
         }
@@ -124,7 +124,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        192,
+        0,
         -80
       ],
       "id": "create-quote-node",
@@ -139,15 +139,15 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO quote_items (quote_id, product_id, line_number, quantity, unit_price, line_total)\nVALUES ($1::uuid, $2::uuid, 1, $3, $4, $5)\nRETURNING id;",
+        "query": "INSERT INTO quote_items (business_id, quote_id, product_id, line_number, quantity, unit_price, line_total) VALUES ($1::uuid, $2::uuid, $3::uuid, 1, $4, $5, $6) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $json.id }}\n{{ $('Calculate Quote Details').first().json.product_id }}\n{{ $('Calculate Quote Details').first().json.quantity }}\n{{ $('Calculate Quote Details').first().json.unit_price }}\n{{ $('Calculate Quote Details').first().json.total }}"
+          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.business_id }}\n{{ $('Create Quote Record').first().json.id }}\n{{ $('Calculate Quote Details').first().json.product_id }}\n{{ $('Calculate Quote Details').first().json.quantity }}\n{{ $('Calculate Quote Details').first().json.unit_price }}\n{{ $('Calculate Quote Details').first().json.total }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        416,
+        200,
         -80
       ],
       "id": "create-quote-item-node",
@@ -162,7 +162,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata)\nVALUES ('quote', $1::uuid, 'quote_created', NULL, 'ai', 'Quote generated via AI tool', jsonb_build_object('quote_number', $2), jsonb_build_object('request_id', $3, 'timestamp', NOW()))\nRETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('quote', $1::uuid, 'quote_created', NULL, 'ai', 'Quote generated via AI tool', jsonb_build_object('quote_number', $2), jsonb_build_object('request_id', $3, 'timestamp', NOW())) RETURNING id;",
         "options": {
           "queryReplacement": "={{ $('Create Quote Record').first().json.id }}\n{{ $('Create Quote Record').first().json.quote_number }}\n{{ $('When Executed by Another Workflow').first().json.request_id }}"
         }
@@ -170,7 +170,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        640,
+        400,
         -80
       ],
       "id": "quote-audit-log-node",
@@ -184,13 +184,49 @@
     },
     {
       "parameters": {
-        "jsCode": "const calc = $('Calculate Quote Details').first()?.json || {};\nif (!calc.success) {\n  return [{ json: { error: true, message: calc.error } }];\n}\n\nconst created = $('Create Quote Record').first()?.json || {};\n\nlet message;\nif (calc.requires_review) {\n  message = `I've logged your request for a quote on ${calc.product_name}. A representative will confirm pricing and details with you shortly.`;\n} else {\n  message = `Quote ${created.quote_number} generated for ${calc.product_name}. Subtotal: ${created.currency} ${Number(calc.subtotal).toLocaleString('en-US', {minimumFractionDigits: 2})}. Total: ${created.currency} ${Number(created.total).toLocaleString('en-US', {minimumFractionDigits: 2})}. Valid until ${created.valid_until}.`;\n}\n\nreturn [{\n  json: {\n    success: true,\n    message,\n    quote: {\n      quote_number: created.quote_number,\n      product: calc.product_name,\n      quantity: calc.quantity,\n      unit_price: calc.unit_price,\n      subtotal: calc.subtotal,\n      total: created.total,\n      currency: created.currency,\n      valid_until: created.valid_until,\n      requires_review: calc.requires_review,\n      metadata: calc.metadata\n    }\n  }\n}];"
+        "method": "POST",
+        "url": "http://backend:4000/api/webhooks/quotes/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "REPLACE_WITH_N8N_WEBHOOK_SECRET"
+            },
+            {
+              "name": "X-Timestamp",
+              "value": "={{ $now.toMillis() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"quote_id\": \"{{ $('Create Quote Record').first().json.id }}\",\n  \"business_id\": \"{{ $('When Executed by Another Workflow').first().json.business_id }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        400,
+        100
+      ],
+      "id": "generate-pdf-node",
+      "name": "Generate & Send PDF",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const calc = $('Calculate Quote Details').first()?.json || {};\nif (!calc.success) return [{ json: { success: false, error: true, message: calc.error } }];\nconst created = $('Create Quote Record').first()?.json || {};\nconst delivery = $('Generate & Send PDF').first()?.json || {};\nconst deliveryError = delivery.error?.message || delivery.error || delivery.message || null;\nlet message;\nif (calc.requires_review) {\n  message = `I've recorded your request for ${calc.product_name}. A representative must confirm pricing before we can send a quote.`;\n} else if (delivery.success) {\n  message = `Quote ${created.quote_number} for ${calc.product_name} has been sent as a PDF. Total: ${created.currency} ${Number(created.total).toLocaleString('en-US', {minimumFractionDigits: 2})}. Valid until ${created.valid_until}.`;\n} else {\n  message = `Quote ${created.quote_number} for ${calc.product_name} was created, but I couldn't send its PDF automatically. The team will follow up. ` + (deliveryError ? `(${String(deliveryError).slice(0, 180)})` : '');\n}\nreturn [{ json: { success: true, message, quote: {\n  quote_number: created.quote_number, quote_id: created.id, product: calc.product_name,\n  quantity: calc.quantity, unit_price: calc.unit_price, subtotal: calc.subtotal,\n  total: created.total, currency: created.currency, valid_until: created.valid_until,\n  requires_review: calc.requires_review, pdf_sent: !!delivery.success,\n  pdf_error: deliveryError, metadata: calc.metadata\n} } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        864,
-        -16
+        640,
+        0
       ],
       "id": "format-quote-output",
       "name": "Format Output"
@@ -271,6 +307,17 @@
       ]
     },
     "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Generate & Send PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate & Send PDF": {
       "main": [
         [
           {

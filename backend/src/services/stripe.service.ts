@@ -196,7 +196,9 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
 
       await query(
         `UPDATE subscriptions
-         SET status='active', plan_id=COALESCE($1, plan_id), external_subscription_id=$2, external_customer_id=$3, metadata=metadata||$4::jsonb, updated_at=NOW()
+         SET status='active', plan_id=COALESCE($1, plan_id), external_subscription_id=$2, external_customer_id=$3,
+             metadata=metadata||$4::jsonb||CASE WHEN status <> 'active' THEN jsonb_build_object('converted_at', NOW()) ELSE '{}'::jsonb END,
+             updated_at=NOW()
          WHERE id=$5`,
         [planId, stripeSubscriptionId, stripeCustomerId || null, JSON.stringify({ stripeSessionId: session.id, planSlug, lastEventId: event.id }), subscriptionId]
       );
@@ -253,7 +255,11 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
       else status = 'paused';
 
       await query(
-        `UPDATE subscriptions SET status=$1, external_subscription_id=$2, metadata=metadata||$3::jsonb, updated_at=NOW() WHERE id=$4`,
+        `UPDATE subscriptions
+         SET status=$1, external_subscription_id=$2,
+             metadata=metadata||$3::jsonb||CASE WHEN $1 = 'active' AND status <> 'active' THEN jsonb_build_object('converted_at', NOW()) ELSE '{}'::jsonb END,
+             updated_at=NOW()
+         WHERE id=$4`,
         [status, stripeSubscription.id, JSON.stringify({ stripeStatus: stripeSubscription.status, lastEventId: event.id }), subRow.id]
       );
       clearSubCache(subRow.business_id);
@@ -313,7 +319,11 @@ export async function handleStripeWebhook(payload: unknown, signature: string): 
 
       if (subRow.status === 'past_due') {
         await query(
-          `UPDATE subscriptions SET status='active', metadata=metadata||$1::jsonb, updated_at=NOW() WHERE id=$2`,
+          `UPDATE subscriptions
+           SET status='active',
+               metadata=metadata||$1::jsonb||CASE WHEN status <> 'active' THEN jsonb_build_object('converted_at', NOW()) ELSE '{}'::jsonb END,
+               updated_at=NOW()
+           WHERE id=$2`,
           [JSON.stringify({ lastPaymentFailureResolved: invoice.id, resolvedAt: new Date().toISOString(), lastEventId: event.id }), subRow.id]
         );
         clearSubCache(subRow.business_id);

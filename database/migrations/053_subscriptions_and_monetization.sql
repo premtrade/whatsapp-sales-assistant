@@ -126,6 +126,8 @@ CREATE TRIGGER trg_payments_updated
     EXECUTE FUNCTION update_timestamp();
 
 -- 6. SEED DEFAULT PLANS
+-- IMPORTANT: All limits are finite and enforceable. -1 (unlimited) is NOT used.
+-- Business plan uses 10,000 AI responses/month as a generous but finite cap.
 INSERT INTO plans (name, slug, price_monthly, price_yearly, currency, features, limits, sort_order, is_active, is_public)
 VALUES
 (
@@ -159,7 +161,7 @@ VALUES
     3800.00,
     'USD',
     '{"ai_responses": true, "pdf_quotes": true, "appointments": true, "lead_scoring": true, "knowledge_base": true, "handoffs": true, "multi_location": true, "api_access": true}'::jsonb,
-    '{"ai_responses": -1, "staff_users": -1, "locations": -1, "whatsapp_numbers": -1}'::jsonb,
+    '{"ai_responses": 10000, "staff_users": 10, "locations": 10, "whatsapp_numbers": 5}'::jsonb,
     3,
     TRUE,
     TRUE

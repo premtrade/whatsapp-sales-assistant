@@ -31,6 +31,9 @@ export interface Config {
 
    sendgrid: {
      apiKey: string;
+    fromEmail: string;
+    fromName: string;
+    supportEmail: string;
    };
 
    ai: {
@@ -113,6 +116,9 @@ export const config: Config = {
 
   sendgrid: {
     apiKey: getEnv('SENDGRID_API_KEY', ''),
+    fromEmail: getEnv('SENDGRID_FROM_EMAIL', ''),
+    fromName: getEnv('SENDGRID_FROM_NAME', 'WAFLO Support'),
+    supportEmail: getEnv('SUPPORT_EMAIL', ''),
    },
 
   ai: {

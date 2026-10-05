@@ -6,6 +6,7 @@ import logger from './utils/logger';
 import { closePool } from './utils/database';
 import { initializeWebSocket } from './websocketServer';
 import { expireDueTrials } from './services/subscription.service';
+import { sendDueTrialReminders } from './services/trial-reminder.service';
 
 const server = createServer(app);
 const port = config.port;
@@ -28,8 +29,19 @@ server.listen(port, () => {
     }
   };
 
+  const runTrialReminders = async (): Promise<void> => {
+    try {
+      const sentCount = await sendDueTrialReminders();
+      if (sentCount > 0) logger.info('Trial reminder job completed', { sentCount });
+    } catch (error) {
+      logger.error('Trial reminder job failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  };
+
   runTrialExpiry();
   setInterval(runTrialExpiry, 60 * 60 * 1000);
+  runTrialReminders();
+  setInterval(runTrialReminders, 60 * 60 * 1000);
 });
 
 server.on('error', (err) => {

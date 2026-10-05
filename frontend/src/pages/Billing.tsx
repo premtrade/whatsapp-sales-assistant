@@ -8,6 +8,7 @@ type SubscriptionData = {
     status: string
     trial_ends_at?: string | null
     current_period_end?: string | null
+    grace_period_ends_at?: string | null
     plan?: {
       name: string
       slug: string
@@ -19,6 +20,8 @@ type SubscriptionData = {
     }
   } | null
   trialDaysLeft: number | null
+  gracePeriodDaysLeft: number | null
+  isInGracePeriod: boolean
   paymentsConfigured?: boolean
 }
 
@@ -136,10 +139,23 @@ export default function BillingPage() {
 
   const plan = sub?.subscription?.plan
   const isTrialing = sub?.subscription?.status === 'trialing'
+  const isPastDue = sub?.subscription?.status === 'past_due'
+  const isExpired = sub?.subscription?.status === 'expired'
+  const isInGrace = !!sub?.isInGracePeriod
   const daysLeft = sub?.trialDaysLeft ?? null
+  const graceDaysLeft = sub?.gracePeriodDaysLeft ?? null
   const usageMetrics = usage || {}
   const paymentsConfigured = sub?.paymentsConfigured !== false
   const currentPlanSlug = plan?.slug
+
+  const nearLimitMetrics = Object.entries(usageMetrics).filter(([, data]) => {
+    const limit = data.limit
+    if (!limit || limit <= 0 || limit === -1) return false
+    const pct = ((data.used || 0) / limit) * 100
+    return pct >= 80
+  })
+
+  const showUsageWarning = nearLimitMetrics.length > 0
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -153,28 +169,67 @@ export default function BillingPage() {
         <div className="bg-warning-50 border border-warning-100 rounded-xl p-4">
           <p className="text-sm font-medium text-warning-900">You&apos;re on the free beta</p>
           <p className="text-xs text-warning-800">
-            Billing is not yet enabled on this environment. Enjoy full access during the public beta.
-            Paid plans will be available soon.
+            Online billing is not enabled on this environment yet. Subscription and usage limits still apply;
+            contact platform support if you need help changing your plan.
           </p>
         </div>
       )}
 
-      {/* Trial banner */}
-      {isTrialing && (
-        <div className="bg-warning-50 border border-warning-100 rounded-xl p-4 flex items-center justify-between">
+      {/* Usage limit warning */}
+      {showUsageWarning && (
+        <div className="bg-warning-50 border border-warning-100 rounded-xl p-4">
+          <p className="text-sm font-medium text-warning-900">You are approaching your plan limits</p>
+          <ul className="mt-2 space-y-1">
+            {nearLimitMetrics.map(([metric, data]) => {
+              const limit = data.limit
+              const pct = limit && limit > 0 ? Math.min(((data.used || 0) / limit) * 100, 100) : 0
+              const isOver = pct >= 100
+              return (
+                <li key={metric} className="text-xs text-warning-800">
+                  <span className="capitalize">{metric.replace(/_/g, ' ')}</span>: {data.used || 0} / {limit} ({Math.round(pct)}%)
+                  {isOver ? ' — limit reached' : ' — consider upgrading'}
+                </li>
+              )
+            })}
+          </ul>
+          {paymentsConfigured && (
+            <button
+              onClick={() => handleUpgrade(currentPlanSlug || selectedPlanSlug)}
+              disabled={upgrading}
+              className="mt-3 px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {upgrading ? 'Loading...' : 'Upgrade plan'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Trial / Grace period banner */}
+      {(isTrialing || isPastDue || isExpired || isInGrace) && (
+        <div className={`${isInGrace || isExpired ? 'bg-danger-50 border-danger-100' : 'bg-warning-50 border-warning-100'} border rounded-xl p-4 flex items-center justify-between`}>
           <div>
-            <p className="text-sm font-medium text-warning-900">Trial active</p>
-            <p className="text-xs text-warning-800">
-              {daysLeft !== null && daysLeft > 0
+            <p className={`text-sm font-medium ${isInGrace || isExpired ? 'text-danger-900' : 'text-warning-900'}`}>
+              {isPastDue
+                ? `Payment is past due. ${isInGrace && graceDaysLeft !== null && graceDaysLeft > 0 ? `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} of grace access remaining.` : 'Update billing to restore access.'}`
+                : isInGrace || isExpired
+                  ? `Your trial has ended. ${graceDaysLeft !== null && graceDaysLeft > 0 ? `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} of access remaining.` : 'Please upgrade to continue.'}`
+                  : 'Trial active'}
+            </p>
+            <p className={`text-xs ${isInGrace || isExpired ? 'text-danger-800' : 'text-warning-800'}`}>
+              {isPastDue
+                ? (isInGrace ? `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} of grace access remaining` : 'Update your payment method to restore service')
+                : !isInGrace && !isExpired && daysLeft !== null && daysLeft > 0
                 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`
-                : 'Your trial has ended. Upgrade to continue.'}
+                : isInGrace
+                  ? `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} of grace access remaining`
+                  : 'Your trial has ended. Upgrade to continue.'}
             </p>
           </div>
           {paymentsConfigured && (
             <button
               onClick={() => handleUpgrade(currentPlanSlug || selectedPlanSlug)}
               disabled={upgrading}
-              className="px-4 py-2 bg-warning-600 hover:bg-warning-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+              className={`px-4 py-2 ${isInGrace || isExpired ? 'bg-danger-600 hover:bg-danger-700' : 'bg-warning-600 hover:bg-warning-700'} disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors`}
             >
               {upgrading ? 'Loading...' : 'Upgrade now'}
             </button>
@@ -316,6 +371,67 @@ export default function BillingPage() {
           </div>
         </div>
       )}
+
+      {/* Value metrics */}
+      {plan && usageMetrics && (
+        <ValueMetricsCard usage={usageMetrics} planSlug={plan.slug} onUpgrade={paymentsConfigured ? () => handleUpgrade(currentPlanSlug || selectedPlanSlug) : undefined} />
+      )}
+    </div>
+  )
+}
+
+const VALUE_RATES_USD: Record<string, number> = {
+  ai_responses: 0.45,
+}
+
+function ValueMetricsCard({ usage, planSlug, onUpgrade }: { usage: Record<string, { used: number; limit: number | null }>; planSlug?: string; onUpgrade?: (() => void) | undefined }) {
+  const metrics = Object.entries(usage)
+    .map(([key, data]) => {
+      const used = data.used || 0
+      const unitValueUsd = VALUE_RATES_USD[key] || 0
+      const totalValueUsd = Math.round(used * unitValueUsd * 100) / 100
+      if (totalValueUsd <= 0) return null
+      return {
+        key,
+        label: key.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
+        used,
+        unitValueUsd,
+        totalValueUsd,
+      }
+    })
+    .filter(Boolean) as { key: string; label: string; used: number; unitValueUsd: number; totalValueUsd: number }[]
+
+  const totalValue = Math.round(metrics.reduce((sum, m) => sum + m.totalValueUsd, 0) * 100) / 100
+
+  if (metrics.length === 0) return null
+
+  return (
+    <div className="bg-surface-900 border border-success-500/30 rounded-xl p-6">
+      <h2 className="text-lg font-semibold text-surface-100 mb-1">Estimated value of AI replies this month</h2>
+      <p className="text-xs text-surface-400 mb-4">Illustrative estimate at $0.45 per automated reply. Actual savings depend on your costs and workflow.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {metrics.map((m) => (
+          <div key={m.key} className="bg-surface-800 rounded-lg p-4">
+            <p className="text-xs text-surface-400">{m.label}</p>
+            <p className="text-sm text-surface-100">
+              {m.used} {m.used === 1 ? 'use' : 'uses'} × ${m.unitValueUsd.toFixed(2)} = <span className="text-success-400 font-semibold">${m.totalValueUsd.toFixed(2)}</span>
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <p className="text-sm text-surface-300">
+          Estimated value: <span className="text-success-400 font-bold text-lg">${totalValue.toFixed(2)}</span>
+        </p>
+        {onUpgrade && (
+          <button
+            onClick={onUpgrade}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Upgrade to keep saving
+          </button>
+        )}
+      </div>
     </div>
   )
 }

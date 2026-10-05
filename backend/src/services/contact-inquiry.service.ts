@@ -1,6 +1,7 @@
 import { query } from '../utils/database';
 import { BadRequestError } from '../utils/errors';
 import logger from '../utils/logger';
+import { sendContactAcknowledgement, sendSupportNotification } from './email.service';
 
 export interface ContactInquiry {
   id: string;
@@ -31,16 +32,6 @@ export interface CreateContactInquiryInput {
 
 export interface ContactInquiryInput extends CreateContactInquiryInput {
   trialEndsAt?: Date;
-}
-
-/**
- * Placeholder for email autoresponder.
- * When an email provider is configured (SendGrid, SES, Resend, etc.),
- * implement sendAutoresponder(email, name, source) here and call it
- * from createContactInquiry after the DB insert.
- */
-async function sendAutoresponder(_email: string, _name: string, _source: string): Promise<void> {
-  logger.info('Autoresender hook triggered', { email: _email, source: _source });
 }
 
 export async function createContactInquiry(input: CreateContactInquiryInput): Promise<ContactInquiry> {
@@ -82,9 +73,24 @@ export async function createContactInquiry(input: CreateContactInquiryInput): Pr
     source: inquiry.source,
   });
 
-  // Fire-and-forget autoresponder. Do not block the response on email delivery.
-  sendAutoresponder(inquiry.email, inquiry.name, inquiry.source).catch((err) => {
-    logger.warn('Autoresponder failed', { error: err instanceof Error ? err.message : err });
+  const supportTicket = inquiry.source === 'support-ticket';
+  const metadataSubject = typeof inquiry.metadata?.subject === 'string' ? inquiry.metadata.subject : '';
+  void Promise.allSettled([
+    sendContactAcknowledgement(inquiry.email, inquiry.name, supportTicket),
+    sendSupportNotification({
+      name: inquiry.name,
+      email: inquiry.email,
+      subject: metadataSubject || (supportTicket ? 'New support request' : 'New contact inquiry'),
+      message: inquiry.message,
+      source: inquiry.source,
+    }),
+  ]).then(([ackResult, notifyResult]) => {
+    if (ackResult.status === 'rejected') {
+      logger.warn('Contact acknowledgement email failed', { inquiryId: inquiry.id, error: ackResult.reason instanceof Error ? ackResult.reason.message : 'Unknown error' });
+    }
+    if (notifyResult.status === 'rejected') {
+      logger.warn('Support notification email failed', { inquiryId: inquiry.id, error: notifyResult.reason instanceof Error ? notifyResult.reason.message : 'Unknown error' });
+    }
   });
 
   return inquiry;

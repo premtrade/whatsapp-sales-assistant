@@ -107,7 +107,7 @@ export async function validateBetaInvite(
        LIMIT 1`,
       [token]
     );
-    invite = result.rows[0] ? rowToBetaInvite(result.rows[0]) : null;
+    invite = result?.rows?.[0] ? rowToBetaInvite(result.rows[0]) : null;
   } else {
     // Check for domain invite.
     if (domain) {
@@ -118,7 +118,7 @@ export async function validateBetaInvite(
          LIMIT 1`,
         [domain]
       );
-      invite = result.rows[0] ? rowToBetaInvite(result.rows[0]) : null;
+      invite = result?.rows?.[0] ? rowToBetaInvite(result.rows[0]) : null;
     }
 
     // Check for open promo code (first active one).
@@ -131,7 +131,7 @@ export async function validateBetaInvite(
          LIMIT 1`,
         []
       );
-      invite = result.rows[0] ? rowToBetaInvite(result.rows[0]) : null;
+      invite = result?.rows?.[0] ? rowToBetaInvite(result.rows[0]) : null;
     }
   }
 

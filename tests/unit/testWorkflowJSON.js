@@ -7,7 +7,7 @@ const WORKFLOW_DIR = path.join(REPO, "workflows");
 function loadWorkflows() {
   const files = fs.readdirSync(WORKFLOW_DIR).filter((f) => f.endsWith(".json"));
   return files.map((f) => {
-    const content = fs.readFileSync(path.join(WORKFLOW_DIR, f), "utf-8");
+    const content = fs.readFileSync(path.join(WORKFLOW_DIR, f), "utf-8").replace(/^\uFEFF/, "");
     return { name: f, data: JSON.parse(content) };
   });
 }
@@ -21,7 +21,8 @@ describe("Workflow JSON Validation", () => {
 
   test("all workflow files are valid JSON", () => {
     for (const wf of workflows) {
-      expect(() => JSON.parse(fs.readFileSync(path.join(WORKFLOW_DIR, wf.name), "utf-8"))).not.toThrow();
+      const content = fs.readFileSync(path.join(WORKFLOW_DIR, wf.name), "utf-8").replace(/^\uFEFF/, "");
+      expect(() => JSON.parse(content)).not.toThrow();
     }
   });
 

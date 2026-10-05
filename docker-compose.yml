@@ -293,6 +293,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-WAFLO Support}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
       # WAHA (WhatsApp HTTP API). The backend needs these to authenticate to
       # WAHA for the System Health check, session/QR provisioning and message
       # sending. Without WAHA_API_KEY the backend sends an empty X-Api-Key
