@@ -29,7 +29,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nlet facts = Array.isArray(input.facts_extracted) ? input.facts_extracted : [];\nif (typeof input.facts_extracted === 'string') {\n  try { facts = JSON.parse(input.facts_extracted); } catch (e) { facts = []; }\n}\nconst conversationId = input.conversation_id || '';\nconst contactId = input.contact_id || '';\nconst leadStage = input.lead_stage || 'new';\nconst intent = input.intent || 'general_inquiry';\nconst escalate = !!input.escalate;\nconst escalationReason = input.escalation_reason || '';\n\nreturn [{\n  json: {\n    conversation_id: conversationId,\n    contact_id: contactId,\n    lead_stage: leadStage,\n    intent,\n    sentiment: input.sentiment || 'neutral',\n    escalate,\n    escalation_reason: escalationReason,\n    facts_extracted: facts,\n    customer_name: input.customer_name || '',\n    phone: input.phone || '',\n  }\n}];"
+        "jsCode": "const input = $('When Executed by Another Workflow').first()?.json || {};\nlet facts = Array.isArray(input.facts_extracted) ? input.facts_extracted : [];\nif (typeof input.facts_extracted === 'string') {\n  try { facts = JSON.parse(input.facts_extracted); } catch (e) { facts = []; }\n}\nconst conversationId = input.conversation_id || '';\nconst contactId = input.contact_id || '';\nconst leadStage = input.lead_stage || 'new';\nconst intent = input.intent || 'general_inquiry';\nconst escalate = input.escalate === true || String(input.escalate).toLowerCase() === 'true';\nconst escalationReason = input.escalation_reason || '';\n\nreturn [{\n  json: {\n    conversation_id: conversationId,\n    contact_id: contactId,\n    lead_stage: leadStage,\n    intent,\n    sentiment: input.sentiment || 'neutral',\n    escalate,\n    escalation_reason: escalationReason,\n    facts_extracted: facts,\n    customer_name: input.customer_name || '',\n    phone: input.phone || '',\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -39,7 +39,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first()?.json || {};\nconst facts = Array.isArray(item.facts_extracted) ? item.facts_extracted : [];\nconst contactId = item.contact_id || '';\nconst conversationId = item.conversation_id || '';\nconst leadStage = item.lead_stage || 'new';\nconst intent = item.intent || 'general_inquiry';\nconst sentiment = item.sentiment || 'neutral';\nconst escalate = !!item.escalate;\nconst escalationReason = item.escalation_reason || '';\n\nconst results = [];\nfor (const fact of facts) {\n  if (fact && fact.key && fact.value) {\n    results.push({\n      contact_id: contactId,\n      conversation_id: conversationId,\n      fact_key: String(fact.key),\n      fact_value: String(fact.value),\n      confidence: typeof fact.confidence === 'number' ? fact.confidence : 1.0,\n      source: 'ai',\n      lead_stage: leadStage,\n      intent,\n      sentiment,\n      escalate,\n      escalation_reason: escalationReason,\n    });\n  }\n}\n\nif (results.length === 0) {\n  results.push({\n    contact_id: contactId,\n    conversation_id: conversationId,\n    fact_key: null,\n    fact_value: null,\n    confidence: 0,\n    source: 'ai',\n    lead_stage: leadStage,\n    intent,\n    sentiment,\n    escalate,\n    escalation_reason: escalationReason,\n  });\n}\n\nreturn results.map(r => ({ json: r }));"
+        "jsCode": "const item = $input.first()?.json || {};\nconst facts = Array.isArray(item.facts_extracted) ? item.facts_extracted : [];\nconst contactId = item.contact_id || '';\nconst conversationId = item.conversation_id || '';\nconst leadStage = item.lead_stage || 'new';\nconst intent = item.intent || 'general_inquiry';\nconst sentiment = item.sentiment || 'neutral';\nconst escalate = item.escalate === true || String(item.escalate).toLowerCase() === 'true';\nconst escalationReason = item.escalation_reason || '';\n\nconst results = [];\nfor (const fact of facts) {\n  if (fact && fact.key && fact.value) {\n    results.push({\n      contact_id: contactId,\n      conversation_id: conversationId,\n      fact_key: String(fact.key),\n      fact_value: String(fact.value),\n      confidence: typeof fact.confidence === 'number' ? fact.confidence : 1.0,\n      source: 'ai',\n      lead_stage: leadStage,\n      intent,\n      sentiment,\n      escalate,\n      escalation_reason: escalationReason,\n    });\n  }\n}\n\nif (results.length === 0) {\n  results.push({\n    contact_id: contactId,\n    conversation_id: conversationId,\n    fact_key: null,\n    fact_value: null,\n    confidence: 0,\n    source: 'ai',\n    lead_stage: leadStage,\n    intent,\n    sentiment,\n    escalate,\n    escalation_reason: escalationReason,\n  });\n}\n\nreturn results.map(r => ({ json: r }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -127,7 +127,7 @@
           "conditions": [
             {
               "id": "escalate-check",
-              "leftValue": "={{ $('When Executed by Another Workflow').first().json.escalate }}",
+              "leftValue": "={{ String($('When Executed by Another Workflow').first().json.escalate).toBoolean() }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -171,7 +171,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {};\nlet stageUpdate = {};\ntry { stageUpdate = $('Update Conversation Stage').first()?.json || {}; } catch (e) {}\nlet handoff = {};\ntry { handoff = $('Call Handoff Tool').first()?.json || {}; } catch (e) {}\n\nreturn [{\n  json: {\n    success: true,\n    conversation_id: trigger.conversation_id,\n    contact_id: trigger.contact_id,\n    lead_stage: trigger.lead_stage,\n    intent: trigger.intent,\n    sentiment: trigger.sentiment,\n    escalate: !!trigger.escalate,\n    conversation_stage_updated: !!stageUpdate.id,\n    handoff_triggered: !!handoff.success,\n    handoff_reason: handoff.success ? trigger.escalation_reason : null,\n  }\n}];"
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {};\nlet stageUpdate = {};\ntry { stageUpdate = $('Update Conversation Stage').first()?.json || {}; } catch (e) {}\nlet handoff = {};\ntry { handoff = $('Call Handoff Tool').first()?.json || {}; } catch (e) {}\n\nreturn [{\n  json: {\n    success: true,\n    conversation_id: trigger.conversation_id,\n    contact_id: trigger.contact_id,\n    lead_stage: trigger.lead_stage,\n    intent: trigger.intent,\n    sentiment: trigger.sentiment,\n    escalate: trigger.escalate === true || String(trigger.escalate).toLowerCase() === 'true',\n    conversation_stage_updated: !!stageUpdate.id,\n    handoff_triggered: !!handoff.success,\n    handoff_reason: handoff.success ? trigger.escalation_reason : null,\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
