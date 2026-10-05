@@ -166,3 +166,7 @@ query.sql
 !.env.example
 !.env.*.example
 
+
+
+# Embedded review repos
+focused-release-review/

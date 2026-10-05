@@ -54,17 +54,3 @@ volumes:
   backend_data:
   frontend_data:
   cron_job_data:
-
-networks:
-  backend:
-    name: backend
-  frontend:
-    name: frontend
-  pgadmin:
-    name: pgadmin
-  waha:
-    name: waha
-  n8n:
-    name: n8n
-  cron:
-    name: cron

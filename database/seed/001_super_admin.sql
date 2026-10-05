@@ -12,9 +12,11 @@ SELECT
   'America/Jamaica',
   crypt('ChangeMeNow!123', gen_salt('bf', 10)),
   NULL
-WHERE NOT EXISTS (
-  SELECT 1 FROM staff_users WHERE role = 'super_admin' AND email = 'owner@waflo.app'
-);
+ON CONFLICT (email) DO UPDATE
+SET role = 'super_admin',
+    status = 'active',
+    password_hash = EXCLUDED.password_hash,
+    updated_at = NOW();
 
 -- Verify
 SELECT id, email, role, status FROM staff_users WHERE role = 'super_admin';

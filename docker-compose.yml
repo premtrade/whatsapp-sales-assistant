@@ -71,6 +71,13 @@ services:
       - ./database/migrations/053_subscriptions_and_monetization.sql:/docker-entrypoint-initdb.d/53_subscriptions_and_monetization.sql
       - ./database/migrations/054_expand_staff_constraints.sql:/docker-entrypoint-initdb.d/54_expand_staff_constraints.sql
       - ./database/migrations/055_repair_memory_layer.sql:/docker-entrypoint-initdb.d/55_repair_memory_layer.sql
+      - ./database/migrations/056_active_subscription_unique.sql:/docker-entrypoint-initdb.d/56_active_subscription_unique.sql
+      - ./database/migrations/057_settings_per_tenant.sql:/docker-entrypoint-initdb.d/57_settings_per_tenant.sql
+      - ./database/migrations/058_message_templates_per_tenant.sql:/docker-entrypoint-initdb.d/58_message_templates_per_tenant.sql
+      - ./database/migrations/059_starter_staff_seats.sql:/docker-entrypoint-initdb.d/59_starter_staff_seats.sql
+      - ./database/migrations/060_beta_and_audit_tables.sql:/docker-entrypoint-initdb.d/60_beta_and_audit_tables.sql
+      - ./database/migrations/061_contact_inquiries.sql:/docker-entrypoint-initdb.d/61_contact_inquiries.sql
+      - ./database/migrations/062_plan_limits_update.sql:/docker-entrypoint-initdb.d/62_plan_limits_update.sql
 
     networks:
       - backend
@@ -159,6 +166,7 @@ services:
       DB_POSTGRESDB_SSL: "false"
       N8N_HOST: n8n
       N8N_PORT: 5678
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-}
       N8N_PROTOCOL: http
       WEBHOOK_URL: http://n8n:5678/
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}

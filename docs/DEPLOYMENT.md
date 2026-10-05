@@ -30,6 +30,9 @@ docker compose version
 nginx -v
 ```
 
+Use Docker Compose v2.24.4 or newer; the production file replaces the base
+port mappings so services stay reachable only from the Droplet itself.
+
 ## Step 2: Clone Repository
 
 ```bash
@@ -60,11 +63,8 @@ N8N_API_KEY=your_n8n_api_key
 ENCRYPTION_KEY=YOUR_SECURE_ENCRYPTION_KEY_32_CHARS
 ```
 
-After editing `.env`, start services with:
-
-```bash
-docker compose up -d --build
-```
+Do not start the base Compose file by itself on the Droplet. It publishes
+service ports beyond localhost; use the production pair in Step 5.
 
 ## Step 4: Firewall Configuration
 
@@ -81,8 +81,8 @@ sudo ufw enable
 ## Step 5: Start Services
 
 ```bash
-# Start all services
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Start all services with localhost-only service ports
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 # Verify all services are running
 docker compose ps
@@ -107,14 +107,7 @@ sudo systemctl start nginx
 sudo certbot renew --dry-run
 ```
 
-## Step 7: Update Docker Compose
-
-```bash
-# Use production compose file
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-```
-
-## Step 8: Verify Deployment
+## Step 7: Verify Deployment
 
 ```bash
 # Check all services are running
