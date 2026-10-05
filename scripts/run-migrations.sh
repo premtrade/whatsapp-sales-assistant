@@ -16,11 +16,19 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MIGRATIONS_DIR="$PROJECT_ROOT/database/migrations"
 SCHEMA_DIR="$PROJECT_ROOT/database/schema"
 
+# Load .env file if present in project root
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$PROJECT_ROOT/.env"
+    set +a
+fi
+
 # Database connection settings (can be overridden via environment variables)
-DB_HOST="${POSTGRES_HOST:-localhost}"
+DB_HOST="${POSTGRES_HOST:-127.0.0.1}"
 DB_PORT="${POSTGRES_PORT:-5432}"
-DB_USER="${POSTGRES_USER:-waflo}"
-DB_NAME="${POSTGRES_DB:-waflo}"
+DB_USER="${POSTGRES_USER:-postgres}"
+DB_NAME="${POSTGRES_DB:-whatsapp_sales}"
 DB_PASSWORD="${POSTGRES_PASSWORD:-}"
 
 # Colors for output
