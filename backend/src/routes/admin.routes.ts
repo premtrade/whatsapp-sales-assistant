@@ -8,6 +8,7 @@ import { getActiveSubscription, clearSubCache } from '../services/subscription.s
 import { cancelStripeSubscription, resumeStripeSubscription } from '../services/stripe.service';
 import { validateSettingValue } from '../services/settings.service';
 import { listContactInquiries } from '../services/contact-inquiry.service';
+import { hashPassword } from '../services/auth.service';
 
 const router = Router();
 
@@ -114,6 +115,75 @@ router.delete('/users/:id', authenticate, requireOwnerAccess, async (req, res: R
   } catch (error) {
     logger.error('Failed to delete user', { error });
     res.status(500).json({ success: false, error: 'Failed to delete user' });
+  }
+});
+
+router.get('/businesses', authenticate, requireOwnerAccess, async (_req, res: Response): Promise<void> => {
+  try {
+    const result = await query(`
+      SELECT id, name, slug, status FROM businesses WHERE deleted_at IS NULL ORDER BY name ASC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Failed to fetch businesses', { error });
+    res.status(500).json({ success: false, error: 'Failed to fetch businesses' });
+  }
+});
+
+router.post('/users', authenticate, requireOwnerAccess, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password, first_name, last_name, business_id, role = 'admin', status = 'active' } = req.body;
+
+    if (!email || !password || !first_name || !last_name || !business_id) {
+      res.status(400).json({ success: false, error: 'email, password, first_name, last_name, and business_id are required' });
+      return;
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const trimmedFirstName = String(first_name).trim();
+    const trimmedLastName = String(last_name).trim();
+    const normalizedRole = String(role);
+    const normalizedStatus = String(status);
+
+    const businessResult = await query(`SELECT id FROM businesses WHERE id = $1 AND deleted_at IS NULL`, [business_id]);
+    if (businessResult.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Business not found' });
+      return;
+    }
+
+    const existing = await query(
+      `SELECT id FROM staff_users WHERE email = $1 AND business_id = $2 AND deleted_at IS NULL`,
+      [normalizedEmail, business_id]
+    );
+    if (existing.rows.length > 0) {
+      res.status(409).json({ success: false, error: 'A user with this email already exists for this business' });
+      return;
+    }
+
+    const countResult = await query<{ total: string }>(`SELECT COUNT(*) as total FROM staff_users WHERE business_id = $1`, [business_id]);
+    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+    const employeeNumber = `EMP${String(total + 1).padStart(3, '0')}`;
+
+    const passwordHash = await hashPassword(String(password));
+
+    const result = await query(
+      `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, password_hash, business_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, employee_number, first_name, last_name, email, role, status, business_id, created_at`,
+      [employeeNumber, trimmedFirstName, trimmedLastName, normalizedEmail, normalizedRole, normalizedStatus, 'America/Jamaica', passwordHash, business_id]
+    );
+
+    const created = result.rows[0];
+    if (!created) {
+      res.status(500).json({ success: false, error: 'Failed to create tenant admin' });
+      return;
+    }
+
+    logger.info('Tenant admin created by owner', { userId: created.id, businessId: business_id, createdBy: (req as AuthenticatedRequest).user?.id });
+    res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    logger.error('Failed to create tenant admin', { error });
+    res.status(500).json({ success: false, error: 'Failed to create tenant admin' });
   }
 });
 
