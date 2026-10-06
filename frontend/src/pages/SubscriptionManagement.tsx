@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getAdminSubscriptions, cancelSubscription, activateSubscription, upgradeSubscription } from '@/services/api'
+import { getAdminSubscriptions, cancelSubscription, activateSubscription, createCheckoutSession } from '@/services/api'
 import type { Plan } from '@/types/subscription'
 import { useAuth } from '@/context/AuthContext'
 
@@ -40,14 +40,24 @@ export default function SubscriptionManagementPage() {
     if (!window.confirm('Are you sure you want to activate this subscription?')) return
     try {
       await activateSubscription(id)
+      toast.success('Subscription activated')
+      loadSubscriptions()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to activate subscription')
+    }
+  }
 
   async function handleUpgrade(id: string) {
     const plan = (window.prompt('Select plan (month/year):') || 'month').toLowerCase()
     if (!plan) return
     try {
-      await upgradeSubscription(id, plan)
-      toast.success('Subscription upgraded')
-      loadSubscriptions()
+      const businessId = (JSON.parse(localStorage.getItem('waflo_staff') || '{}') as any)?.business_id
+      if (!businessId) {
+        toast.error('Could not determine business ID. Please contact support.')
+        return
+      }
+      const { url } = await createCheckoutSession({ planSlug: plan, successUrl: `${window.location.origin}/dashboard`, cancelUrl: `${window.location.origin}/dashboard` })
+      window.open(url, '_blank')
     } catch (err: any) {
       toast.error(err.message || 'Failed to upgrade subscription')
     }
@@ -70,16 +80,6 @@ export default function SubscriptionManagementPage() {
     if (days === 0) return '0 days'
     if (days === 1) return '1 day'
     return `${days} days`
-  }
-
-  const statusColors: Record<string, string> = {
-
-  const statusColors: Record<string, string> = {
-      toast.success('Subscription activated')
-      loadSubscriptions()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to activate subscription')
-    }
   }
 
   const statusColors: Record<string, string> = {
@@ -135,12 +135,15 @@ export default function SubscriptionManagementPage() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColors[sub.status] || 'bg-surface-800 text-surface-400'}`}>
                         {sub.status.replace('_', ' ').toUpperCase()}
                       </span>
-                      {(sub.status === 'trialing' || sub.status === 'past_due') && days !== null && (
-                        <span className="text-xs text-surface-400 ml-2">
-                          {sub.status === 'trialing' ? `Trial: ` : `Grace: `}
-                          {days === 0 ? 'Expired' : formatDays(days)}
-                        </span>
-                      )}
+                      {(sub.status === 'trialing' || sub.status === 'past_due') && (() => {
+                        const remainingDays = daysLeft(sub)
+                        return remainingDays !== null && (
+                          <span className="text-xs text-surface-400 ml-2">
+                            {sub.status === 'trialing' ? `Trial: ` : `Grace: `}
+                            {remainingDays === 0 ? 'Expired' : formatDays(remainingDays)}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-surface-300">{sub.current_period_start ? new Date(sub.current_period_start).toLocaleDateString() : '-'}</td>
                     <td className="px-4 py-3 text-surface-300">{sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : '-'}</td>
@@ -162,6 +165,14 @@ export default function SubscriptionManagementPage() {
                         >
                           Activate
                         </button>
+                        {sub.status === 'expired' && (
+                          <button
+                            onClick={() => handleUpgrade(sub.id)}
+                            className="text-xs px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white rounded"
+                          >
+                            Upgrade Now
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
