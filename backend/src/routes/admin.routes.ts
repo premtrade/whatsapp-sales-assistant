@@ -9,6 +9,8 @@ import { cancelStripeSubscription, resumeStripeSubscription } from '../services/
 import { validateSettingValue } from '../services/settings.service';
 import { listContactInquiries } from '../services/contact-inquiry.service';
 import { hashPassword } from '../services/auth.service';
+import { assertEmailAvailable, nextEmployeeNumber, uniqueViolationDetail } from '../services/staff.service';
+import { AppError } from '../utils/errors';
 
 const router = Router();
 
@@ -151,18 +153,12 @@ router.post('/users', authenticate, requireOwnerAccess, async (req: Request, res
       return;
     }
 
-    const existing = await query(
-      `SELECT id FROM staff_users WHERE email = $1 AND business_id = $2 AND deleted_at IS NULL`,
-      [normalizedEmail, business_id]
-    );
-    if (existing.rows.length > 0) {
-      res.status(409).json({ success: false, error: 'A user with this email already exists for this business' });
-      return;
-    }
+    // Email is the login identifier, so it must be unique across ALL tenants,
+    // not just within this business (see migration 067).
+    await assertEmailAvailable(normalizedEmail);
 
-    const countResult = await query<{ total: string }>(`SELECT COUNT(*) as total FROM staff_users WHERE business_id = $1`, [business_id]);
-    const total = parseInt(countResult.rows[0]?.total || '0', 10);
-    const employeeNumber = `EMP${String(total + 1).padStart(3, '0')}`;
+    // Per-business sequence; scoped UNIQUE (business_id, employee_number).
+    const employeeNumber = await nextEmployeeNumber(business_id);
 
     const passwordHash = await hashPassword(String(password));
 
@@ -182,6 +178,20 @@ router.post('/users', authenticate, requireOwnerAccess, async (req: Request, res
     logger.info('Tenant admin created by owner', { userId: created.id, businessId: business_id, createdBy: (req as AuthenticatedRequest).user?.id });
     res.status(201).json({ success: true, data: created });
   } catch (error) {
+    // Surface real, actionable reasons instead of a flat 500.
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    const { code, constraint } = uniqueViolationDetail(error);
+    if (code === '23505') {
+      const message = constraint?.includes('email')
+        ? 'That email address is already in use. Email must be unique across all businesses.'
+        : 'That employee number is already taken in this business.';
+      logger.warn('Tenant admin create hit a unique constraint', { constraint, error });
+      res.status(409).json({ success: false, error: message });
+      return;
+    }
     logger.error('Failed to create tenant admin', { error });
     res.status(500).json({ success: false, error: 'Failed to create tenant admin' });
   }

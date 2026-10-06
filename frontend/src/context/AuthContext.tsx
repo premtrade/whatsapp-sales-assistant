@@ -7,7 +7,7 @@ import type { StaffUser, AuthState } from '@/types/auth'
 import toast from 'react-hot-toast'
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<StaffUser>
   logout: () => void
   loading: boolean
 }
@@ -39,12 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyAuth()
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<StaffUser> => {
     try {
       const data = await loginRequest({ email, password })
       authService().setAuth(data.token, data.staff)
       setStaff(data.staff)
       toast.success('Login successful')
+      return data.staff
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Login failed')
       throw error

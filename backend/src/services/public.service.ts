@@ -104,7 +104,7 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
   }
 
   const existingEmail = await query<{ id: string }>(
-    'SELECT id FROM staff_users WHERE email = $1 LIMIT 1',
+    'SELECT id FROM staff_users WHERE email = $1 AND deleted_at IS NULL LIMIT 1',
     [normalizedEmail]
   );
   if (existingEmail.rows.length > 0) {

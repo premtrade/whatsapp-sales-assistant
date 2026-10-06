@@ -72,7 +72,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const apiError: ApiError = {
-      message: error.response?.data?.message || error.message || 'An unexpected error occurred',
+      // Backend responses vary by route: `{ message }` for most, but the
+      // admin/owner routes return `{ error }`. Read both so callers show the
+      // real reason instead of a bare axios "Request failed with status code".
+      message:
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        'An unexpected error occurred',
       code: error.response?.data?.code,
       status: error.response?.status,
     }

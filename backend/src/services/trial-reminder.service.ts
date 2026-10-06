@@ -20,6 +20,7 @@ export async function sendDueTrialReminders(): Promise<number> {
       COALESCE(
         (SELECT su.email FROM staff_users su
          WHERE su.business_id = s.business_id AND su.status = 'active'
+           AND su.deleted_at IS NULL
            AND su.role IN ('admin', 'manager') AND su.email IS NOT NULL
          ORDER BY (su.role = 'admin') DESC, su.created_at ASC LIMIT 1),
         b.email
