@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getAdminSubscriptions, cancelSubscription, activateSubscription } from '@/services/api'
+import { getAdminSubscriptions, cancelSubscription, activateSubscription, upgradeSubscription } from '@/services/api'
 import type { Plan } from '@/types/subscription'
 import { useAuth } from '@/context/AuthContext'
 
@@ -40,6 +40,41 @@ export default function SubscriptionManagementPage() {
     if (!window.confirm('Are you sure you want to activate this subscription?')) return
     try {
       await activateSubscription(id)
+
+  async function handleUpgrade(id: string) {
+    const plan = (window.prompt('Select plan (month/year):') || 'month').toLowerCase()
+    if (!plan) return
+    try {
+      await upgradeSubscription(id, plan)
+      toast.success('Subscription upgraded')
+      loadSubscriptions()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upgrade subscription')
+    }
+  }
+
+  function daysLeft(sub: any): number | null {
+    if (sub.status === 'trialing' && sub.trial_ends_at) {
+      const days = Math.ceil((new Date(sub.trial_ends_at).getTime() - Date.now()) / 86400000)
+      return Math.max(0, days)
+    }
+    if (sub.status === 'past_due' || sub.status === 'expired') {
+      const graceEnd = sub.grace_period_end ? new Date(sub.grace_period_end).getTime() : Date.now()
+      const days = Math.ceil((graceEnd - Date.now()) / 86400000)
+      return Math.max(0, days)
+    }
+    return null
+  }
+
+  function formatDays(days: number): string {
+    if (days === 0) return '0 days'
+    if (days === 1) return '1 day'
+    return `${days} days`
+  }
+
+  const statusColors: Record<string, string> = {
+
+  const statusColors: Record<string, string> = {
       toast.success('Subscription activated')
       loadSubscriptions()
     } catch (err: any) {
@@ -100,6 +135,12 @@ export default function SubscriptionManagementPage() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColors[sub.status] || 'bg-surface-800 text-surface-400'}`}>
                         {sub.status.replace('_', ' ').toUpperCase()}
                       </span>
+                      {(sub.status === 'trialing' || sub.status === 'past_due') && days !== null && (
+                        <span className="text-xs text-surface-400 ml-2">
+                          {sub.status === 'trialing' ? `Trial: ` : `Grace: `}
+                          {days === 0 ? 'Expired' : formatDays(days)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-surface-300">{sub.current_period_start ? new Date(sub.current_period_start).toLocaleDateString() : '-'}</td>
                     <td className="px-4 py-3 text-surface-300">{sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : '-'}</td>

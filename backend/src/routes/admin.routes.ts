@@ -29,10 +29,12 @@ router.get('/financials', authenticate, requireOwnerAccess, async (_req, res: Re
 router.get('/users', authenticate, requireOwnerAccess, async (_req, res: Response): Promise<void> => {
   try {
     const result = await query(`
-      SELECT id, email, role, status, business_id, employee_number, first_name, last_name, created_at
-      FROM staff_users
-      WHERE deleted_at IS NULL
-      ORDER BY created_at DESC
+      SELECT u.id, u.email, u.role, u.status, u.business_id, u.employee_number, u.first_name, u.last_name, u.created_at,
+             b.name AS business_name, b.slug AS business_slug
+      FROM staff_users u
+      LEFT JOIN businesses b ON b.id = u.business_id
+      WHERE u.deleted_at IS NULL
+      ORDER BY u.created_at DESC
     `);
     res.json({ success: true, data: result.rows });
   } catch (error) {

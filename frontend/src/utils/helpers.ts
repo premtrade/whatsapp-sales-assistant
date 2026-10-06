@@ -6,8 +6,8 @@ export function formatDateTime(dateString: string): string {
   return new Date(dateString).toLocaleString()
 }
 
-export function formatCurrency(amount: number, currency = 'JMD'): string {
-  return new Intl.NumberFormat('en-JM', {
+export function formatCurrency(amount: number, currency = 'USD'): string {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
   }).format(amount)

@@ -202,7 +202,7 @@ export default function UserManagementPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-surface-300 font-mono text-xs">{user.employee_number}</td>
-                    <td className="px-4 py-3 text-surface-300 text-xs">{user.businessId || '-'}</td>
+                    <td className="px-4 py-3 text-surface-300 text-xs">{(user as any).business_name || (user as any).business_slug || (user as any).business_id || (user as any).businessId || '-'}</td>
                     <td className="px-4 py-3 text-surface-300">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
