@@ -31,7 +31,7 @@ export const authenticate = async (
     const userResult = await query(
       `SELECT id, email, role, status, business_id, employee_number, first_name, last_name
        FROM staff_users
-       WHERE id = $1 AND status = 'active'`,
+       WHERE id = $1 AND status = 'active' AND deleted_at IS NULL`,
       [userId]
     );
 
@@ -135,7 +135,7 @@ export const optionalAuth = async (
         const userResult = await query(
           `SELECT id, email, role, status, business_id, employee_number, first_name, last_name
            FROM staff_users
-           WHERE id = $1 AND status = 'active'`,
+           WHERE id = $1 AND status = 'active' AND deleted_at IS NULL`,
           [userId]
         );
 

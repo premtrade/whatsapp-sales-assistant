@@ -406,7 +406,7 @@ export async function requireStaffSeat(businessId: string): Promise<void> {
   if (!sub || !isUsable(sub)) throw new PaymentRequiredError('Active subscription or trial required to add staff.');
   const limit = getPlanLimit(sub.plan as Plan, 'staff_users');
   if (limit === undefined || isUnlimited(limit)) return;
-  const c = await query<{ total: string }>(`SELECT COUNT(*) AS total FROM staff_users WHERE business_id=$1 AND status='active'`, [businessId]);
+  const c = await query<{ total: string }>(`SELECT COUNT(*) AS total FROM staff_users WHERE business_id=$1 AND status='active' AND deleted_at IS NULL`, [businessId]);
   const used = parseInt(c.rows[0]?.total || '0', 10);
   if (used >= limit) throw new PaymentRequiredError(`Staff seats full (${used}/${limit}). Please upgrade.`);
 }

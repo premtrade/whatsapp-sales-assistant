@@ -30,6 +30,60 @@ display_name, email, phone, role, status, timezone, metadata, created_at, update
 export const VALID_ROLES = ['super_admin', 'admin', 'manager', 'sales', 'support', 'technician'];
 export const VALID_STATUSES = ['active', 'inactive', 'suspended', 'invited'];
 
+/** Postgres reports the violated index/constraint name on unique violations (23505). */
+export function uniqueViolationDetail(error: unknown): { code?: string; constraint?: string } {
+  if (error && typeof error === 'object') {
+    const e = error as { code?: unknown; constraint?: unknown };
+    return {
+      code: typeof e.code === 'string' ? e.code : undefined,
+      constraint: typeof e.constraint === 'string' ? e.constraint : undefined,
+    };
+  }
+  return {};
+}
+
+/**
+ * Email is the login identifier (auth.service.login matches on email alone with
+ * no tenant predicate), so uniqueness is GLOBAL across every tenant rather than
+ * per business. Only non-deleted rows occupy an address, matching the partial
+ * unique index added in migration 067.
+ */
+export async function assertEmailAvailable(email: string, excludeStaffId?: string): Promise<void> {
+  const normalized = email.toLowerCase().trim();
+  const params: unknown[] = [normalized];
+  let sql = 'SELECT id FROM staff_users WHERE email = $1 AND deleted_at IS NULL';
+  if (excludeStaffId) {
+    params.push(excludeStaffId);
+    sql += ` AND id <> $${params.length}`;
+  }
+  const existing = await query(sql, params);
+  if (existing.rows.length > 0) {
+    throw new ConflictError(
+      'That email address is already in use. Email must be unique across all businesses.'
+    );
+  }
+}
+
+/**
+ * Employee numbers restart for every business (EMP001, EMP002, ...), so the
+ * unique index is scoped to (business_id, employee_number). Deriving the next
+ * value from the highest existing number rather than COUNT(*) means a hard
+ * delete cannot cause an already-used number to be reissued.
+ */
+export async function nextEmployeeNumber(tenantId: string): Promise<string> {
+  const result = await query<{ employee_number: string }>(
+    `SELECT employee_number FROM staff_users
+     WHERE business_id = $1 AND employee_number ~ '^EMP[0-9]+$'`,
+    [tenantId]
+  );
+  let max = 0;
+  for (const row of result.rows) {
+    const parsed = Number.parseInt(row.employee_number.slice(3), 10);
+    if (!Number.isNaN(parsed) && parsed > max) max = parsed;
+  }
+  return `EMP${String(max + 1).padStart(3, '0')}`;
+}
+
 export async function getStaffUsers(filters: StaffFilters): Promise<{
   data: StaffUser[];
   meta: { page: number; limit: number; total: number; totalPages: number };
@@ -42,6 +96,8 @@ export async function getStaffUsers(filters: StaffFilters): Promise<{
   let i = 1;
 
   const tenantId = filters.businessId || filters.tenantId;
+  // Soft-deleted staff must never appear in listings.
+  conditions.push('deleted_at IS NULL');
   if (tenantId) {
     conditions.push(`business_id = $${i++}`);
     params.push(tenantId);
@@ -74,7 +130,7 @@ export async function getStaffUsers(filters: StaffFilters): Promise<{
 }
 
 export async function getStaffUserById(id: string, tenantId?: string): Promise<StaffUser> {
-  let sql = `SELECT ${STAFF_COLUMNS} FROM staff_users WHERE id = $1`;
+  let sql = `SELECT ${STAFF_COLUMNS} FROM staff_users WHERE id = $1 AND deleted_at IS NULL`;
   const params: unknown[] = [id];
   let paramIndex = 2;
 
@@ -102,13 +158,10 @@ export async function createStaffUser(data: StaffCreateRequest, tenantId: string
   const status = data.status || 'active';
   if (!VALID_STATUSES.includes(status)) throw new BadRequestError(`status must be one of: ${VALID_STATUSES.join(', ')}`);
 
-  // Check email uniqueness within tenant
-  const existing = await query(`SELECT id FROM staff_users WHERE email = $1 AND business_id = $2`, [email, tenantId]);
-  if (existing.rows.length > 0) throw new ConflictError('A staff user with this email already exists in this tenant');
+  // Email is the login identifier, so uniqueness is global across tenants.
+  await assertEmailAvailable(email);
 
-  const countResult = await query<{ total: string }>(`SELECT COUNT(*) as total FROM staff_users WHERE business_id = $1`, [tenantId]);
-  const total = parseInt(countResult.rows[0]?.total || '0', 10);
-  const employeeNumber = `EMP${String(total + 1).padStart(3, '0')}`;
+  const employeeNumber = await nextEmployeeNumber(tenantId);
   const passwordHash = await hashPassword(data.password || `${firstName.toLowerCase()}123!`);
 
   const metadata: Record<string, unknown> = {};
@@ -129,8 +182,12 @@ export async function createStaffUser(data: StaffCreateRequest, tenantId: string
     if (!created) throw new BadRequestError('Failed to create staff user');
     return created;
   } catch (error: unknown) {
-    if (error && typeof error === 'object' && (error as { code?: string }).code === '23505') {
-      throw new ConflictError('A staff user with this email or employee number already exists in this tenant');
+    const { code, constraint } = uniqueViolationDetail(error);
+    if (code === '23505') {
+      if (constraint?.includes('email')) {
+        throw new ConflictError('That email address is already in use. Email must be unique across all businesses.');
+      }
+      throw new ConflictError('That employee number is already taken in this business.');
     }
     throw error;
   }
@@ -141,6 +198,9 @@ export async function updateStaffUser(id: string, data: Partial<StaffCreateReque
   if (data.role && !VALID_ROLES.includes(data.role)) throw new BadRequestError('Invalid role');
   if (data.status && !VALID_STATUSES.includes(data.status)) throw new BadRequestError('Invalid status');
   if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) throw new BadRequestError('A valid email is required');
+
+  // Changing email must re-check globally, not just within the tenant.
+  if (data.email) await assertEmailAvailable(data.email, id);
 
   const sets: string[] = [];
   const params: unknown[] = [id];
@@ -169,8 +229,12 @@ export async function updateStaffUser(id: string, data: Partial<StaffCreateReque
     if (!updated) throw new NotFoundError('Staff user not found in this tenant');
     return updated;
   } catch (error: unknown) {
-    if (error && typeof error === 'object' && (error as { code?: string }).code === '23505') {
-      throw new ConflictError('A staff user with this email already exists in this tenant');
+    const { code, constraint } = uniqueViolationDetail(error);
+    if (code === '23505') {
+      if (constraint?.includes('email')) {
+        throw new ConflictError('That email address is already in use. Email must be unique across all businesses.');
+      }
+      throw new ConflictError('That employee number is already taken in this business.');
     }
     throw error;
   }
@@ -190,13 +254,16 @@ export async function updateStaffStatus(id: string, status: string, tenantId: st
 export async function deleteStaffUser(id: string, tenantId: string): Promise<void> {
   // First, ensure the staff user exists in this tenant
   await getStaffUserById(id, tenantId);
-  // Delete the staff user
-  await query(`DELETE FROM staff_users WHERE id = $1 AND business_id = $2`, [id, tenantId]);
+  // Soft-delete, matching admin.routes: a hard DELETE is rejected by the
+  // staff_users foreign keys (conversation_notes.staff_id, handoffs, ...).
+  await query(`UPDATE staff_users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND business_id = $2`, [id, tenantId]);
 }
 
 export async function acceptInvitation(token: string, password: string): Promise<StaffUser> {
   const result = await query<StaffUser>(
-    `SELECT ${STAFF_COLUMNS} FROM staff_users WHERE metadata->>'invite_token' = $1 AND status = 'invited' LIMIT 1`,
+    `SELECT ${STAFF_COLUMNS} FROM staff_users
+     WHERE metadata->>'invite_token' = $1 AND status = 'invited' AND deleted_at IS NULL
+     LIMIT 1`,
     [token]
   );
   const user = result.rows[0];

@@ -48,7 +48,7 @@ export async function login(req: LoginRequest): Promise<AuthResponse> {
   const sanitizedPassword = req.password;
 
   const result = await query<StaffUser>(
-    'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, password_hash, created_at, updated_at, business_id FROM staff_users WHERE LOWER(email::text) = $1',
+    'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, password_hash, created_at, updated_at, business_id FROM staff_users WHERE LOWER(email::text) = $1 AND deleted_at IS NULL',
     [normalizedEmail]
   );
 
@@ -114,7 +114,7 @@ export async function validateToken(token: string): Promise<StaffUser | null> {
   try {
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload & { userId: string; businessId?: string; tenantId?: string };
     const result = await query<StaffUser>(
-      'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, created_at, updated_at, business_id FROM staff_users WHERE id = $1 AND status = $2',
+      'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, created_at, updated_at, business_id FROM staff_users WHERE id = $1 AND status = $2 AND deleted_at IS NULL',
       [decoded.userId, 'active']
     );
     const user = result.rows[0];

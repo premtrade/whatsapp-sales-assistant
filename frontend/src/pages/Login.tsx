@@ -23,8 +23,11 @@ export function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/dashboard')
+      const staff = await login(email, password)
+      // super_admin has no tenant scope (business_id is NULL by design), so
+      // /dashboard would 500 with "Tenant scope required". Their home is the
+      // platform overview at /owner.
+      navigate(staff.role === 'super_admin' ? '/owner' : '/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
