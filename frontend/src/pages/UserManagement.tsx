@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getAdminUsers, updateAdminUser, deleteAdminUser } from '@/services/api'
+import { getAdminUsers, updateAdminUser, deleteAdminUser, getAdminBusinesses, createTenantAdmin } from '@/services/api'
 import type { StaffUser } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 
@@ -14,6 +14,10 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<{ role: string; status: string }>({ role: '', status: '' })
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; slug: string; status: string }>>([])
+  const [createForm, setCreateForm] = useState({ email: '', password: '', first_name: '', last_name: '', business_id: '', role: 'admin', status: 'active' })
+  const [creating, setCreating] = useState(false)
   const { staff } = useAuth()
 
   useEffect(() => {
@@ -29,6 +33,45 @@ export default function UserManagementPage() {
       toast.error('Failed to load users')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadBusinesses() {
+    try {
+      const data = await getAdminBusinesses()
+      setBusinesses(data)
+    } catch (err) {
+      console.error('Failed to load businesses', err)
+    }
+  }
+
+  function openCreateModal() {
+    setCreateForm({ email: '', password: '', first_name: '', last_name: '', business_id: '', role: 'admin', status: 'active' })
+    setShowCreateModal(true)
+    loadBusinesses()
+  }
+
+  function closeCreateModal() {
+    setShowCreateModal(false)
+    setCreating(false)
+  }
+
+  async function submitCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!createForm.business_id) {
+      toast.error('Please select a business')
+      return
+    }
+    setCreating(true)
+    try {
+      await createTenantAdmin(createForm)
+      toast.success('Tenant admin created')
+      closeCreateModal()
+      loadUsers()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create tenant admin')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -75,8 +118,20 @@ export default function UserManagementPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-surface-100">User Management</h1>
-        <p className="text-sm text-surface-400">Manage platform users and their permissions.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-surface-100">User Management</h1>
+            <p className="text-sm text-surface-400">Manage platform users and their permissions.</p>
+          </div>
+          {canManage && (
+            <button
+              onClick={openCreateModal}
+              className="text-sm px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded"
+            >
+              Create Tenant Admin
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-surface-900 border border-surface-800 rounded-xl overflow-hidden">
@@ -193,6 +248,115 @@ export default function UserManagementPage() {
           </table>
         </div>
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface-900 border border-surface-800 rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-surface-100 mb-4">Create Tenant Admin</h2>
+            <form onSubmit={submitCreate} className="space-y-4">
+              <div>
+                <label className="block text-sm text-surface-300 mb-1">Business</label>
+                <select
+                  value={createForm.business_id}
+                  onChange={(e) => setCreateForm({ ...createForm, business_id: e.target.value })}
+                  className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  required
+                >
+                  <option value="">Select a business</option>
+                  {businesses.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.slug})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-surface-300 mb-1">First Name</label>
+                  <input
+                    type="text"
+                    value={createForm.first_name}
+                    onChange={(e) => setCreateForm({ ...createForm, first_name: e.target.value })}
+                    className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-surface-300 mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    value={createForm.last_name}
+                    onChange={(e) => setCreateForm({ ...createForm, last_name: e.target.value })}
+                    className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-surface-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                  className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-surface-300 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                  className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-surface-300 mb-1">Role</label>
+                  <select
+                    value={createForm.role}
+                    onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                    className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    {roleOptions.map((r) => (
+                      <option key={r} value={r}>{r.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-surface-300 mb-1">Status</label>
+                  <select
+                    value={createForm.status}
+                    onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
+                    className="w-full bg-surface-800 border border-surface-700 rounded px-3 py-2 text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    {statusOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  className="text-sm px-3 py-2 bg-surface-700 hover:bg-surface-600 text-surface-300 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="text-sm px-3 py-2 bg-success-500 hover:bg-success-600 disabled:bg-success-500/50 text-white rounded"
+                >
+                  {creating ? 'Creating...' : 'Create Admin'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

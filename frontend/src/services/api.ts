@@ -654,6 +654,16 @@ export async function deleteAdminUser(id: string): Promise<void> {
   await api.delete(`/admin/users/${id}`)
 }
 
+export async function getAdminBusinesses(): Promise<Array<{ id: string; name: string; slug: string; status: string }>> {
+  const response = await api.get('/admin/businesses')
+  return (response.data as { success: boolean; data: Array<{ id: string; name: string; slug: string; status: string }> }).data
+}
+
+export async function createTenantAdmin(data: { email: string; password: string; first_name: string; last_name: string; business_id: string; role?: string; status?: string }): Promise<any> {
+  const response = await api.post('/admin/users', data)
+  return (response.data as { success: boolean; data: any }).data
+}
+
 export async function getAdminSubscriptions(): Promise<any[]> {
   const response = await api.get<{ success: boolean; data: any[] }>('/admin/subscriptions')
   return response.data.data
