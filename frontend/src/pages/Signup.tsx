@@ -1,9 +1,10 @@
-import { useState, useEffect, type FormEvent } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { publicSignup, checkSlugAvailability, checkPhoneAvailability, activateBusiness } from '@/services/api'
+import { publicSignup, checkSlugAvailability, checkPhoneAvailability, activateBusiness, connectWhatsAppSession, getWhatsAppStatus } from '@/services/api'
 import { LoadingState } from '@/components/ErrorState/ErrorState'
+import { authService } from '@/services/auth'
 import type { Business } from '@/types'
 
 type SignupStep = 'details' | 'setup' | 'complete'
@@ -58,15 +59,22 @@ function validateField(name: keyof typeof defaults, value: string | undefined, f
 }
 
 export default function SignupPage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [step, setStep] = useState<SignupStep>('details')
   const [business, setBusiness] = useState<Business | null>(null)
-  const [token, setToken] = useState<string | null>(null)
+  const [pairingStartAttempted, setPairingStartAttempted] = useState(false)
+  const pairingStartStarted = useRef(false)
   const [form, setForm] = useState(defaults)
   const [touched, setTouched] = useState<Partial<Record<keyof typeof defaults, boolean>>>({})
   const [errors, setErrors] = useState<FormErrors>({})
+
+  const whatsappStatusQuery = useQuery({
+    queryKey: ['signup-whatsapp-status', business?.id],
+    queryFn: getWhatsAppStatus,
+    enabled: step === 'setup' && !!business?.id,
+    refetchInterval: (query) => query.state.data?.connected ? false : 4000,
+  })
 
   const slugCheck = useQuery({
     queryKey: ['slug-availability', form.slug],
@@ -110,8 +118,8 @@ export default function SignupPage() {
   const signupMutation = useMutation({
     mutationFn: publicSignup,
     onSuccess: (result) => {
+      authService().setAuth(result.token, result.user)
       setBusiness(result.business as Business)
-      setToken(result.token)
       toast.success('Account created! Let\'s set up your WhatsApp.')
       setStep('setup')
     },
@@ -130,6 +138,26 @@ export default function SignupPage() {
       toast.error(error?.message || 'Activation failed')
     },
   })
+
+  const connectMutation = useMutation({
+    mutationFn: connectWhatsAppSession,
+    onSuccess: (status) => {
+      queryClient.setQueryData(['signup-whatsapp-status', business?.id], status)
+      if (status.connected) toast.success('WhatsApp is connected')
+      else toast.success('QR code ready. Scan it with WhatsApp to pair this number.')
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'Could not start WhatsApp pairing')
+    },
+  })
+
+  useEffect(() => {
+    if (step === 'setup' && business?.id && !pairingStartAttempted && !pairingStartStarted.current && !whatsappStatusQuery.data && !connectMutation.isPending) {
+      pairingStartStarted.current = true
+      setPairingStartAttempted(true)
+      connectMutation.mutate()
+    }
+  }, [step, business?.id, pairingStartAttempted, whatsappStatusQuery.data, connectMutation.isPending])
 
   const handleChange = (name: keyof typeof defaults, value: string) => {
     setForm((prev) => ({ ...prev, [name]: value }))
@@ -166,14 +194,7 @@ export default function SignupPage() {
   }
 
   const handleFinish = () => {
-    if (token) {
-      localStorage.setItem('auth_token', token)
-      if (business) {
-        const staffUser = { id: '', email: form.email, firstName: form.ownerName.split(' ')[0], lastName: form.ownerName.split(' ').slice(1).join(' ') || '', role: 'admin', businessId: business.id }
-        localStorage.setItem('staff_user', JSON.stringify(staffUser))
-      }
-    }
-    navigate('/dashboard')
+    window.location.assign('/dashboard')
   }
 
   if (step === 'complete') {
@@ -198,15 +219,40 @@ export default function SignupPage() {
       <div className="min-h-screen flex items-center justify-center bg-surface-50 p-4">
         <div className="max-w-md w-full card p-8">
           <h2 className="text-2xl font-bold text-surface-900 mb-2">Connect WhatsApp</h2>
-          <p className="text-surface-500 mb-6">Scan the QR code in your WAHA dashboard to connect your WhatsApp number. Your session name is:</p>
-          <div className="bg-surface-100 rounded-lg p-4 mb-4">
-            <code className="text-sm text-surface-700 break-all">{business?.waha_session_name || 'loading...'}</code>
+          <p className="text-surface-500 mb-4">Open WhatsApp on the phone for this business number, choose Linked Devices → Link a Device, then scan this code.</p>
+          <div className="w-56 h-56 mx-auto mb-4 bg-white border border-surface-200 rounded-lg p-3 flex items-center justify-center">
+            {whatsappStatusQuery.isLoading ? (
+              <LoadingState type="spinner" />
+            ) : whatsappStatusQuery.data?.connected ? (
+              <div className="text-center text-success-700">
+                <div className="text-3xl mb-2">✓</div>
+                <p className="font-semibold">WhatsApp connected</p>
+                <p className="text-xs mt-1">Session: {whatsappStatusQuery.data.session}</p>
+              </div>
+            ) : whatsappStatusQuery.data?.qrCode ? (
+              <img src={whatsappStatusQuery.data.qrCode} alt="WhatsApp pairing QR code" className="w-full h-full object-contain" />
+            ) : (
+              <p className="text-sm text-surface-500 text-center">QR code is not available yet. Start pairing or refresh in a moment.</p>
+            )}
           </div>
-          <p className="text-sm text-surface-500 mb-6">Once connected, we'll verify your number and activate your account.</p>
+          {!whatsappStatusQuery.data?.connected && (
+            <button
+              onClick={() => connectMutation.mutate()}
+              disabled={connectMutation.isPending}
+              className="btn btn-secondary w-full mb-3"
+            >
+              {connectMutation.isPending ? 'Starting WhatsApp…' : 'Generate / refresh QR code'}
+            </button>
+          )}
           {activateMutation.isPending && <LoadingState type="card" count={1} />}
-          <button onClick={() => activateMutation.mutate()} disabled={activateMutation.isPending} className="btn btn-primary w-full">
-            {activateMutation.isPending ? 'Activating...' : 'I\'ve connected WhatsApp'}
+          <button
+            onClick={() => activateMutation.mutate()}
+            disabled={activateMutation.isPending || !whatsappStatusQuery.data?.connected}
+            className="btn btn-primary w-full disabled:opacity-50"
+          >
+            {activateMutation.isPending ? 'Activating...' : 'Activate business'}
           </button>
+          <button onClick={() => whatsappStatusQuery.refetch()} className="btn btn-link w-full mt-2">Refresh connection status</button>
         </div>
       </div>
     )

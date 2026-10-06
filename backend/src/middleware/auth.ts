@@ -203,10 +203,8 @@ export function requireOwnerAccess(req: any, _res: any, next: any): void {
   if (!req.user) {
     throw new UnauthorizedError('Authentication required');
   }
-  const userRole = req.user.role;
-  const isOwnerRole = ['super_admin', 'admin'].includes(userRole);
-  if (!isOwnerRole) {
-    throw new ForbiddenError('Owner access required. Need super_admin or admin role.');
+  if (req.user.role !== 'super_admin') {
+    throw new ForbiddenError('Platform owner access required.');
   }
   next();
 }

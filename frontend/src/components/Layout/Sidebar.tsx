@@ -42,6 +42,7 @@ export function Sidebar({ isOpen, onToggle, onNavigate }: SidebarProps) {
   const { staff, logout } = useAuth()
   const { isConnected } = useWebSocket()
   const navigate = useNavigate()
+  const visibleNavigation = staff?.role === 'super_admin' ? [] : navigation
 
   useEffect(() => {
     const updateMobile = () => {
@@ -98,7 +99,7 @@ export function Sidebar({ isOpen, onToggle, onNavigate }: SidebarProps) {
 
         {/* Navigation */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
-        {navigation.map((item) => (
+        {visibleNavigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
