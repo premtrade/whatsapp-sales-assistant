@@ -50,7 +50,7 @@ export const getStaffUser = async (req: Request, res: Response): Promise<void> =
 export const createNewStaffUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   requireAdmin(req);
   const validated = staffCreateSchema.parse(req.body);
-  const created = await createStaffUser(validated);
+  const created = await createStaffUser(validated, currentUser(req).businessId);
   await createAuditLog('staff_user', 'staff.created', req.user?.id || null, 'staff', `Staff user '${created.email}' created`);
   res.json({ success: true, data: created });
 };

@@ -5,11 +5,13 @@ import { config } from './config';
 import logger from './utils/logger';
 import { closePool } from './utils/database';
 import { initializeWebSocket } from './websocketServer';
+import { startSubscriptionJobs } from './jobs/subscription.jobs';
 
 const server = createServer(app);
 const port = config.port;
 
 initializeWebSocket(server);
+startSubscriptionJobs();
 
 server.listen(port, () => {
   logger.info(`Backend API server running on port ${port}`);

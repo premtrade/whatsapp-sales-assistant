@@ -2,6 +2,7 @@ import { query } from '../utils/database';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors';
 import { StaffUser, PaginationQuery } from '../types';
 import { hashPassword } from './auth.service';
+import { assertSeatAvailable } from './entitlement.service';
 
 export interface StaffFilters extends PaginationQuery {
   search?: string;
@@ -71,7 +72,13 @@ export async function getStaffUserById(id: string): Promise<StaffUser> {
   return user;
 }
 
-export async function createStaffUser(data: StaffCreateRequest): Promise<StaffUser> {
+export async function createStaffUser(
+  data: StaffCreateRequest,
+  businessId?: string | null
+): Promise<StaffUser> {
+  // Seat-limit enforcement for tenant-scoped plans (beta entitlements).
+  if (businessId) await assertSeatAvailable(businessId);
+
   const firstName = (data.first_name || '').trim();
   const lastName = (data.last_name || '').trim();
   const email = (data.email || '').toLowerCase().trim();
@@ -94,10 +101,10 @@ export async function createStaffUser(data: StaffCreateRequest): Promise<StaffUs
 
   try {
     const result = await query<StaffUser>(
-      `INSERT INTO staff_users (employee_number, first_name, last_name, email, phone, role, status, timezone, password_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO staff_users (employee_number, first_name, last_name, email, phone, role, status, timezone, password_hash, business_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING ${STAFF_COLUMNS}`,
-      [employeeNumber, firstName, lastName, email, data.phone || null, role, status, data.timezone || 'America/Jamaica', passwordHash]
+      [employeeNumber, firstName, lastName, email, data.phone || null, role, status, data.timezone || 'America/Jamaica', passwordHash, businessId ?? null]
     );
     const created = result.rows[0];
     if (!created) throw new BadRequestError('Failed to create staff user');

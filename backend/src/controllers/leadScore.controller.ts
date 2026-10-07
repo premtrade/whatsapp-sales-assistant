@@ -108,7 +108,8 @@ export const updateLeadScore = async (req: Request, res: Response): Promise<void
   });
 };
 
-export const getLeadPipeline = async (_req: Request, res: Response): Promise<void> => {
-  const summary = await getLeadPipelineSummary();
+export const getLeadPipeline = async (req: Request, res: Response): Promise<void> => {
+  const businessId = (req as Request & { user?: import('../types').UserPayload }).user?.businessId;
+  const summary = await getLeadPipelineSummary(businessId);
   res.json({ success: true, data: summary });
 };

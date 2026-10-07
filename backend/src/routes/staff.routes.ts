@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { listStaffUsers, getStaffUser, createNewStaffUser, updateExistingStaffUser, updateStaffUserStatus } from '../controllers/staff.controller';
 import { authenticate, requireRole } from '../middleware/auth';
+import { requireEntitlement } from '../middleware/entitlement';
 import { sanitizePagination } from '../middleware/validation';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requireEntitlement);
 router.use(sanitizePagination);
 
 router.get('/users', listStaffUsers);

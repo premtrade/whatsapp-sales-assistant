@@ -31,6 +31,7 @@ export const authenticate = async (
       employeeNumber: (decoded.employeeNumber as string) || (decoded.employee_number as string),
       firstName: (decoded.firstName as string) || (decoded.first_name as string) || '',
       lastName: (decoded.lastName as string) || (decoded.last_name as string) || '',
+      businessId: (decoded.businessId as string) || (decoded.business_id as string) || undefined,
     };
     next();
   } catch (error) {

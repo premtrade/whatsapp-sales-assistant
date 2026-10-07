@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { listQuotes, getQuote, updateQuoteStatusController } from '../controllers/quote.controller';
 import { authenticate } from '../middleware/auth';
+import { requireEntitlement } from '../middleware/entitlement';
 import { sanitizePagination } from '../middleware/validation';
 import { generateQuotePDF } from '../services/pdf.service';
 import { sendWahaDocument } from '../services/waha.service';
@@ -8,7 +9,7 @@ import { query } from '../utils/database';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requireEntitlement);
 router.use(sanitizePagination);
 
 router.get('/', listQuotes);

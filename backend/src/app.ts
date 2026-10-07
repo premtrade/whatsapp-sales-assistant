@@ -8,6 +8,8 @@ import { validateBody } from './middleware/validation';
 import { loginSchema } from './controllers/auth.controller';
 import { requestIdMiddleware } from './middleware/requestId';
 import authRoutes from './routes/auth.routes';
+import signupRoutes from './routes/signup.routes';
+import subscriptionRoutes from './routes/subscription.routes';
 import conversationRoutes from './routes/conversation.routes';
 import contactRoutes from './routes/contact.routes';
 import handoffRoutes from './routes/handoff.routes';
@@ -26,6 +28,7 @@ import settingsRoutes from './routes/settings.routes';
 import staffRoutes from './routes/staff.routes';
 import whatsappConfigRoutes from './routes/whatsappConfig.routes';
 import systemHealthRoutes from './routes/systemHealth.routes';
+import internalRoutes from './routes/internal.routes';
 import { healthRoutes } from './routes/health.routes';
 import { ApiResponse } from './types';
 
@@ -39,7 +42,7 @@ app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Internal-API-Key'],
 }));
 
 app.use(requestIdMiddleware);
@@ -60,6 +63,8 @@ app.use('/health', healthRoutes);
 
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', signupRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/contacts', contactRoutes);
@@ -80,6 +85,12 @@ app.use('/api/staff/users', staffRoutes);
 
 app.use('/api/whatsapp', whatsappConfigRoutes);
 app.use('/api/system', systemHealthRoutes);
+
+// Internal AI-pipeline endpoints (n8n workflows, shared-secret auth).
+// Mounted only when INTERNAL_API_KEY is configured — fail closed.
+if (config.internalApiKey) {
+  app.use('/api/internal', internalRoutes);
+}
 
 app.get('/', (_req: Request, res: Response<ApiResponse>): void => {
   res.json({

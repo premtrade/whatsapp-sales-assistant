@@ -251,18 +251,26 @@ export async function updateLeadScoreStatus(id: string, status: string): Promise
   return score;
 }
 
-export async function getLeadPipelineSummary(): Promise<{
+/**
+ * Tenant-scoped lead pipeline summary. businessId is required; the function
+ * throws instead of falling back to a global (cross-tenant) aggregate.
+ */
+export async function getLeadPipelineSummary(businessId?: string): Promise<{
   total: number;
   averageScore: number;
   byStatus: Record<string, number>;
   byProjectType: Record<string, number>;
   scoreDistribution: { range: string; count: number }[];
 }> {
+  if (!businessId) {
+    throw new Error('getLeadPipelineSummary requires a businessId (tenant isolation)');
+  }
+  const scope = 'ls.business_id = $1';
   const [totalResult, avgResult, statusResult, projectTypeResult, distributionResult] = await Promise.all([
-    query<{ total: string }>('SELECT COUNT(*) as total FROM lead_scores'),
-    query<{ avg: string }>('SELECT COALESCE(ROUND(AVG(total_score)), 0) as avg FROM lead_scores'),
-    query<{ status: string; count: string }>('SELECT status, COUNT(*) as count FROM lead_scores GROUP BY status'),
-    query<{ project_type: string; count: string }>('SELECT project_type, COUNT(*) as count FROM lead_scores WHERE project_type IS NOT NULL GROUP BY project_type ORDER BY count DESC'),
+    query<{ total: string }>(`SELECT COUNT(*) as total FROM lead_scores ls WHERE ${scope}`, [businessId]),
+    query<{ avg: string }>(`SELECT COALESCE(ROUND(AVG(total_score)), 0) as avg FROM lead_scores ls WHERE ${scope}`, [businessId]),
+    query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM lead_scores ls WHERE ${scope} GROUP BY status`, [businessId]),
+    query<{ project_type: string; count: string }>(`SELECT project_type, COUNT(*) as count FROM lead_scores ls WHERE ${scope} AND project_type IS NOT NULL GROUP BY project_type ORDER BY count DESC`, [businessId]),
     query<{ range: string; count: string }>(`
       SELECT
         CASE
@@ -271,10 +279,11 @@ export async function getLeadPipelineSummary(): Promise<{
           ELSE '70-100 (High)'
         END as range,
         COUNT(*) as count
-      FROM lead_scores
+      FROM lead_scores ls
+      WHERE ${scope}
       GROUP BY range
       ORDER BY MIN(total_score)
-    `),
+    `, [businessId]),
   ]);
 
   const byStatus: Record<string, number> = {};
