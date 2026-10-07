@@ -5,10 +5,6 @@
   "installCommand": "npm ci",
   "rewrites": [
     {
-      "source": "/ws",
-      "destination": "http://206.189.179.60/ws"
-    },
-    {
       "source": "/api/:path*",
       "destination": "http://206.189.179.60/api/:path*"
     },

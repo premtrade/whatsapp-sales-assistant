@@ -9,8 +9,18 @@ export function useRealtime(
     const token = localStorage.getItem('auth_token')
     if (!token) return
 
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws?token=${encodeURIComponent(token)}`)
+    const buildWsUrl = () => {
+      const wsUrl = import.meta.env.VITE_WS_URL
+      if (wsUrl) {
+        const url = new URL(wsUrl)
+        const proto = url.protocol === 'https:' ? 'wss:' : 'ws:'
+        return `${proto}//${url.host}/ws?token=${encodeURIComponent(token)}`
+      }
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      return `${proto}//${window.location.host}/ws?token=${encodeURIComponent(token)}`
+    }
+
+    const ws = new WebSocket(buildWsUrl())
 
     ws.onopen = () => {
       setConnected(true)
