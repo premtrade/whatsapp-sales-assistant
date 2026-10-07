@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { loginController, getMeController } from '../controllers/auth.controller';
+import { loginController, getMeController, loginSchema } from '../controllers/auth.controller';
 import { validateBody } from '../middleware/validation';
 import { authRateLimiter } from '../middleware/rateLimiter';
 import { authenticate } from '../middleware/auth';
