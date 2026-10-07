@@ -91,13 +91,13 @@ export function DashboardPage() {
       {/* KPI Cards */}
       {statsLoading ? (
         <LoadingState type="card" count={6} />
-      ) : stats ? (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
-          <MetricCard
-            className="p-4 sm:p-5"
-            title="Active Conversations"
-            value={stats.conversations.active}
-            onClick={() => navigate('/inbox')}
+          ) : stats ? (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+              <MetricCard
+                className="p-4 sm:p-5"
+                title="Active Conversations"
+                value={Number(stats.conversations.active) || 0}
+                onClick={() => navigate('/inbox')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-3.46-.36L3 20l1.36-4.54A9 9 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -106,7 +106,7 @@ export function DashboardPage() {
           />
           <MetricCard
             title="Pending Handoffs"
-            value={stats.handoffs.pending}
+            value={Number(stats.handoffs.pending) || 0}
             onClick={() => navigate('/handoffs')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@ export function DashboardPage() {
           />
           <MetricCard
             title="Quote Requests"
-            value={stats.quotes.sent}
+            value={Number(stats.quotes.sent) || 0}
             onClick={() => navigate('/quotes')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +126,7 @@ export function DashboardPage() {
           />
           <MetricCard
             title="Appointments"
-            value={stats.appointments.scheduled + stats.appointments.confirmed}
+            value={Number(stats.appointments.scheduled) + Number(stats.appointments.confirmed) || 0}
             onClick={() => navigate('/appointments')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@ export function DashboardPage() {
           />
           <MetricCard
             title="AI Conversations"
-            value={stats.conversations.active - stats.handoffs.pending}
+            value={Number(stats.conversations.active) - Number(stats.handoffs.pending) || 0}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -145,7 +145,7 @@ export function DashboardPage() {
           />
           <MetricCard
             title="New Customers"
-            value={stats.contacts.active}
+            value={Number(stats.contacts.active) || 0}
             onClick={() => navigate('/customers')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,9 +162,9 @@ export function DashboardPage() {
           <h3 className="text-sm font-semibold text-surface-800 mb-4">Conversation Activity (30 days)</h3>
           {statsLoading ? (
             <div className="skeleton h-48 w-full" />
-          ) : stats?.trends.conversationsByDay?.length ? (
+          ) : stats?.trends.conversationsByDay?.filter((d: any) => typeof d.count === 'number')?.length ? (
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={stats.trends.conversationsByDay}>
+              <AreaChart data={stats.trends.conversationsByDay.filter((d: any) => typeof d.count === 'number')}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                 <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -196,12 +196,12 @@ export function DashboardPage() {
                 <div key={item.label} className="flex items-center gap-3">
                   <div className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
                   <span className="text-sm text-surface-600 flex-1">{item.label}</span>
-                  <span className="text-sm font-semibold text-surface-800">{item.value}</span>
+                  <span className="text-sm font-semibold text-surface-800">{Number(item.value) || 0}</span>
                 </div>
               ))}
               <div className="pt-3 mt-3 border-t border-surface-100 flex items-center justify-between">
                 <span className="text-sm font-medium text-surface-700">Conversion Rate</span>
-                <span className="text-sm font-bold text-primary-600">{stats.pipeline.conversionRate}%</span>
+                <span className="text-sm font-bold text-primary-600">{Number(stats.pipeline.conversionRate) || 0}%</span>
               </div>
             </div>
           ) : null}

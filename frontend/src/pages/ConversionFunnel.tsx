@@ -20,20 +20,20 @@ export function ConversionFunnelPage() {
   }
 
   const funnelData = [
-    { name: 'Inquiries', value: stats?.conversations?.total || 0, fill: '#3b82f6' },
-    { name: 'Engaged', value: stats?.conversations?.active || 0, fill: '#10b981' },
-    { name: 'Qualified', value: stats?.handoffs?.pending || 0, fill: '#f59e0b' },
-    { name: 'Quotes Sent', value: stats?.quotes?.sent || 0, fill: '#8b5cf6' },
-    { name: 'Accepted', value: stats?.quotes?.accepted || 0, fill: '#ec599b' },
+    { name: 'Inquiries', value: Number(stats?.conversations?.total) || 0, fill: '#3b82f6' },
+    { name: 'Engaged', value: Number(stats?.conversations?.active) || 0, fill: '#10b981' },
+    { name: 'Qualified', value: Number(stats?.handoffs?.pending) || 0, fill: '#f59e0b' },
+    { name: 'Quotes Sent', value: Number(stats?.quotes?.sent) || 0, fill: '#8b5cf6' },
+    { name: 'Accepted', value: Number(stats?.quotes?.accepted) || 0, fill: '#ec599b' },
   ]
 
   const conversionData = [
-    { name: 'Quote Acceptance', rate: stats?.pipeline?.conversionRate || 0 },
-    { name: 'Handoff Resolution', rate: stats?.handoffs?.total ? Math.round((stats.handoffs.completed / stats.handoffs.total) * 100) : 0 },
-    { name: 'Appointment Show', rate: stats?.appointments?.total ? Math.round(((stats.appointments.completed + stats.appointments.confirmed) / stats.appointments.total) * 100) : 0 },
+    { name: 'Quote Acceptance', rate: Number(stats?.pipeline?.conversionRate) || 0 },
+    { name: 'Handoff Resolution', rate: Number(stats?.handoffs?.total ? Math.round((stats.handoffs.completed / stats.handoffs.total) * 100) : 0) },
+    { name: 'Appointment Show', rate: Number(stats?.appointments?.total ? Math.round(((stats.appointments.completed + stats.appointments.confirmed) / stats.appointments.total) * 100) : 0) },
   ]
 
-  const handoffReasons = stats?.handoffsByReason || []
+  const handoffReasons = Array.isArray(stats?.handoffsByReason) ? stats.handoffsByReason.filter((d: any) => typeof d.count === 'number') : []
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -91,7 +91,7 @@ export function AnalyticsPage() {
             <div className="card p-5">
               <h3 className="text-sm font-semibold text-surface-800 mb-4">Conversation Volume</h3>
               <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={stats.trends.conversationsByDay}>
+                <AreaChart data={stats.trends.conversationsByDay?.filter((d: any) => typeof d.count === 'number') || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                   <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -104,7 +104,7 @@ export function AnalyticsPage() {
             <div className="card p-5">
               <h3 className="text-sm font-semibold text-surface-800 mb-4">Handoffs by Reason</h3>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.handoffsByReason} layout="vertical">
+                <BarChart data={stats.handoffsByReason?.filter((d: any) => typeof d.count === 'number') || []} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                   <YAxis dataKey="reason" type="category" width={120} tick={{ fontSize: 10 }} stroke="#94a3b8" />
