@@ -13,8 +13,9 @@ export const getMessagesController = async (req: Request, res: Response): Promis
   const conversationId = req.params.conversationId!;
   const limit = parseInt(req.query.limit as string) || 50;
   const offset = parseInt(req.query.offset as string) || 0;
+  const businessId = (req as Request & { user?: UserPayload }).user?.businessId ?? null;
 
-  const messages = await getMessages(conversationId, limit, offset);
+  const messages = await getMessages(conversationId, limit, offset, businessId);
 
   res.json({
     success: true,
@@ -30,7 +31,10 @@ export const replyToConversation = async (req: Request, res: Response): Promise<
 
   try {
     const validated = replySchema.parse(req.body);
-      const message = await sendMessage(req.params.conversationId!, validated.text_body, currentUser.id);
+      const message = await sendMessage(req.params.conversationId!, validated.text_body, currentUser.id, {}, {
+        businessId: currentUser.businessId ?? null,
+        senderType: 'staff',
+      });
 
     await createAuditLog(
       'messages',

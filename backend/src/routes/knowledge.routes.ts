@@ -10,17 +10,18 @@ import {
   uploadMiddleware,
 } from '../controllers/knowledge.controller';
 import { authenticate, optionalAuth } from '../middleware/auth';
+import { requireEntitlement } from '../middleware/entitlement';
 import { sanitizePagination } from '../middleware/validation';
 
 const router = Router();
 
 router.use(sanitizePagination);
 
-router.get('/', authenticate, listKnowledgeDocuments);
-router.get('/:id', authenticate, getKnowledgeDocument);
-router.post('/', authenticate, createKnowledgeDocumentController);
-router.post('/upload', authenticate, uploadMiddleware, uploadKnowledgeDocumentController);
-router.patch('/:id/status', authenticate, updateKnowledgeStatusController);
+router.get('/', authenticate, requireEntitlement, listKnowledgeDocuments);
+router.get('/:id', authenticate, requireEntitlement, getKnowledgeDocument);
+router.post('/', authenticate, requireEntitlement, createKnowledgeDocumentController);
+router.post('/upload', authenticate, requireEntitlement, uploadMiddleware, uploadKnowledgeDocumentController);
+router.patch('/:id/status', authenticate, requireEntitlement, updateKnowledgeStatusController);
 router.post('/search/vector', optionalAuth, searchKnowledgeChunks);
 router.post('/search/text', optionalAuth, searchKnowledgeChunksText);
 

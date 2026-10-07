@@ -25,6 +25,7 @@ export interface Config {
     host: string;
     port: number;
   };
+  internalApiKey: string;
   gemini: {
     apiKey: string;
   };
@@ -98,6 +99,9 @@ export const config: Config = {
     host: getEnv('N8N_HOST', 'n8n'),
     port: getEnvNumber('N8N_PORT', 5678),
   },
+  // Shared secret for the internal AI-pipeline endpoints (/api/internal/*).
+  // Fail closed: empty key disables the routes entirely.
+  internalApiKey: getEnv('INTERNAL_API_KEY', ''),
   gemini: {
     apiKey: getEnv('GEMINI_API_KEY', ''),
   },

@@ -8,6 +8,8 @@ export interface UserPayload {
   employeeNumber?: string;
   firstName: string;
   lastName: string;
+  /** Tenant scope (businesses.id). Required for entitlement enforcement. */
+  businessId?: string;
 }
 
 export interface AuthenticatedRequest extends Request {

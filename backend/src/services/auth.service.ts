@@ -17,6 +17,7 @@ export interface StaffUser {
   status: string;
   timezone: string;
   metadata: Record<string, unknown>;
+  business_id?: string | null;
   password_hash?: string;
   created_at: Date;
   updated_at: Date;
@@ -47,7 +48,7 @@ export async function login(req: LoginRequest): Promise<AuthResponse> {
   const sanitizedPassword = req.password;
 
   const result = await query<StaffUser>(
-    'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, password_hash, created_at, updated_at FROM staff_users WHERE email = $1',
+    'SELECT id, employee_number, first_name, last_name, display_name, email, phone, role, status, timezone, metadata, business_id, password_hash, created_at, updated_at FROM staff_users WHERE email = $1',
     [normalizedEmail]
   );
 
@@ -81,6 +82,7 @@ export async function login(req: LoginRequest): Promise<AuthResponse> {
       role: user.role,
       firstName: user.first_name,
       lastName: user.last_name,
+      businessId: user.business_id ?? undefined,
     },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'] }
