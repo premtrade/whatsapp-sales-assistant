@@ -284,22 +284,22 @@ export async function updateAppointment(id: string, data: AppointmentUpdateReque
 
 // Knowledge
 export async function getKnowledgeDocuments(params?: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<KnowledgeDocument>> {
-  const response = await api.get<{ success: boolean; data: KnowledgeDocument[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/knowledge/documents', { params })
+  const response = await api.get<{ success: boolean; data: KnowledgeDocument[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/knowledge/', { params })
   return extractPaginatedData(response)
 }
 
 export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocument> {
-  const response = await api.get<{ success: boolean; data: KnowledgeDocument }>(`/knowledge/documents/${id}`)
+  const response = await api.get<{ success: boolean; data: KnowledgeDocument }>(`/knowledge/${id}`)
   return response.data.data
 }
 
 export async function createKnowledgeDocument(data: KnowledgeDocumentCreateRequest): Promise<KnowledgeDocument> {
-  const response = await api.post<{ success: boolean; data: KnowledgeDocument }>('/knowledge/documents', data)
+  const response = await api.post<{ success: boolean; data: KnowledgeDocument }>('/knowledge/', data)
   return response.data.data
 }
 
 export async function getKnowledgeChunks(documentId: string): Promise<KnowledgeChunk[]> {
-  const response = await api.get<{ success: boolean; data: KnowledgeChunk[] }>(`/knowledge/documents/${documentId}/chunks`)
+  const response = await api.get<{ success: boolean; data: KnowledgeChunk[] }>(`/knowledge/${documentId}/chunks`)
   return response.data.data
 }
 
