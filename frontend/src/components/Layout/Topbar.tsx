@@ -16,7 +16,7 @@ interface TopbarProps {
 
 export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
   const { staff } = useAuth()
-  const { isConnected } = useWebSocket()
+  const { isConnected, usingPolling } = useWebSocket()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -32,8 +32,8 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const statusLabel = isConnected ? 'Connected' : 'Disconnected'
-  const statusColor = isConnected ? 'bg-success-500' : 'bg-danger-500'
+  const statusLabel = isConnected ? 'Connected' : usingPolling ? 'Updating' : 'Disconnected'
+  const statusColor = isConnected ? 'bg-success-500' : usingPolling ? 'bg-warning-500' : 'bg-danger-500'
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-white border-b border-surface-200">

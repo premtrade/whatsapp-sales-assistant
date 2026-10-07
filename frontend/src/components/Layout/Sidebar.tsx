@@ -40,7 +40,7 @@ export function Sidebar({ isOpen, onToggle, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const { staff, logout } = useAuth()
-  const { isConnected } = useWebSocket()
+  const { isConnected, usingPolling } = useWebSocket()
   const navigate = useNavigate()
   const visibleNavigation = staff?.role === 'super_admin' ? [] : navigation
 
@@ -173,7 +173,7 @@ export function Sidebar({ isOpen, onToggle, onNavigate }: SidebarProps) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-surface-200 truncate">{staff?.display_name || 'User'}</p>
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-success-500' : 'bg-danger-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-success-500' : usingPolling ? 'bg-warning-500' : 'bg-danger-500'}`} />
                   <span className="text-[10px] text-surface-400">{staff?.role || 'Staff'}</span>
                 </div>
               </div>
