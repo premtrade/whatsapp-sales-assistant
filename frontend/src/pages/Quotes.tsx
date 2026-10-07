@@ -16,7 +16,7 @@ export function QuotesPage() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['quotes', { search, status }],
-    queryFn: () => getQuotes({ page: 1, limit: 50, status }),
+    queryFn: () => getQuotes(status ? { page: 1, limit: 50, status } : { page: 1, limit: 50 }),
   })
 
   const quotes = data?.data || []

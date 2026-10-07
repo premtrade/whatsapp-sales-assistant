@@ -26,7 +26,7 @@ export function KnowledgePage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['knowledge', 'documents', { search, status }],
-    queryFn: () => getKnowledgeDocuments({ page: 1, limit: 50, status }),
+    queryFn: () => getKnowledgeDocuments(status ? { page: 1, limit: 50, status } : { page: 1, limit: 50 }),
   })
 
   const uploadMutation = useMutation({
