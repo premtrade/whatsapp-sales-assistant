@@ -160,7 +160,7 @@ export function ConversionFunnelPage() {
         <h3 className="text-sm font-semibold text-surface-800 mb-4">Conversation Trends</h3>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={(stats?.trends?.conversationsByDay || []).filter((d: any) => typeof d.count === 'number')}>
+            <BarChart data={(stats?.trends?.conversationsByDay || []).filter((d: any) => typeof d.count === 'number' && !isNaN(d.count))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis />

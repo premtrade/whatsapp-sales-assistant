@@ -164,7 +164,7 @@ export function DashboardPage() {
             <div className="skeleton h-48 w-full" />
           ) : stats?.trends.conversationsByDay?.filter((d: any) => typeof d.count === 'number')?.length ? (
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={stats.trends.conversationsByDay.filter((d: any) => typeof d.count === 'number')}>
+              <AreaChart data={(stats.trends.conversationsByDay?.filter((d: any) => typeof d.count === 'number' && !isNaN(d.count)) || [])}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                 <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
