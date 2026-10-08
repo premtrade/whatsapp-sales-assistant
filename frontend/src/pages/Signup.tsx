@@ -267,7 +267,7 @@ export default function SignupPage() {
           <p className="text-sm text-surface-500 mt-3">
             Not sure how to get started?{' '}
             <a
-              href="/blog/set-up-waflo-and-connect-whatsapp-without-ssh"
+              href="/blog#setup-whatsapp"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary-600 hover:underline"
