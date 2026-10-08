@@ -95,7 +95,12 @@ export function KnowledgePage() {
       <div className="card p-8">
         <ErrorState
           title="Failed to load knowledge documents"
-          message={error instanceof Error ? error.message : 'An error occurred while loading the knowledge base.'}
+          message={
+            error instanceof Error
+              ? error.message
+              : (error as { message?: string } | null)?.message ||
+                'An error occurred while loading the knowledge base.'
+          }
           onRetry={() => refetch()}
         />
       </div>
