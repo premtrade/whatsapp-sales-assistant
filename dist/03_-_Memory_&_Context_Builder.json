@@ -1,0 +1,636 @@
+{
+  "updatedAt": "2026-09-18T13:57:19.620Z",
+  "createdAt": "2026-09-18T13:57:19.620Z",
+  "id": "Oab6QGKFnpJ5O34b",
+  "name": "03 - Memory & Context Builder",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "chat_id"
+            },
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "hasMedia",
+              "type": "boolean"
+            },
+            {
+              "name": "timestamp"
+            },
+            {
+              "name": "request_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -240,
+        112
+      ],
+      "id": "30c49df9-ad29-4088-b5e8-4a72b551c93b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, slug, currency, timezone FROM businesses WHERE id = $1::uuid AND status = 'active' AND deleted_at IS NULL LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "id": "f9542ef7-da2d-431d-9ee2-955b7523e40b",
+      "name": "Get Business by Phone",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, business_id, phone, display_name, source, created_at, updated_at FROM contacts WHERE id = $1::uuid AND business_id = $2::uuid;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        0,
+        160
+      ],
+      "id": "9bf6dff8-2549-4e70-99f0-2e92ffceb89a",
+      "name": "Get Contact",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, business_id, contact_id, channel, status, last_message_at, created_at, updated_at FROM conversations WHERE id = $1::uuid AND business_id = $2::uuid;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        144,
+        144
+      ],
+      "id": "5fc9604f-7ebe-40ea-a4b1-28a3dd8fdec6",
+      "name": "Get Conversation",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n    json_agg(\n        json_build_object(\n            'direction', direction,\n            'sender_type', sender_type,\n            'text_body', text_body,\n            'created_at', created_at\n        )\n        ORDER BY created_at ASC\n    ),\n    '[]'::json\n) AS messages\nFROM (\n    SELECT direction, sender_type, text_body, created_at\n    FROM messages m\n    WHERE m.conversation_id = $1::uuid\n      AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = m.conversation_id AND c.business_id = $2::uuid)\n    ORDER BY created_at DESC\n    LIMIT 10\n) recent;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        304,
+        208
+      ],
+      "id": "1bc4a033-0750-4d50-8a28-e4a2078a01f1",
+      "name": "Get Recent Messages",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', cf.fact_key,\n      'fact_value', cf.fact_value,\n      'confidence', cf.confidence\n    )\n    ORDER BY cf.confidence DESC, cf.updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts cf\nJOIN contacts c ON c.id = cf.contact_id\nWHERE cf.contact_id = $1::uuid AND c.business_id = $2::uuid;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        480,
+        160
+      ],
+      "id": "79d5d1b0-33b8-4f89-a6a6-363fc508c4ef",
+      "name": "Retrieve Customer Facts",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(summary, '') AS summary, COALESCE(message_count, 0) AS message_count, COALESCE(created_by, 'none') AS created_by\nFROM conversation_summaries\nWHERE conversation_id = $1::uuid\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        640,
+        240
+      ],
+      "id": "904c5928-8072-441c-ac58-db8ace452482",
+      "name": "Get Conversation Summary",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://router.huggingface.co/hf-inference/models/BAAI/bge-base-en-v1.5",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.HUGGINGFACE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { inputs: \"Represent this sentence for searching relevant passages: \" + String($('When Executed by Another Workflow').first().json.message || ''), options: { wait_for_model: true } } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        640,
+        368
+      ],
+      "id": "8765b2a1-8d4a-4b58-8922-acefbd5b19c5",
+      "name": "Generate Message Embedding",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const embeddingResult = $('Generate Message Embedding').first()?.json;\nconst message = $('When Executed by Another Workflow').first()?.json?.message || '';\n\nlet embedding = null;\nif (embeddingResult && Array.isArray(embeddingResult) && embeddingResult.length > 0) {\n  embedding = embeddingResult[0];\n} else if (embeddingResult && embeddingResult[0] && Array.isArray(embeddingResult[0])) {\n  embedding = embeddingResult[0][0];\n}\n\nconst hasValid = Boolean(embedding && Array.isArray(embedding) && embedding.length === 768);\nconst dummyUnitVector = [1, ...Array(767).fill(0)];\nconst vectorStr = hasValid ? '[' + embedding.join(',') + ']' : '[' + dummyUnitVector.join(',') + ']';\n\nreturn [{\n  json: {\n    embedding_vector: vectorStr,\n    message_text: message,\n    has_vector: hasValid\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        304
+      ],
+      "id": "80e3c4a6-fc64-4c01-a550-c57516f17ce1",
+      "name": "Prepare Search Params",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'chunk_text', chunk_text,\n      'metadata', metadata,\n      'source', source,\n      'similarity', similarity\n    )\n    ORDER BY similarity DESC\n  ),\n  '[]'::json\n) AS knowledge\nFROM (\n  SELECT kc.chunk_text, kc.metadata, kd.title AS source, 1 - (kc.embedding <=> $1::vector) AS similarity\n  FROM knowledge_chunks kc\n  JOIN knowledge_documents kd ON kd.id = kc.document_id\n  WHERE kd.status = 'indexed'\n    AND kd.business_id = $4::uuid\n    AND kc.embedding IS NOT NULL\n    AND $3::boolean = true\n    AND kc.chunk_text NOT ILIKE 'dummy content%'\n    AND 1 - (kc.embedding <=> $1::vector) > 0.35\n  UNION ALL\n  SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity\n  FROM knowledge_chunks kc\n  JOIN knowledge_documents kd ON kd.id = kc.document_id\n  WHERE kd.status = 'indexed'\n    AND kd.business_id = $4::uuid\n    AND similarity(kc.chunk_text, $2) > 0.1\n    AND kc.chunk_text NOT ILIKE 'dummy content%'\n  ORDER BY similarity DESC\n  LIMIT 10\n) combined;",
+        "options": {
+          "queryReplacement": "={{ $('Prepare Search Params').first().json.embedding_vector }}, {{ $('Prepare Search Params').first().json.message_text }}, {{ $('Prepare Search Params').first().json.has_vector }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        784,
+        160
+      ],
+      "id": "7ec58225-e0dd-4c23-9a32-5de50f3a9f50",
+      "name": "Get Knowledge Chunks (semantic)",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet knowledge = [];\nconst firstItem = items[0]?.json || {};\n\nif (firstItem.knowledge && Array.isArray(firstItem.knowledge)) {\n  knowledge = firstItem.knowledge;\n} else if (firstItem.success && Array.isArray(firstItem.data)) {\n  knowledge = firstItem.data.map(hit => {\n    const chunk_text = hit.chunk_text || '';\n    const metadata = hit.metadata || {};\n    return {\n      chunk_text,\n      metadata,\n      source: typeof metadata === 'string' ? metadata : (hit.source || metadata.title || metadata.document_title || '')\n    };\n  }).filter(k => !!k.chunk_text);\n} else if (firstItem.result && Array.isArray(firstItem.result)) {\n  knowledge = firstItem.result.map(hit => {\n    const payload = hit.payload || {};\n    const chunk_text = payload.chunk_text || payload.pageContent || '';\n    const metadata = payload.metadata || payload || {};\n    return {\n      chunk_text,\n      metadata,\n      source: typeof metadata === 'string' ? metadata : (metadata.title || metadata.document_title || '')\n    };\n  }).filter(k => !!k.chunk_text);\n} else {\n  knowledge = items\n    .map(item => {\n      const doc = item.json.document || item.json || {};\n      const chunk_text = doc.pageContent || doc.chunk_text || item.json.chunk_text || '';\n      if (!chunk_text) return null;\n      const metadata = doc.metadata || item.json.metadata || {};\n      return {\n        chunk_text,\n        metadata,\n        source: typeof metadata === 'string' ? metadata : (metadata.title || metadata.document_title || ''),\n        score: item.json.score ?? null\n      };\n    })\n    .filter(Boolean);\n}\n\nreturn [{ json: { knowledge } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        304
+      ],
+      "id": "fba6fc48-0057-4d71-ac49-0e8182a0c89d",
+      "name": "Get Knowledge Chunks"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'sku', sku,\n      'name', name,\n      'description', description,\n      'price', price,\n      'currency', currency,\n      'unit', unit,\n      'category', category,\n      'product_type', product_type\n    )\n    ORDER BY name\n  ),\n  '[]'::json\n) AS products\nFROM products \nWHERE active = true AND business_id = $1::uuid\nLIMIT 50;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        944,
+        160
+      ],
+      "id": "52df5dc0-db69-4e98-859f-ad8050ba6983",
+      "name": "Get Products",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'quote_number', quote_number,\n      'status', status,\n      'total', total,\n      'currency', currency,\n      'valid_until', valid_until\n    )\n    ORDER BY created_at DESC\n  ),\n  '[]'::json\n) AS quotes\nFROM quotes\nWHERE contact_id = $1::uuid AND business_id = $2::uuid\nLIMIT 20;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1104,
+        160
+      ],
+      "id": "b146c793-723c-4f84-9756-beab3c96d59b",
+      "name": "Get Quotes",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'title', title,\n      'status', status,\n      'starts_at', starts_at,\n      'ends_at', ends_at\n    )\n    ORDER BY starts_at DESC\n  ),\n  '[]'::json\n) AS appointments\nFROM appointments\nWHERE contact_id = $1::uuid AND business_id = $2::uuid\nLIMIT 20;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1264,
+        160
+      ],
+      "id": "4fb4045d-e04a-4745-af3a-269c2e0d39aa",
+      "name": "Get Appointments",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'status', status,\n      'reason', reason,\n      'assigned_to', assigned_to,\n      'created_at', created_at\n    )\n    ORDER BY created_at DESC\n  ),\n  '[]'::json\n) AS handoffs\nFROM handoffs\nWHERE conversation_id = $1::uuid AND business_id = $2::uuid\nLIMIT 10;",
+        "options": {
+          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1424,
+        160
+      ],
+      "id": "4d9dc046-bd0d-4ad5-8128-1c8a6563488a",
+      "name": "Get Handoff",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const _h = new Date().toLocaleString('en-US', {timeZone:'America/Jamaica',hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : _hr >= 17 && _hr < 21 ? 'evening' : 'morning'; const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const products = $('Get Products').first()?.json?.products || []; const quotes = $('Get Quotes').first()?.json?.quotes || []; const appointments = $('Get Appointments').first()?.json?.appointments || []; const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const settings = $('Get Business Settings').first()?.json || {}; return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || settings.setting_value || 'our company', time_greeting: _greet, business_id: business.id || null, business_timezone: business.timezone || 'America/Jamaica', conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        384
+      ],
+      "id": "85a3d0c0-793a-484f-a70d-89a94e5af963",
+      "name": "Build Context Package"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT setting_value FROM settings WHERE setting_key = 'company_name' AND business_id = $1::uuid LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ String($('Get Business by Phone').first().json.id || '') }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "id": "d1d00c9b-6042-4707-8e65-5fdc84295a31",
+      "name": "Get Business Settings",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1424,
+        448
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Business by Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Message Embedding": {
+      "main": [
+        [
+          {
+            "node": "Prepare Search Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Customer Facts": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Quotes": {
+      "main": [
+        [
+          {
+            "node": "Get Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Products": {
+      "main": [
+        [
+          {
+            "node": "Get Quotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Messages": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Customer Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Handoff": {
+      "main": [
+        [
+          {
+            "node": "Get Business Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Business Settings": {
+      "main": [
+        [
+          {
+            "node": "Build Context Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation Summary": {
+      "main": [
+        [
+          {
+            "node": "Generate Message Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Chunks (semantic)": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Chunks": {
+      "main": [
+        [
+          {
+            "node": "Get Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Search Params": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Chunks (semantic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Appointments": {
+      "main": [
+        [
+          {
+            "node": "Get Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Business by Phone": {
+      "main": [
+        [
+          {
+            "node": "Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "b7ae3630-877e-4d77-a48b-bb8e12c1d454",
+  "activeVersionId": "b7ae3630-877e-4d77-a48b-bb8e12c1d454",
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-18T13:57:19.620Z",
+      "createdAt": "2026-09-18T13:57:19.620Z",
+      "role": "workflow:owner",
+      "workflowId": "Oab6QGKFnpJ5O34b",
+      "projectId": "ljq5CrTZa7HBlLPU",
+      "project": {
+        "updatedAt": "2026-09-13T02:34:46.884Z",
+        "createdAt": "2026-09-13T01:48:53.134Z",
+        "id": "ljq5CrTZa7HBlLPU",
+        "name": "Leroy Dunn <premtrade12@yahoo.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "38fd13a7-1ab3-4420-95b9-d92844eb916c"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version b7ae3630",
+    "description": ""
+  }
+}

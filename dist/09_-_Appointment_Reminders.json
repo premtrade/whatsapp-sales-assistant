@@ -1,0 +1,277 @@
+{
+  "updatedAt": "2026-09-18T14:25:15.518Z",
+  "createdAt": "2026-09-18T14:25:15.518Z",
+  "id": "2JC55ZwrgaOfIFMl",
+  "name": "09 - Appointment Reminders",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "46adb736-ae5f-4a9e-85f1-ed12655bc2b2",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id, a.title, a.location, a.starts_at, a.ends_at, a.reminder_sent, a.conversation_id, c.display_name, c.phone, c.email, c.id as contact_id, c.business_id, b.waha_session_name FROM appointments a JOIN contacts c ON a.contact_id = c.id JOIN businesses b ON b.id = c.business_id WHERE a.status IN ('scheduled', 'confirmed') AND a.starts_at > NOW() AND a.starts_at <= NOW() + INTERVAL '48 hours' AND (a.reminder_sent = false OR a.reminder_sent IS NULL) ORDER BY a.starts_at ASC LIMIT 20;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        240,
+        0
+      ],
+      "id": "c4c045f4-2754-42d2-a77d-5a63afd51c0a",
+      "name": "Find Upcoming Appointments",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst now = new Date();\nreturn items.map(item => {\n  const startTime = new Date(item.json.starts_at);\n  const hoursUntil = Math.round((startTime - now) / (1000 * 60 * 60));\n  let reminderType = '48h';\n  let message = '';\n  const name = item.json.display_name || 'there';\n  \n  if (hoursUntil <= 2) {\n    reminderType = '2h';\n    message = `Hi ${name}, this is a friendly reminder that your appointment with us is in 2 hours at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. Please ensure the site is accessible. See you soon!`;\n  } else if (hoursUntil <= 24) {\n    reminderType = '24h';\n    message = `Hello ${name}, just a reminder that your appointment with us is tomorrow at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. We look forward to meeting with you!`;\n  } else {\n    reminderType = '48h';\n    message = `Hello ${name}, this is a friendly reminder that you have an appointment with us on ${startTime.toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric'})} at ${startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'})}. We look forward to meeting with you!`;\n  }\n  \n  return {\n    json: {\n      ...item.json,\n      reminder_type: reminderType,\n      message,\n      hours_until: hoursUntil\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "8787db07-77b2-41b9-b822-563c84bc0f9d",
+      "name": "Format Reminder Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) SELECT $1::uuid, 'outgoing', 'staff', 'text', $2, $3, NOW(), NOW() RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $('Find Upcoming Appointments').first().json.conversation_id || $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ reminder_type: $json.reminder_type, appointment_id: $json.id, automated: true }) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        720,
+        0
+      ],
+      "id": "2eec2bdd-3fea-481a-936d-01fa5cbb1f2f",
+      "name": "Insert Reminder Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "waha_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"{{ $json.waha_session_name || 'default' }}\",\n  \"chatId\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        848,
+        0
+      ],
+      "id": "b7409b68-2900-45a6-bcac-b738f98ab3c8",
+      "name": "WAHA Send Reminder",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE appointments SET reminder_sent = true, updated_at = NOW() WHERE id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ $json.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        960,
+        0
+      ],
+      "id": "0325be60-6d19-4509-858d-5c5bf09a8d9a",
+      "name": "Mark Reminder Sent",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('appointment', $1::uuid, 'reminder_sent', 'system', 'automation', $2, jsonb_build_object('reminder_type', $3), jsonb_build_object('appointment_title', $4, 'contact_id', $5::uuid, 'timestamp', NOW())) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $json.id }}\n={{ 'Automated ' + $json.reminder_type + ' reminder sent for appointment: ' + $json.title }}\n={{ $json.reminder_type }}\n={{ $json.title }}\n={{ $json.contact_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "02c7e9b2-f10d-41b4-83d2-3d5f7f3eface",
+      "name": "Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Find Upcoming Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Upcoming Appointments": {
+      "main": [
+        [
+          {
+            "node": "Format Reminder Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Reminder Message": {
+      "main": [
+        [
+          {
+            "node": "Insert Reminder Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Reminder Message": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Send Reminder": {
+      "main": [
+        [
+          {
+            "node": "Mark Reminder Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Reminder Sent": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "233c143e-48d1-44ab-a133-7febe52de7f2",
+  "activeVersionId": "233c143e-48d1-44ab-a133-7febe52de7f2",
+  "versionCounter": 1,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-18T14:25:15.518Z",
+      "createdAt": "2026-09-18T14:25:15.518Z",
+      "role": "workflow:owner",
+      "workflowId": "2JC55ZwrgaOfIFMl",
+      "projectId": "ljq5CrTZa7HBlLPU",
+      "project": {
+        "updatedAt": "2026-09-13T02:34:46.884Z",
+        "createdAt": "2026-09-13T01:48:53.134Z",
+        "id": "ljq5CrTZa7HBlLPU",
+        "name": "Leroy Dunn <premtrade12@yahoo.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "38fd13a7-1ab3-4420-95b9-d92844eb916c"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 233c143e",
+    "description": ""
+  }
+}

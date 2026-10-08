@@ -1,0 +1,801 @@
+{
+  "updatedAt": "2026-09-19T23:10:02.766Z",
+  "createdAt": "2026-09-19T20:56:38.864Z",
+  "id": "hQ6gd6YJt0rRb3Cw",
+  "name": "01 - Incoming WhatsApp Message",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "waha/messages",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -848,
+        -144
+      ],
+      "id": "8eefdd06-7175-4e75-9989-4920d5e2f164",
+      "name": "Webhook",
+      "webhookId": "0f0e7983-9c8c-4939-9a83-6c43e2ce9f93"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f65aaec1-81d1-43bc-80b5-3d962e67eafb",
+              "name": "event",
+              "value": "={{ String($json.body.event || '').toLowerCase() === 'message.any' ? 'message' : String($json.body.event || '').toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "1fd24149-38f1-446a-b18b-25631342af1b",
+              "name": "phone",
+              "value": "={{ String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
+              "type": "string"
+            },
+            {
+              "id": "tenant-phone-assignment",
+              "name": "business_phone",
+              "value": "={{ String($json.body.session || $json.body.payload.to || $json.body.payload._data?.to || $json.body.to || 'default') }}",
+              "type": "string"
+            },
+            {
+              "id": "chat-id-assignment",
+              "name": "chat_id",
+              "value": "={{ String($json.body.payload.from || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "81e5b4e9-4de3-4831-a566-ee3d25eeb035",
+              "name": "message",
+              "value": "={{$json.body.payload.body}}",
+              "type": "string"
+            },
+            {
+              "id": "5b6a1563-7010-4be4-b684-8eac4e96722d",
+              "name": "message_id",
+              "value": "={{$json.body.payload._data?.id?._serialized || $json.body.payload.id || ''}}",
+              "type": "string"
+            },
+            {
+              "id": "124eb81e-db7e-437e-9acc-931c3b170677",
+              "name": "customer_name",
+              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"Unknown\" }}",
+              "type": "string"
+            },
+            {
+              "id": "ff18259c-9968-4cc7-84b3-5bc30ec3fcfd",
+              "name": "timestamp",
+              "value": "={{$json.body.payload._data?.t || $json.body.payload.timestamp || $json.body.timestamp || ''}}",
+              "type": "string"
+            },
+            {
+              "id": "30339aaf-2b4e-485c-9c8b-3e82a1800340",
+              "name": "fromMe",
+              "value": "={{$json.body.payload.fromMe}}",
+              "type": "boolean"
+            },
+            {
+              "id": "b555576e-ed58-4fcc-91a0-23c54eac3db7",
+              "name": "hasMedia",
+              "value": "={{$json.body.payload.hasMedia}}",
+              "type": "boolean"
+            },
+            {
+              "id": "7aaa4b98-6e0d-4efa-83c1-e8cea5d5dccc",
+              "name": "source",
+              "value": "whatsapp",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -624,
+        -144
+      ],
+      "id": "1845a62f-c63a-437f-a00b-f3de5845d57a",
+      "name": "Normalize Payload"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        -144
+      ],
+      "id": "72f6e252-ba47-47ef-a6a6-32e00af157c0",
+      "name": "Sanitize Inputs"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"received\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        752,
+        160
+      ],
+      "id": "0392d914-3cc4-43ff-9db2-636c1634718a",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "088a54e1-a89f-4a4b-8a9c-90ff20d7a263",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "message",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        64,
+        -160
+      ],
+      "id": "fd30207e-3284-47c9-a8f9-6de3233f2675",
+      "name": "Supported Event?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "64403737-4431-4f5d-b2e1-7a406e4009ce",
+              "leftValue": "={{ $json.fromMe }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        336,
+        -160
+      ],
+      "id": "a87edba1-4ff0-48aa-887c-80f23d89a810",
+      "name": "Incoming Message?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, 'whatsapp'\n    FROM businesses b\n    WHERE (b.waha_session_name = split_part($3, '@', 1)\n           OR b.waha_session_name = $3\n           OR regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'))\n      AND b.deleted_at IS NULL\n    ORDER BY CASE WHEN b.waha_session_name = split_part($3, '@', 1) THEN 0 ELSE 1 END\n    LIMIT 1\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
+        "options": {
+          "queryReplacement": "={{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.customer_name }}, {{ $('Sanitize Inputs').first().json.business_phone }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -608,
+        64
+      ],
+      "id": "ba2b26a8-781e-4754-bb78-20a416e30f06",
+      "name": "Upsert Contact",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (business_id, contact_id, channel, status, last_message_at)\nSELECT business_id, id, 'whatsapp', 'active', NOW()\nFROM contacts\nWHERE id = $1::uuid\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id, business_id;",
+        "options": {
+          "queryReplacement": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -384,
+        64
+      ],
+      "id": "c5337ab6-a092-4a25-9db1-1a0c14b2f674",
+      "name": "Upsert Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata\n)\nVALUES (\n    $1, $2, 'incoming', 'customer', 'text', $3::text, jsonb_build_object('event', $4, 'phone', $5, 'customer_name', $6, 'timestamp', $7, 'hasMedia', $8)\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -128,
+        64
+      ],
+      "id": "5f5532d7-8a1d-4c0a-9c7b-15b4d94b105d",
+      "name": "Insert Message",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        288
+      ],
+      "id": "3b8fda34-8c93-4f06-8605-65acbcf17fae",
+      "name": "Update Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "is-real-message",
+              "leftValue": "={{ Boolean($json.message) && !String($json.chat_id || '').startsWith('status@broadcast') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -224,
+        -144
+      ],
+      "id": "de68d9e3-396e-4f07-b63b-8492bb8cfa94",
+      "name": "Status Filter"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (\n    entity_type, entity_id, action, performed_by,\n    performed_by_type, description, new_values, metadata\n)\nVALUES (\n    'conversation', $1, 'message_received', NULL,\n    'system', 'Incoming WhatsApp message received', $2::jsonb,\n    jsonb_build_object('source', 'whatsapp', 'workflow', 'Webhook 1')\n)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ JSON.stringify($(\"Normalize Payload\").first().json) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        432,
+        304
+      ],
+      "id": "3e41e8dc-6f67-4a9e-b44c-52d3118e38d5",
+      "name": "Insert Audit Log",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Aes7f7cjvDNGjKE4",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Aes7f7cjvDNGjKE4",
+          "cachedResultName": "Workflow 2 - AI Brain"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}",
+            "contact_id": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}",
+            "phone": "={{ $(\"Normalize Payload\").first().json.phone }}",
+            "chat_id": "={{ $(\"Normalize Payload\").first().json.chat_id }}",
+            "business_id": "={{ $(\"Upsert Contact\").first().json.business_id }}",
+            "customer_name": "={{ $(\"Sanitize Inputs\").first().json.customer_name }}",
+            "message": "={{ $(\"Sanitize Inputs\").first().json.message }}",
+            "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
+            "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
+            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}",
+            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "hasMedia",
+              "displayName": "hasMedia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        704,
+        432
+      ],
+      "id": "8c286a15-e579-452d-a1ea-e908fda4cc5a",
+      "name": "Call 'Workflow 2 - AI Brain'"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH target AS (\n    SELECT cv.id AS conversation_id\n    FROM contacts c\n    JOIN conversations cv ON cv.contact_id = c.id AND cv.channel = 'whatsapp'\n    WHERE c.phone = $1\n    ORDER BY cv.last_message_at DESC NULLS LAST\n    LIMIT 1\n),\necho AS (\n    SELECT EXISTS(\n        SELECT 1\n        FROM messages m\n        WHERE m.conversation_id = (SELECT conversation_id FROM target)\n          AND m.direction = 'outgoing'\n          AND m.created_at > NOW() - INTERVAL '15 minutes'\n          AND length($2) > 0\n          AND lower(regexp_replace(coalesce(m.text_body, ''), '[^a-zA-Z0-9]+', '', 'g')) = $2\n    ) AS is_echo\n),\nown AS (\n    SELECT EXISTS(\n        SELECT 1 FROM businesses b\n        WHERE regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace($1, '[^0-9]', '', 'g')\n          AND b.deleted_at IS NULL\n    ) AS is_own_number\n)\nSELECT own.is_own_number, echo.is_echo, (own.is_own_number OR echo.is_echo) AS should_block\nFROM own CROSS JOIN echo;",
+        "options": {
+          "queryReplacement": "={{ $json.phone }}, {{ ($json.message || '').replace(/[^a-zA-Z0-9]+/g, '').toLowerCase() }}\n"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        608,
+        -176
+      ],
+      "id": "436a2afe-c632-4334-a822-d82787d50f5f",
+      "name": "Own Number Check",
+      "credentials": {
+        "postgres": {
+          "id": "tOjZeRRL1hW2zbUk",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4ffbe81a-a3df-477b-b1fa-0a507e3de680",
+              "leftValue": "={{ $json.should_block }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -848,
+        112
+      ],
+      "id": "e5548c65-3414-4e71-ba7a-1c77882d9cfe",
+      "name": "From Our Number?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d26ad1d9-2694-429a-bbca-f69fb4036ea8",
+              "leftValue": "={{ Boolean($('Insert Message').first().json.id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        80,
+        48
+      ],
+      "id": "d2bcdffb-c4e2-4160-ac5f-7c993e7a0cbe",
+      "name": "Fresh Message?",
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Inputs": {
+      "main": [
+        [
+          {
+            "node": "Status Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supported Event?": {
+      "main": [
+        [
+          {
+            "node": "Incoming Message?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Contact": {
+      "main": [
+        [
+          {
+            "node": "Upsert Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incoming Message?": {
+      "main": [
+        [
+          {
+            "node": "Own Number Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Conversation": {
+      "main": [
+        [
+          {
+            "node": "Insert Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Message": {
+      "main": [
+        [
+          {
+            "node": "Fresh Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Conversation": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Filter": {
+      "main": [
+        [
+          {
+            "node": "Supported Event?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Call 'Workflow 2 - AI Brain'",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From Our Number?": {
+      "main": [
+        [
+          {
+            "node": "Upsert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fresh Message?": {
+      "main": [
+        [
+          {
+            "node": "Update Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Own Number Check": {
+      "main": [
+        [
+          {
+            "node": "From Our Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "27b7b754-937a-4bbd-9413-30112e107afc",
+  "activeVersionId": "27b7b754-937a-4bbd-9413-30112e107afc",
+  "versionCounter": 121,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-19T20:56:38.864Z",
+      "createdAt": "2026-09-19T20:56:38.864Z",
+      "role": "workflow:owner",
+      "workflowId": "hQ6gd6YJt0rRb3Cw",
+      "projectId": "ljq5CrTZa7HBlLPU",
+      "project": {
+        "updatedAt": "2026-09-13T02:34:46.884Z",
+        "createdAt": "2026-09-13T01:48:53.134Z",
+        "id": "ljq5CrTZa7HBlLPU",
+        "name": "Leroy Dunn <premtrade12@yahoo.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "38fd13a7-1ab3-4420-95b9-d92844eb916c"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 27b7b754",
+    "description": ""
+  }
+}
