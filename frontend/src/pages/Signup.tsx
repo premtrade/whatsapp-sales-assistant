@@ -264,6 +264,17 @@ export default function SignupPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-surface-900 mb-2">Get Started</h1>
           <p className="text-surface-500">Create your WhatsApp sales assistant in 20 minutes.</p>
+          <p className="text-sm text-surface-500 mt-3">
+            Not sure how to get started?{' '}
+            <a
+              href="/blog/set-up-waflo-and-connect-whatsapp-without-ssh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 hover:underline"
+            >
+              See our quick setup guide
+            </a>
+          </p>
         </div>
         <form onSubmit={handleSignup} className="card p-6 space-y-4" noValidate>
           <Field label="Business Name" error={touched.businessName ? errors.businessName : undefined}>
