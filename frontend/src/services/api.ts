@@ -110,13 +110,22 @@ function extractData<T>(response: { data: { success: boolean; data: T; meta?: an
   return response.data.data
 }
 
-function extractPaginatedData<T>(response: { data: { success: boolean; data: T[]; meta: { page: number; limit: number; total: number; totalPages: number } } }): PaginatedResponse<T> {
+function extractPaginatedData<T>(response: { data: { success: boolean; data: T[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } | null } }): PaginatedResponse<T> {
+  // Defensive extraction: some deployments (proxies, older backend builds, or
+  // error payloads returned with HTTP 200) omit `meta`, which previously blew
+  // up with "Cannot read properties of undefined (reading 'page')". Derive
+  // sane defaults instead of crashing the page.
+  const body = response.data
+  const rows = Array.isArray(body?.data) ? body.data : []
+  const meta = body?.meta ?? {}
+  const limit = typeof meta.limit === 'number' && meta.limit > 0 ? meta.limit : rows.length || 20
+  const total = typeof meta.total === 'number' ? meta.total : rows.length
   return {
-    data: response.data.data,
-    page: response.data.meta.page,
-    limit: response.data.meta.limit,
-    total: response.data.meta.total,
-    totalPages: response.data.meta.totalPages,
+    data: rows,
+    page: typeof meta.page === 'number' ? meta.page : 1,
+    limit,
+    total,
+    totalPages: typeof meta.totalPages === 'number' ? meta.totalPages : Math.max(1, Math.ceil(total / limit)),
   }
 }
 
