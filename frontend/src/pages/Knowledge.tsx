@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getKnowledgeDocuments, createKnowledgeDocument } from '@/services/api'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
-import { PageHeader } from '@/components/ErrorState/ErrorState'
+import { ErrorState, LoadingState, PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
-import { LoadingState } from '@/components/ErrorState/ErrorState'
 import { SearchInput } from '@/components/SearchInput/SearchInput'
 import { Modal } from '@/components/Modal/Modal'
 import toast from 'react-hot-toast'
@@ -24,9 +23,9 @@ export function KnowledgePage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const queryClient = useQueryClient()
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['knowledge', 'documents', { search, status }],
-    queryFn: () => getKnowledgeDocuments(status ? { page: 1, limit: 50, status } : { page: 1, limit: 50 }),
+    queryFn: () => getKnowledgeDocuments({ page: 1, limit: 50, status, search }),
   })
 
   const uploadMutation = useMutation({
@@ -90,7 +89,17 @@ export function KnowledgePage() {
   const documents = data?.data || []
 
   if (error) {
-    return <div className="card p-8"><LoadingState type="spinner" /></div>
+    // Show the real failure with a retry instead of an endless spinner that
+    // hides auth/network errors from the user.
+    return (
+      <div className="card p-8">
+        <ErrorState
+          title="Failed to load knowledge documents"
+          message={error instanceof Error ? error.message : 'An error occurred while loading the knowledge base.'}
+          onRetry={() => refetch()}
+        />
+      </div>
+    )
   }
 
   return (

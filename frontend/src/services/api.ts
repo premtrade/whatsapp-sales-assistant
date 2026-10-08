@@ -283,8 +283,12 @@ export async function updateAppointment(id: string, data: AppointmentUpdateReque
 }
 
 // Knowledge
-export async function getKnowledgeDocuments(params?: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<KnowledgeDocument>> {
-  const response = await api.get<{ success: boolean; data: KnowledgeDocument[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/knowledge/', { params })
+export async function getKnowledgeDocuments(params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<PaginatedResponse<KnowledgeDocument>> {
+  // Drop empty values so the backend doesn't filter by a blank search/status.
+  const cleanParams = Object.fromEntries(
+    Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  )
+  const response = await api.get<{ success: boolean; data: KnowledgeDocument[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/knowledge/', { params: cleanParams })
   return extractPaginatedData(response)
 }
 
