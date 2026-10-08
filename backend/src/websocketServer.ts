@@ -18,11 +18,39 @@ interface WSClient {
 const clients: Map<WebSocket, WSClient> = new Map();
 const AUTH_TIMEOUT_MS = 5000;
 const MAX_MESSAGES_PER_MINUTE = 60;
+// Proxies/load balancers (e.g. Vercel) silently drop idle sockets after ~60s.
+// A server-side keepalive every 25s refreshes intermediary idle timers and
+// detects dead sockets so they can be reaped instead of lingering for minutes.
+const PING_INTERVAL_MS = 25000;
 
 let wss: WebSocketServer | null = null;
+let keepaliveTimer: NodeJS.Timeout | null = null;
+
+function startKeepalive(): void {
+  if (keepaliveTimer) return;
+  keepaliveTimer = setInterval(() => {
+    clients.forEach((client) => {
+      if (client.ws.readyState === WebSocket.OPEN) {
+        try {
+          client.ws.ping();
+        } catch (err) {
+          logger.error('WebSocket keepalive ping failed', { error: err, userId: client.userId });
+          try {
+            client.ws.terminate();
+          } catch {}
+          clients.delete(client.ws);
+        }
+      } else if (client.ws.readyState !== WebSocket.CONNECTING) {
+        // Stale entry (CLOSED/CLOSING socket that never fired 'close') - reap it.
+        clients.delete(client.ws);
+      }
+    });
+  }, PING_INTERVAL_MS);
+}
 
 export function initializeWebSocket(server: any): void {
   wss = new WebSocketServer({ server, path: '/ws' });
+  startKeepalive();
 
   wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
     const clientState: WSClient = {
@@ -32,6 +60,12 @@ export function initializeWebSocket(server: any): void {
       lastMessageReset: Date.now(),
     };
     clients.set(ws, clientState);
+
+    // Respond to protocol-level pings with pongs so browser heartbeat can
+    // distinguish live sockets from silently-dropped ones.
+    ws.on('ping', () => {
+      try { ws.pong(); } catch {}
+    });
 
     let authTimeout: NodeJS.Timeout | null = null;
 
