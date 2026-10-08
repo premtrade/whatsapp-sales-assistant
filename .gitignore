@@ -1,172 +1,25 @@
-# =============================================================================
-# WhatsApp Sales Assistant - .gitignore
-# =============================================================================
+# Dependencies
+node_modules/
 
-# -----------------------------------------------------------------------------
-# Environment & Secrets
-# -----------------------------------------------------------------------------
+# Build outputs
+dist/
+build/
+
+# Environment variables
 .env
 .env.local
 .env.*.local
-*.env
-secrets/
-*.pem
-*.key
 
-# -----------------------------------------------------------------------------
-# Node.js
-# -----------------------------------------------------------------------------
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm
-.pnpm-store/
-dist/
-build/
-.next/
-.nuxt/
-.cache/
-.parcel-cache/
-coverage/
-*.tsbuildinfo
-
-# -----------------------------------------------------------------------------
-# Python
-# -----------------------------------------------------------------------------
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-.venv/
-env/
-ENV/
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# -----------------------------------------------------------------------------
-# Docker
-# -----------------------------------------------------------------------------
-docker/data/
-docker/volumes/
-*.log
-
-# -----------------------------------------------------------------------------
-# Database
-# -----------------------------------------------------------------------------
-*.sql.gz
-*.dump
-*.sqlite
-*.sqlite3
-
-# -----------------------------------------------------------------------------
-# Backups
-# -----------------------------------------------------------------------------
-backups/*
-!backups/.gitkeep
-
-# -----------------------------------------------------------------------------
-# IDE & Editors
-# -----------------------------------------------------------------------------
-.vscode/
-!.vscode/settings.json
+# Editor directories and files
+.vscode/*
 !.vscode/extensions.json
-.idea/
-*.swp
-*.swo
-*~
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS specific
 .DS_Store
 Thumbs.db
-
-# -----------------------------------------------------------------------------
-# OS
-# -----------------------------------------------------------------------------
-.DS_Store
-desktop.ini
-
-# -----------------------------------------------------------------------------
-# Logs
-# -----------------------------------------------------------------------------
-logs/
-*.log
-
-# -----------------------------------------------------------------------------
-# n8n
-# -----------------------------------------------------------------------------
-n8n-data/
-*.n8n
-
-# -----------------------------------------------------------------------------
-# WAHA
-# -----------------------------------------------------------------------------
-waha-data/
-waha-sessions/
-
-# -----------------------------------------------------------------------------
-# TLS / reverse proxy (nginx + certbot on the Droplet)
-# -----------------------------------------------------------------------------
-acme.json
-letsencrypt/
-docker/nginx/certs/
-
-# -----------------------------------------------------------------------------
-# Misc
-# -----------------------------------------------------------------------------
-.tmp/
-tmp/
-*.bak
-
-# ----------------------------------------------------------------------------
-# Local debug / export artifacts (never commit - may contain secrets)
-# ----------------------------------------------------------------------------
-credrefs.txt
-creds-dec.json
-local-creds.json
-login.json
-*.bak
-*.bak[0-9]*
-*.orig
-*.rej
-docker-build-log.txt
-facts-out.txt
-facts2-out.txt
-facts3-out.txt
-n8n_wf_backup_before_guards.sql
-workflows/live/n8n-all-credentials.json
-scripts/credrefs.ps1
-scripts/facts.ps1
-scripts/facts2.ps1
-scripts/facts3.ps1
-scripts/_tmp_*
-scripts/_import_dir*/
-scripts/__pycache__/
-test_*.js
-test_*.json
-test_*.ps1
-test_*.txt
-test-*.json
-repro.js
-create_test_file.js
-verify_endpoints.js
-fix_phone_format.ps1
-query.sql
-/apply-migrations.ps1
-.vercel/
-.vercel
-.env*
-
-# ----------------------------------------------------------------------------
-# Tracked templates that must survive the .env* ignore rules above
-# ----------------------------------------------------------------------------
-!.env.example
-!.env.*.example
-
-
-
-# Embedded review repos
-focused-release-review/
