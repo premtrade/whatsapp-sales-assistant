@@ -37,7 +37,7 @@
             {
               "id": "tenant-phone-assignment",
               "name": "business_phone",
-              "value": "={{ String($json.body.payload.to || $json.body.payload._data?.to || $json.body.to || $json.body.session || 'default') }}",
+              "value": "={{ String($json.body.session || $json.body.payload.to || $json.body.payload._data?.to || $json.body.to || 'default') }}",
               "type": "string"
             },
             {
@@ -202,7 +202,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, 'whatsapp'\n    FROM businesses b\n    WHERE (regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR b.waha_session_name = $3)\n      AND b.deleted_at IS NULL\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
+        "query": "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, 'whatsapp'\n    FROM businesses b\n    WHERE (b.waha_session_name = split_part($3, '@', 1)\n           OR b.waha_session_name = $3\n           OR regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'))\n      AND b.deleted_at IS NULL\n    ORDER BY CASE WHEN b.waha_session_name = split_part($3, '@', 1) THEN 0 ELSE 1 END\n    LIMIT 1\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
         "options": {
           "queryReplacement": "={{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.customer_name }}, {{ $('Sanitize Inputs').first().json.business_phone }}"
         }
