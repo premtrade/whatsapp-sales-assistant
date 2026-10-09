@@ -288,7 +288,7 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
   }
 
   const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-  const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1', [checksum]);
+  const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2', [checksum, businessId]);
   if (existing.rows.length > 0) {
     throw new ConflictError('Document with this content already exists');
   }
@@ -326,9 +326,9 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
       const vectorStr = formatEmbeddingForPgVector(embedding);
 
       await query(
-        `INSERT INTO knowledge_chunks (document_id, chunk_number, chunk_text, token_count, embedding, embedding_model, metadata)
-         VALUES ($1, $2, $3, $4, $5::vector, $6, $7)`,
-        [doc.id, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, metadata]
+        `INSERT INTO knowledge_chunks (document_id, business_id, chunk_number, chunk_text, token_count, embedding, embedding_model, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8)`,
+        [doc.id, businessId, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, metadata]
       );
     }
 
