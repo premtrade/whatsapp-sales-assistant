@@ -1,51 +1,63 @@
-import { config } from '../config';
+import { pipeline, env } from '@xenova/transformers';
 import logger from '../utils/logger';
 
-export const EMBEDDING_MODEL = config.ai.embeddingModel;
+/**
+ * Local ONNX embedding model.
+ *
+ * We previously used Google Gemini (`gemini-embedding-001`), but that key's GCP
+ * project has the entire Generative Language API blocked (403
+ * API_KEY_SERVICE_BLOCKED), the OpenAI fallback key is a 401, and the HF
+ * endpoints are dead — so every upload failed at the embedding step.
+ *
+ * `Xenova/all-mpnet-base-v2` runs in-process (ONNX Runtime, no network, no API
+ * key) and emits exactly 768 dimensions, matching the `vector(768)` column.
+ *
+ * IMPORTANT: indexing AND query/search both import from this file, so switching
+ * the implementation here switches both to the same embedder — which is required
+ * for cosine similarity to be meaningful.
+ */
+export const EMBEDDING_MODEL = 'Xenova/all-mpnet-base-v2';
 const EMBEDDING_DIMENSION = 768;
 
-function getGeminiApiKey(): string {
-  const apiKey = config.gemini.apiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
+// Longest text we send to the model. all-mpnet-base-v2 has a 384-token limit and
+// transformers.js truncates past it; slicing first avoids pointless work/warnings.
+const MAX_INPUT_CHARS = 8000;
+
+type Extractor = (text: string, options: { pooling: 'mean'; normalize: boolean }) => Promise<{ data: ArrayLike<number> }>;
+
+let extractorPromise: Promise<Extractor> | null = null;
+
+function getExtractor(): Promise<Extractor> {
+  if (!extractorPromise) {
+    // Point at the pre-baked model cache baked into the image (see Dockerfile /
+    // download-model.mjs). In production the model is already on disk, so we must
+    // NOT try to reach the network — HuggingFace is unreachable at runtime.
+    const cacheDir = process.env.TRANSFORMERS_CACHE || env.cacheDir;
+    if (cacheDir) {
+      env.cacheDir = cacheDir;
+    }
+    env.allowLocalModels = true;
+    // Allow a remote download only when explicitly enabled or in non-production
+    // (local dev downloads the model once). In production we rely on the cache.
+    env.allowRemoteModels =
+      process.env.EMBEDDING_ALLOW_REMOTE_MODELS === 'true' || process.env.NODE_ENV !== 'production';
+
+    extractorPromise = (pipeline('feature-extraction', EMBEDDING_MODEL) as unknown) as Promise<Extractor>;
   }
-  return apiKey;
+  return extractorPromise;
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const apiKey = getGeminiApiKey();
-    const body = JSON.stringify({
-      content: { parts: [{ text }] },
-      outputDimensionality: EMBEDDING_DIMENSION,
-    });
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      }
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Gemini embed failed: ${response.status} ${response.statusText} ${text}`);
-    }
-
-    const result = (await response.json()) as { embedding?: { values: number[] } };
-    const embedding = result.embedding?.values;
-
-    if (!embedding || embedding.length === 0) {
-      throw new Error('Empty embedding returned');
-    }
+    const extractor = await getExtractor();
+    const safeText = typeof text === 'string' && text.trim().length > 0 ? text.slice(0, MAX_INPUT_CHARS) : 'empty';
+    const output = await extractor(safeText, { pooling: 'mean', normalize: true });
+    const embedding = Array.prototype.slice.call(output.data) as number[];
 
     if (embedding.length !== EMBEDDING_DIMENSION) {
-      logger.warn('Unexpected embedding dimension', {
-        expected: EMBEDDING_DIMENSION,
-        actual: embedding.length,
-      });
+      throw new Error(
+        `Unexpected embedding dimension: ${embedding.length} (expected ${EMBEDDING_DIMENSION})`
+      );
     }
 
     return embedding;
