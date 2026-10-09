@@ -96,7 +96,7 @@ export function HandoffsPage() {
                         onClick={() => navigate(`/inbox/${handoff.conversation_id}`)}
                         className="text-left hover:text-primary-600 transition-colors"
                       >
-                        <p className="text-sm font-medium text-surface-800">{handoff.contactName || handoff.contact?.display_name || handoff.contact?.phone || 'Unknown'}</p>
+                        <p className="text-sm font-medium text-surface-800">{handoff.contactName || handoff.contactPhone || 'Unknown'}</p>
                         <p className="text-xs text-surface-400">{handoff.contactPhone}</p>
                       </button>
                     </td>

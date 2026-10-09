@@ -87,7 +87,7 @@ return (
                 ))}
               </div>
             </div>
-          )
+          )}
 
           {/* Recent Conversations */}
           <div className="card p-5">

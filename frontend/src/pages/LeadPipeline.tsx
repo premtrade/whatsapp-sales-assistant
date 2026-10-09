@@ -102,7 +102,7 @@ export function LeadPipelinePage() {
                     className="p-3 bg-surface-50 rounded-lg border border-surface-200 hover:border-primary-300 transition-colors"
                   >
                     <p className="text-sm font-medium text-surface-900 truncate">
-                      {lead.contact_name || lead.contact?.display_name || lead.contact?.phone || 'Unknown'}
+                      {lead.contact_name || lead.contact_phone || 'Unknown'}
                     </p>
                     <p className="text-xs text-surface-500 truncate">{lead.contact_phone}</p>
                     {lead.project_type && (
