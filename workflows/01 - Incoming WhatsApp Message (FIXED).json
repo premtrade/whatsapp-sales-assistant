@@ -872,5 +872,6 @@
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
-  }
+  },
+  "active": true
 }
