@@ -31,7 +31,7 @@
             {
               "id": "1fd24149-38f1-446a-b18b-25631342af1b",
               "name": "phone",
-              "value": "={{ String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
+              "value": "={{ String($json.body.payload.from || $json.body.payload.chatId || $json.body.payload._data?.remote?.id?._serialized || '').split('@')[0].replace(/^\\+/, '') }}",
               "type": "string"
             },
             {
@@ -61,7 +61,7 @@
             {
               "id": "124eb81e-db7e-437e-9acc-931c3b170677",
               "name": "customer_name",
-              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"Unknown\" }}",
+              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"\" }}",
               "type": "string"
             },
             {
@@ -103,7 +103,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
+        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nconst phone = String(item.phone || '').trim();\nif (!phone) {\n  throw new Error('WAHA payload missing customer phone (payload.from/chatId). Raw keys: ' + Object.keys((item.rawBody && item.rawBody.payload) || item).join(','));\n}\nreturn [{\n  json: {\n    ...item,\n    phone,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
