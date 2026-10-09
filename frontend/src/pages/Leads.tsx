@@ -203,7 +203,7 @@ export function LeadsPage() {
                         </div>
                         <div>
                           <span className="text-sm font-medium text-surface-800">
-                            {conv.contact?.display_name || 'Unknown'}
+                            {conv.contact?.display_name || conv.contact?.phone || 'Unknown'}
                           </span>
                           {conv.contact?.company && (
                             <p className="text-xs text-surface-400">{conv.contact.company}</p>

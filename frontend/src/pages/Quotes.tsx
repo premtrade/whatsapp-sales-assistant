@@ -84,10 +84,10 @@ export function QuotesPage() {
                   >
                     <td className="table-cell font-medium text-surface-800">{quote.quote_number}</td>
                     <td className="table-cell">
-                      <div>
-                        <p className="text-sm font-medium text-surface-800">{quote.contact?.display_name || 'Unknown'}</p>
-                        <p className="text-xs text-surface-400">{quote.contact?.phone}</p>
-                      </div>
+<div>
+                          <p className="text-sm font-medium text-surface-800">{quote.contact?.display_name || quote.contact?.phone || 'Unknown'}</p>
+                          <p className="text-xs text-surface-400">{quote.contact?.phone}</p>
+                        </div>
                     </td>
                     <td className="table-cell"><StatusBadge status={quote.status} type="quote" />
                       {quote.requires_review && (
@@ -119,7 +119,7 @@ export function QuotesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-medium text-surface-400">Customer</p>
-                <p className="text-sm text-surface-800">{selectedQuote.contact?.display_name || 'Unknown'}</p>
+                <p className="text-sm text-surface-800">{selectedQuote.contact?.display_name || selectedQuote.contact?.phone || 'Unknown'}</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-surface-400">Status</p>

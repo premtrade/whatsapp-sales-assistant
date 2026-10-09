@@ -86,7 +86,7 @@ export function AppointmentsPage() {
                       <p className="text-xs text-surface-400 capitalize">{apt.appointment_type?.replace('_', ' ')}</p>
                     </td>
                     <td className="table-cell">
-                      <p className="text-sm text-surface-800">{apt.contact?.display_name || 'Unknown'}</p>
+                      <p className="text-sm text-surface-800">{apt.contact?.display_name || apt.contact?.phone || 'Unknown'}</p>
                       <p className="text-xs text-surface-400">{apt.contact?.phone}</p>
                     </td>
                     <td className="table-cell text-sm text-surface-600">
@@ -127,7 +127,7 @@ export function AppointmentsPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-surface-400">Customer</p>
-                <p className="text-sm text-surface-800">{selectedAppointment.contact?.display_name || 'Unknown'}</p>
+                <p className="text-sm text-surface-800">{selectedAppointment.contact?.display_name || selectedAppointment.contact?.phone || 'Unknown'}</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-surface-400">Status</p>

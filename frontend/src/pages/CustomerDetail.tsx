@@ -39,10 +39,10 @@ export function CustomerDetailPage() {
     return <EmptyState icon={<NoDataIcon />} title="Customer not found" description="This customer may have been removed." />
   }
 
-  return (
+return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={contact.display_name || 'Unknown Customer'}
+        title={contact.display_name || contact.phone || 'Unknown Customer'}
         subtitle={contact.phone}
         actions={
           <button
@@ -60,7 +60,7 @@ export function CustomerDetailPage() {
           <div className="card p-5">
             <h3 className="text-sm font-semibold text-surface-800 mb-4">Customer Information</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoField label="Full Name" value={contact.display_name} />
+              <InfoField label="Full Name" value={contact.display_name || contact.phone} />
               <InfoField label="Phone" value={contact.phone} />
               <InfoField label="Email" value={contact.email} />
               <InfoField label="Company" value={contact.company} />
@@ -87,7 +87,7 @@ export function CustomerDetailPage() {
                 ))}
               </div>
             </div>
-          )}
+          )
 
           {/* Recent Conversations */}
           <div className="card p-5">

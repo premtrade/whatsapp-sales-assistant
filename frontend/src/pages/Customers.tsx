@@ -83,7 +83,7 @@ export function CustomersPage() {
                         <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-xs font-semibold shrink-0">
                           {customer.display_name?.charAt(0) || '?'}
                         </div>
-                        <span className="text-sm font-medium text-surface-800">{customer.display_name || 'Unknown'}</span>
+                        <span className="text-sm font-medium text-surface-800">{customer.display_name || customer.phone || 'Unknown'}</span>
                       </div>
                     </td>
                     <td className="table-cell text-surface-600">{customer.phone}</td>

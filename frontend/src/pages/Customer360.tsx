@@ -74,7 +74,7 @@ export function Customer360Page() {
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-surface-800">
-                {contact.display_name || 'Unknown'}
+                {contact.display_name || contact.phone || 'Unknown'}
               </h2>
               <p className="text-surface-500">{contact.phone}</p>
               {contact.email && (
