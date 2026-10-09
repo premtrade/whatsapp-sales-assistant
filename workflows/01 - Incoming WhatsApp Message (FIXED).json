@@ -61,7 +61,7 @@
             {
               "id": "124eb81e-db7e-437e-9acc-931c3b170677",
               "name": "customer_name",
-              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"Unknown\" }}",
+              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
               "type": "string"
             },
             {
