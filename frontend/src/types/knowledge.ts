@@ -10,6 +10,7 @@ export interface KnowledgeDocument {
   language: string
   status: 'pending' | 'processing' | 'indexed' | 'failed' | 'archived'
   metadata: Record<string, unknown>
+  chunk_count?: number
   created_at: string
   updated_at: string
 }

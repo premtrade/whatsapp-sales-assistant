@@ -257,6 +257,12 @@ export interface Contact {
   id: string;
   business_id?: string;
   phone: string;
+  /** WhatsApp LID digits (e.g. 251294258356378) — NOT a dialable phone. */
+  wa_lid?: string | null;
+  /** Exact WAHA reply JID (...@lid or ...@c.us). */
+  wa_chat_id?: string | null;
+  /** TRUE when phone is a real verified number rather than LID digits. */
+  phone_verified?: boolean;
   display_name?: string;
   email?: string;
   company?: string;
@@ -393,6 +399,7 @@ export interface KnowledgeDocument {
   language: string;
   status: string;
   metadata: Record<string, unknown>;
+  chunk_count?: number;
   created_at: Date;
   updated_at: Date;
 }

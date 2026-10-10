@@ -53,10 +53,11 @@ export async function getKnowledgeDocuments(filters: KnowledgeFilters): Promise<
   const total = parseInt(countResult.rows[0]?.total || '0', 10);
 
   const dataQuery = `
-    SELECT id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at
-    FROM knowledge_documents
+    SELECT kd.id, kd.business_id, kd.title, kd.document_type, kd.source, kd.file_name, kd.mime_type, kd.file_size, kd.checksum, kd.language, kd.status, kd.metadata, kd.created_at, kd.updated_at,
+      (SELECT COUNT(*) FROM knowledge_chunks kc WHERE kc.document_id = kd.id)::int AS chunk_count
+    FROM knowledge_documents kd
     ${where}
-    ORDER BY created_at ${sortOrder}
+    ORDER BY kd.created_at ${sortOrder}
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}
   `;
 
@@ -345,11 +346,17 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
 
     return { document: { ...doc, status: 'indexed' }, chunksCreated: chunks.length };
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    // Persist the real reason so the Knowledge UI can surface why indexing failed
+    // (previously the row just flipped to 'failed' with no explanation anywhere).
     await query(
-      `UPDATE knowledge_documents SET status = 'failed', updated_at = NOW() WHERE id = $1`,
-      [doc.id]
+      `UPDATE knowledge_documents
+       SET status = 'failed', updated_at = NOW(),
+           metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('error', $2::text, 'failed_at', NOW())
+       WHERE id = $1`,
+      [doc.id, message]
     );
-    logger.error('Document indexing failed', { documentId: doc.id, error });
+    logger.error('Document indexing failed', { documentId: doc.id, error: message });
     throw error;
   }
 }

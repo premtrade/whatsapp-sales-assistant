@@ -6,6 +6,7 @@ import {
   updateKnowledgeStatusController,
   searchKnowledgeChunks,
   searchKnowledgeChunksText,
+  embedText,
   uploadKnowledgeDocumentController,
   uploadMiddleware,
 } from '../controllers/knowledge.controller';
@@ -26,5 +27,9 @@ router.post('/upload', authenticate, requireActiveSubscription, uploadMiddleware
 router.patch('/:id/status', authenticate, requireActiveSubscription, updateKnowledgeStatusController);
 router.post('/search/vector', optionalAuth, searchKnowledgeChunks);
 router.post('/search/text', optionalAuth, searchKnowledgeChunksText);
+// Internal: used by n8n to embed the incoming message with the same local model
+// that indexes documents, so vector search is consistent. optionalAuth so the
+// n8n caller on the internal network is unaffected.
+router.post('/embed', optionalAuth, embedText);
 
 export default router;

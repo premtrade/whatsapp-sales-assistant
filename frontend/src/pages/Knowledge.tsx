@@ -158,6 +158,7 @@ export function KnowledgePage() {
                   <th scope="col" className="table-header">Title</th>
                   <th scope="col" className="table-header">Type</th>
                   <th scope="col" className="table-header">Status</th>
+                  <th scope="col" className="table-header hidden md:table-cell">Chunks</th>
                   <th scope="col" className="table-header hidden md:table-cell">File</th>
                   <th scope="col" className="table-header hidden lg:table-cell">Language</th>
                   <th scope="col" className="table-header hidden sm:table-cell">Created</th>
@@ -172,7 +173,17 @@ export function KnowledgePage() {
                   >
                     <td className="table-cell font-medium text-surface-800">{doc.title}</td>
                     <td className="table-cell text-surface-600 uppercase text-xs">{doc.document_type}</td>
-                    <td className="table-cell"><StatusBadge status={doc.status} type="document" /></td>
+                    <td className="table-cell">
+                      <StatusBadge status={doc.status} type="document" />
+                      {doc.status === 'failed' && doc.metadata?.error ? (
+                        <p className="text-xs text-danger-600 mt-1 max-w-[240px] break-words" title={String(doc.metadata.error)}>
+                          {String(doc.metadata.error)}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="table-cell text-surface-600 text-xs hidden md:table-cell">
+                      {typeof doc.chunk_count === 'number' ? doc.chunk_count : '-'}
+                    </td>
                     <td className="table-cell text-surface-600 text-xs hidden md:table-cell">{doc.file_name || '-'}</td>
                     <td className="table-cell text-surface-600 hidden lg:table-cell">{doc.language || '-'}</td>
                     <td className="table-cell text-surface-400 text-xs hidden sm:table-cell">

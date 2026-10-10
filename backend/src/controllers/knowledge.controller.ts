@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { getKnowledgeDocuments, getKnowledgeDocumentById, createKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, processAndIndexDocument } from '../services/knowledge.service';
+import { generateEmbedding, EMBEDDING_MODEL } from '../services/embedding';
 import { getStaffUserById } from '../services/staff.service';
 import { BadRequestError } from '../utils/errors';
 import { getPagination, getOptionalString } from '../utils/helpers';
@@ -37,6 +38,10 @@ const vectorSearchSchema = z.object({
 const textSearchSchema = z.object({
   query: z.string().min(1, 'Query is required').max(500),
   limit: z.number().int().positive().max(50).optional(),
+});
+
+const embedSchema = z.object({
+  text: z.string().min(1, 'Text is required').max(8000),
 });
 
 const createSchema = z.object({
@@ -215,6 +220,30 @@ export const searchKnowledgeChunksText = async (req: Request, res: Response): Pr
         similarity: chunk.similarity,
         source: chunk.metadata?.title || chunk.metadata?.document_title || '',
       })),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new BadRequestError(error.errors.map((e) => e.message).join(', '));
+    }
+    throw error;
+  }
+};
+
+// Generate an embedding for a query using the SAME local model that indexes
+// documents (all-mpnet-base-v2, 768-dim). n8n's Memory & Context Builder calls
+// this so query-side and storage-side vectors live in the same space, which is
+// required for pgvector cosine similarity to return relevant chunks.
+export const embedText = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validated = embedSchema.parse(req.body);
+    const embedding = await generateEmbedding(validated.text);
+    res.json({
+      success: true,
+      data: {
+        embedding,
+        model: EMBEDDING_MODEL,
+        dimension: embedding.length,
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
