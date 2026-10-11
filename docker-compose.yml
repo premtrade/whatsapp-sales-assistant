@@ -323,11 +323,15 @@ services:
       - backend
 
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health >/dev/null 2>&1"]
+      # The backend image is node:20-slim, which has NO wget. Use Node's built-in
+      # fetch (present in Node 18+) so the health check actually runs. Previously
+      # this used `wget`, which silently failed and left the container "unhealthy",
+      # aborting clean CI deploys even though the app was serving requests fine.
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 20s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
 
     deploy:
       resources:
