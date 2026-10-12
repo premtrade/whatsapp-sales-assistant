@@ -5,19 +5,36 @@
       "parameters": {
         "workflowInputs": {
           "values": [
-            { "name": "conversation_id" },
-            { "name": "contact_id" },
-            { "name": "business_id" },
-            { "name": "reason" },
-            { "name": "assigned_to" },
-            { "name": "request_id" },
-            { "name": "phone" }
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "reason"
+            },
+            {
+              "name": "assigned_to"
+            },
+            {
+              "name": "request_id"
+            },
+            {
+              "name": "phone"
+            }
           ]
         }
       },
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
-      "position": [-920, 0],
+      "position": [
+        -920,
+        0
+      ],
       "id": "handoff-trigger",
       "name": "When Executed by Another Workflow"
     },
@@ -27,7 +44,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-680, 0],
+      "position": [
+        -680,
+        0
+      ],
       "id": "normalize-handoff-input",
       "name": "Normalize Input"
     },
@@ -42,7 +62,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-440, 0],
+      "position": [
+        -440,
+        0
+      ],
       "id": "check-existing-handoff",
       "name": "Check Existing Handoff",
       "credentials": {
@@ -78,7 +101,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [-200, 0],
+      "position": [
+        -200,
+        0
+      ],
       "id": "is-new-handoff",
       "name": "Is New Handoff?"
     },
@@ -93,7 +119,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [40, -120],
+      "position": [
+        40,
+        -120
+      ],
       "id": "update-conv-status",
       "name": "Set Conversation Status",
       "credentials": {
@@ -114,7 +143,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [280, -120],
+      "position": [
+        280,
+        -120
+      ],
       "id": "create-handoff-record",
       "name": "Create Handoff Record",
       "credentials": {
@@ -129,13 +161,16 @@
         "operation": "executeQuery",
         "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', $1::uuid, 'human_handoff_requested', NULL, 'ai', $2, jsonb_build_object('handoff_id', $3::uuid), jsonb_build_object('request_id', $4, 'timestamp', NOW())) RETURNING id;",
         "options": {
-          "queryReplacement": "{{ $('Normalize Input').first().json.conversation_id }}, {{ $('Normalize Input').first().json.reason }}, {{ $('Create Handoff Record').first().json.id }}, {{ $('Normalize Input').first().json.request_id }}",
+          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}\n{{ String($('Normalize Input').first().json.reason || '') }}\n{{ String($('Create Handoff Record').first().json.id || '') }}\n{{ String($('Normalize Input').first().json.request_id || '') }}",
           "continueOnFail": true
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [520, -120],
+      "position": [
+        520,
+        -120
+      ],
       "id": "handoff-audit-log",
       "name": "Audit Log",
       "credentials": {
@@ -151,7 +186,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [760, -120],
+      "position": [
+        760,
+        -120
+      ],
       "id": "format-handoff-output",
       "name": "Format Output"
     },
@@ -161,20 +199,102 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [40, 120],
+      "position": [
+        40,
+        120
+      ],
       "id": "return-existing-handoff",
       "name": "Return Existing Handoff"
     }
   ],
   "connections": {
-    "When Executed by Another Workflow": { "main": [[{ "node": "Normalize Input", "type": "main", "index": 0 }]] },
-    "Normalize Input": { "main": [[{ "node": "Check Existing Handoff", "type": "main", "index": 0 }]] },
-    "Check Existing Handoff": { "main": [[{ "node": "Is New Handoff?", "type": "main", "index": 0 }]] },
-    "Is New Handoff?": { "main": [[{ "node": "Set Conversation Status", "type": "main", "index": 0 }], [{ "node": "Return Existing Handoff", "type": "main", "index": 0 }]] },
-    "Set Conversation Status": { "main": [[{ "node": "Create Handoff Record", "type": "main", "index": 0 }]] },
-    "Create Handoff Record": { "main": [[{ "node": "Audit Log", "type": "main", "index": 0 }]] },
-    "Audit Log": { "main": [[{ "node": "Format Output", "type": "main", "index": 0 }]] }
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Handoff": {
+      "main": [
+        [
+          {
+            "node": "Is New Handoff?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Handoff?": {
+      "main": [
+        [
+          {
+            "node": "Set Conversation Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Existing Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Conversation Status": {
+      "main": [
+        [
+          {
+            "node": "Create Handoff Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Handoff Record": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": true,
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }
