@@ -55,7 +55,7 @@
         "promptType": "define",
         "text": "={{ $('When Executed by Another Workflow').first().json.message }}",
         "options": {
-          "systemMessage": "You are a WhatsApp sales assistant for {{ $json.business_name || 'our company' }}.\n\n=== CONTEXT (authoritative) ===\n{{ $json.formattedPrompt }}\n\n=== RECENT CONVERSATION ===\n{{ $json.conversationHistory || 'No previous messages.' }}\n\n=== CUSTOMER FACTS (remember for next turns) ===\n{{ JSON.stringify($json.customerFacts || []) }}\n\nToday's greeting word: {{ $json.time_greeting || 'evening' }}.\n\nRULES:\n1. On a FIRST message, reply exactly: \"Good {{ $json.time_greeting || 'evening' }}! You're speaking with {{ $json.business_name || 'our company' }}. How can I help you today?\" Do not add more on a greeting.\n2. Answer ONLY from CONTEXT. If CONTEXT lacks the answer, briefly say so and offer to connect with a representative, then call the Handoff Tool. Never fabricate prices, hours, people, exact addresses, services, or project details.\n3. Never echo or quote internal guidance text (anything saying \"AI MUST NOT\", \"INTERNAL\", \"Do not invent\", \"should be confirmed\", or the labels \"CUSTOMER FACTS\"/\"AUTHORITATIVE\" prefixes). Rephrase in your own words.\n4. For appointment / site-visit / scheduling requests: call the Appointment Tool ONCE and stop. For relative dates such as Tuesday, use BUSINESS LOCAL DATE AND TIME in CONTEXT and the business timezone to determine the next matching date; if that context is missing or the date is ambiguous, ask. If a required detail (project location, date, or time) is missing, ask the customer for it - never guess. Only confirm \"I've scheduled your appointment...\" when the tool reports success:true; otherwise ask for the missing detail.\n5. For quote / price / estimate questions: use the Quote Tool only when CONTEXT has an authoritative price; otherwise say quotes are customized after reviewing scope and offer a human. Do NOT hand off pricing questions.\n6. If the customer explicitly asks to speak to a person, a manager, or raises a complaint, call the Handoff Tool.\n7. Replies: 1-2 concise sentences.\n8. Output only compact JSON (no markdown): {\"reply\":\"...\",\"facts_extracted\":[],\"intent\":\"general_inquiry\",\"lead_stage\":\"qualifying\",\"sentiment\":\"neutral\",\"escalate\":false,\"escalation_reason\":\"\"}. No other keys."
+          "systemMessage": "You are a WhatsApp sales assistant for {{ $json.business_name || 'our company' }}.\n\n=== CONTEXT (authoritative) ===\n{{ $json.formattedPrompt }}\n\n=== RECENT CONVERSATION ===\n{{ $json.conversationHistory || 'No previous messages.' }}\n\n=== CUSTOMER FACTS (remember for next turns) ===\n{{ JSON.stringify($json.customerFacts || []) }}\n\nToday's greeting word: {{ $json.time_greeting || 'evening' }}.\n\nRULES:\n1. On a FIRST message, reply exactly: \"Good {{ $json.time_greeting || 'evening' }}! You're speaking with {{ $json.business_name || 'our company' }}. How can I help you today?\" Do not add more on a greeting.\n2. Answer ONLY from CONTEXT. If CONTEXT lacks the answer, briefly say so and offer to connect with a representative.\n3. Never echo internal guidance text. Rephrase in your own words.\n4. SIGNAL INTENT VIA JSON FIELDS (never call a tool yourself):\n   - wants an appointment/site visit/meeting -> \"intent\":\"appointment\".\n   - wants a quote/price/estimate -> \"intent\":\"quote\".\n   - asks for a person/manager, complains, or CONTEXT lacks the answer -> \"escalate\":true and \"escalation_reason\":\"<short reason>\".\n   - otherwise \"intent\":\"general_inquiry\", \"escalate\":false.\n5. Replies: 1-2 concise sentences. Never fabricate prices, hours, or details not in CONTEXT.\n6. Output only compact JSON (no markdown): {\"reply\":\"...\",\"facts_extracted\":[],\"intent\":\"general_inquiry\",\"lead_stage\":\"qualifying\",\"sentiment\":\"neutral\",\"escalate\":false,\"escalation_reason\":\"\"}. No other keys."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -189,7 +189,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ session: $('When Executed by Another Workflow').first().json.session || 'default', chatId: $('When Executed by Another Workflow').first().json.chat_id || ($('When Executed by Another Workflow').first().json.phone + '@c.us'), text: $('Parse AI Output').first().json.reply }) }}",
+        "jsonBody": "={{ JSON.stringify({ session: $('When Executed by Another Workflow').first().json.session || 'default', chatId: $('When Executed by Another Workflow').first().json.chat_id || ($('When Executed by Another Workflow').first().json.wa_chat_id || '') || (($('When Executed by Another Workflow').first().json.phone || '').includes('@') ? $('When Executed by Another Workflow').first().json.phone : (($('When Executed by Another Workflow').first().json.phone || '') + '@c.us')), text: $('Parse AI Output').first().json.reply }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -396,7 +396,73 @@
     },
     {
       "parameters": {
-        "description": "Schedule a site visit or consultation. Use when the customer requests an appointment, site visit, meeting, or a time to be booked. Pass appointment_type, title, location, preferred_date (YYYY-MM-DD), preferred_time (HH:MM 24h), duration_minutes. Call this tool BEFORE telling the customer anything is scheduled, and only confirm the appointment when the tool result reports success. If a required detail such as the project location, date, or time is missing, ask the customer for it first.",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c-appt",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "appointment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "appointment"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c-quote",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "quote",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "quote"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -416,
+        176
+      ],
+      "id": "intent-router-node",
+      "name": "Route by Intent"
+    },
+    {
+      "parameters": {
         "workflowId": {
           "__rl": true,
           "value": "05 - Appointment Tool",
@@ -405,30 +471,33 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
-            "appointment_type": "={{ $fromAI('appointment_type','Type: site_visit, consultation','string') }}",
-            "title": "={{ $fromAI('title','Title','string') }}",
-            "location": "={{ $fromAI('location','Address','string') }}",
-            "preferred_date": "={{ $fromAI('preferred_date','YYYY-MM-DD','string') }}",
-            "preferred_time": "={{ $fromAI('preferred_time','HH:MM 24h','string') }}",
-            "duration_minutes": "={{ $fromAI('duration_minutes','Minutes','number') }}"
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
+            "appointment_type": "site_visit",
+            "title": "Appointment",
+            "location": "",
+            "preferred_date": "",
+            "preferred_time": "",
+            "duration_minutes": 60,
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
           }
-        }
+        },
+        "options": {}
       },
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
       "position": [
-        -512,
-        200
+        -416,
+        320
       ],
-      "id": "call-appointment-tool-node",
-      "name": "Call '05 - Appointment Tool'"
+      "id": "route-appointment-node",
+      "name": "Route Appointment",
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "description": "Create a quote ONLY when customer asks for a quote AND an authoritative price exists. Pass product_name_or_sku, quantity, currency, notes. If no price exists, escalate via Handoff Tool.",
         "workflowId": {
           "__rl": true,
           "value": "06 - Quote Tool",
@@ -437,52 +506,27 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
-            "product_name_or_sku": "={{ $fromAI('product_name_or_sku','Product or SKU','string') }}",
-            "quantity": "={{ $fromAI('quantity','Quantity min 1','number') }}",
-            "currency": "={{ $fromAI('currency','JMD or USD','string') }}",
-            "notes": "={{ $fromAI('notes','Notes','string') }}"
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
+            "product_name_or_sku": "",
+            "quantity": 1,
+            "notes": "={{ $('Parse AI Output').first().json.reply }}",
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
           }
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 2.2,
-      "position": [
-        -368,
-        200
-      ],
-      "id": "call-quote-tool-node",
-      "name": "Call '06 - Quote Tool'"
-    },
-    {
-      "parameters": {
-        "description": "Escalate to a human. Use when: customer asks to speak to a person, asks about pricing/quote/availability/office location, asks technical/legal questions, has a complaint, or knowledge base lacks answer. Pass reason and optionally assigned_to.",
-        "workflowId": {
-          "__rl": true,
-          "value": "07 - Handoff Tool",
-          "mode": "name"
         },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
-            "reason": "={{ $fromAI('reason','Why human needed','string') }}",
-            "assigned_to": "={{ $fromAI('assigned_to','Staff or unassigned','string') }}"
-          }
-        }
+        "options": {}
       },
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
       "position": [
         -224,
-        200
+        320
       ],
-      "id": "call-handoff-tool-node",
-      "name": "Call '07 - Handoff Tool'"
+      "id": "route-quote-node",
+      "name": "Route Quote",
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     }
   ],
   "pinData": {},
@@ -537,12 +581,14 @@
             "node": "Call '08 - AI Output Processor'",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
-    },
-    "Call '08 - AI Output Processor'": {
-      "main": []
     },
     "Insert AI Message": {
       "main": [
@@ -599,42 +645,23 @@
         ]
       ]
     },
-    "Call '04 - Memory Writer'": {
+    "Route by Intent": {
       "main": [
+        [
+          {
+            "node": "Route Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route Quote",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
-      ]
-    },
-    "Call '05 - Appointment Tool'": {
-      "ai_tool": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Call '06 - Quote Tool'": {
-      "ai_tool": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Call '07 - Handoff Tool'": {
-      "ai_tool": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
       ]
     }
   },
