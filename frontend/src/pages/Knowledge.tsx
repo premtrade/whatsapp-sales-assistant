@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getKnowledgeDocuments, createKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument } from '@/services/api'
+import { getKnowledgeDocuments, createKnowledgeDocument, uploadKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument } from '@/services/api'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { ErrorState, LoadingState, PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
@@ -32,22 +32,9 @@ export function KnowledgePage() {
   })
 
   const uploadMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch('/api/knowledge/upload', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')?.replace('jwt:', '')}`,
-        },
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Upload failed')
-      }
-      return response.json()
-    },
+    mutationFn: (formData: FormData) => uploadKnowledgeDocument(formData),
     onSuccess: (result) => {
-      toast.success(result.message || 'Document uploaded successfully')
+      toast.success(result.message || `Document indexed (${result.chunksCreated} chunks created)`)
       queryClient.invalidateQueries({ queryKey: ['knowledge', 'documents'] })
       setIsUploadOpen(false)
       setUploadForm({ title: '', document_type: 'pdf', language: 'en', source: '' })

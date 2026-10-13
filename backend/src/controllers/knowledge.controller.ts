@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { getKnowledgeDocuments, getKnowledgeDocumentById, createKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, processAndIndexDocument } from '../services/knowledge.service';
+import { getKnowledgeDocuments, getKnowledgeDocumentById, getKnowledgeChunksByDocument, createKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, searchKnowledgeChunksHybrid, processAndIndexDocument } from '../services/knowledge.service';
 import { generateEmbedding, EMBEDDING_MODEL } from '../services/embedding';
 import { getStaffUserById } from '../services/staff.service';
 import { BadRequestError } from '../utils/errors';
@@ -44,6 +44,19 @@ const embedSchema = z.object({
   text: z.string().min(1, 'Text is required').max(8000),
 });
 
+// Hybrid semantic + trigram search behind one call. n8n's Postgres node splits
+// queryReplacement on commas, so a 768-dim vector ("[0.1,0.2,...]") passed as a
+// raw param shatters into hundreds of fragments and the whole retrieval errors
+// out (empty knowledge -> generic "our company" greeting). The caller sends the
+// vector base64-encoded (no commas) and the backend decodes it server-side.
+const hybridSearchSchema = z.object({
+  embeddingB64: z.string().min(1, 'embeddingB64 is required').max(200000),
+  message: z.string().min(1, 'message is required').max(500),
+  hasVector: z.boolean().default(true),
+  businessId: z.string().uuid('businessId must be a UUID'),
+  limit: z.number().int().positive().max(50).optional(),
+});
+
 const updateSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255).optional(),
   document_type: z.enum(['pdf', 'docx', 'txt', 'html', 'markdown', 'website', 'faq', 'policy', 'other']).optional(),
@@ -72,7 +85,16 @@ const createSchema = z.object({
 export const listKnowledgeDocuments = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
-  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+  const user = (req as Request & { user?: UserPayload }).user;
+  const tenantId = user?.businessId || user?.tenantId;
+
+  // Fail closed: listKnowledgeDocuments is authenticated, so a non-super-admin
+  // without a tenant must never fall through to an unscoped list of every
+  // tenant's documents. super_admin without x-tenant-id keeps global scope.
+  if (!tenantId && user?.role !== 'super_admin') {
+    res.json({ success: true, data: [], meta: { page, limit, total: 0, totalPages: 1 } });
+    return;
+  }
 
   const result = await getKnowledgeDocuments({
     page,
@@ -153,7 +175,11 @@ export const updateKnowledgeStatusController = async (req: Request, res: Respons
     throw new BadRequestError('Status is required');
   }
 
-  const doc = await updateKnowledgeDocumentStatus(req.params.id!, status);
+  // Tenant-scoped: without the caller's businessId any staff user could flip
+  // the status of another tenant's document (cross-tenant write).
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+
+  const doc = await updateKnowledgeDocumentStatus(req.params.id!, status, tenantId);
 
   await createAuditLog(
     'knowledge_documents',
@@ -165,7 +191,8 @@ export const updateKnowledgeStatusController = async (req: Request, res: Respons
     { status },
     { documentId: req.params.id! },
     req.ip!,
-    req.get('user-agent')!
+    req.get('user-agent')!,
+    tenantId
   );
 
   res.json({
@@ -236,6 +263,21 @@ export const deleteKnowledgeDocumentController = async (req: Request, res: Respo
     success: true,
     message: 'Knowledge document deleted',
   });
+};
+
+// Chunks for one document (tenant-scoped). The frontend calls this to show
+// proof that indexing produced content; without it the UI has no way to list
+// chunks and callers resort to unscoped guesses.
+export const getKnowledgeDocumentChunks = async (req: Request, res: Response): Promise<void> => {
+  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+  // Fail closed: backend routes are authenticated, so a missing tenant here is
+  // unexpected — never return another tenant's chunks.
+  if (!tenantId) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+  const chunks = await getKnowledgeChunksByDocument(req.params.id!, tenantId);
+  res.json({ success: true, data: chunks });
 };
 
 export const searchKnowledgeChunks = async (req: Request, res: Response): Promise<void> => {
@@ -332,6 +374,43 @@ export const embedText = async (req: Request, res: Response): Promise<void> => {
         dimension: embedding.length,
       },
     });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new BadRequestError(error.errors.map((e) => e.message).join(', '));
+    }
+    throw error;
+  }
+};
+
+export const hybridSearchKnowledge = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validated = hybridSearchSchema.parse(req.body);
+    const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+
+    // Decode the base64 vector -> 768 floats -> pgvector literal.
+    let vector: number[];
+    try {
+      const json = Buffer.from(validated.embeddingB64, 'base64').toString('utf-8');
+      const parsed: unknown = JSON.parse(json);
+      if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+        throw new BadRequestError('embeddingB64 must decode to a JSON array of finite numbers');
+      }
+      vector = parsed as number[];
+    } catch (error) {
+      if (error instanceof BadRequestError) throw error;
+      throw new BadRequestError('embeddingB64 is not valid base64-encoded JSON');
+    }
+
+    const chunks = await searchKnowledgeChunksHybrid(
+      vector,
+      validated.message,
+      validated.hasVector,
+      validated.businessId,
+      validated.limit || 10,
+      tenantId
+    );
+
+    res.json({ success: true, data: chunks });
   } catch (error) {
     if (error instanceof z.ZodError) {
       throw new BadRequestError(error.errors.map((e) => e.message).join(', '));

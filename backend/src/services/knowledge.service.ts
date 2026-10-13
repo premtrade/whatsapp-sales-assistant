@@ -239,6 +239,26 @@ export async function deleteKnowledgeDocument(id: string, tenantId?: string): Pr
   logger.info('Knowledge document deleted', { documentId: id, businessId: tenantId });
 }
 
+// Chunks for one document, tenant-scoped through the parent document row.
+// Chunk rows also carry business_id (migration 051), but filtering through kd
+// keeps a single source of truth even for legacy rows predating that column.
+export async function getKnowledgeChunksByDocument(documentId: string, tenantId?: string): Promise<KnowledgeChunk[]> {
+  let sql = `
+    SELECT kc.id, kc.document_id, kc.chunk_number, kc.chunk_text, kc.token_count,
+      kc.embedding_model, kc.metadata, kc.created_at, kc.updated_at
+    FROM knowledge_chunks kc
+    JOIN knowledge_documents kd ON kd.id = kc.document_id
+    WHERE kc.document_id = $1`;
+  const params: unknown[] = [documentId];
+  if (tenantId) {
+    sql += ' AND kd.business_id = $2';
+    params.push(tenantId);
+  }
+  sql += ' ORDER BY kc.chunk_number ASC';
+  const result = await query<KnowledgeChunk>(sql, params);
+  return result.rows;
+}
+
 export async function searchKnowledgeChunksByVector(
   vector: number[],
   limit: number = 5,
@@ -333,6 +353,85 @@ export async function searchKnowledgeChunksByText(
   return result.rows;
 }
 
+
+export interface HybridKnowledgeHit {
+  chunk_text: string;
+  metadata: Record<string, unknown>;
+  source: string;
+  similarity: number;
+}
+
+// Hybrid semantic + trigram search executed server-side (single DB round-trip).
+// The n8n Postgres node splits queryReplacement on commas, so the 768-dim
+// vector can never be passed as a raw query param from n8n — instead the
+// caller POSTs it base64-encoded to /search/hybrid and the SQL below runs
+// here, where the vector literal is built without any comma-splitting.
+export async function searchKnowledgeChunksHybrid(
+  vector: number[],
+  messageText: string,
+  hasVector: boolean,
+  businessId: string,
+  limit = 10,
+  tenantId?: string
+): Promise<HybridKnowledgeHit[]> {
+  if (!vector || vector.length === 0) {
+    throw new BadRequestError('Vector is required');
+  }
+  if (!businessId) {
+    throw new BadRequestError('businessId is required');
+  }
+  // Authenticated callers must not read across tenants. n8n calls this
+  // endpoint unauthenticated (optionalAuth, tenantId undefined) with an
+  // explicit businessId — that path is allowed. An authenticated user whose
+  // tenant differs from the requested business gets nothing back.
+  if (tenantId && tenantId !== businessId) {
+    return [];
+  }
+
+  const vectorStr = `[${vector.join(',')}]`;
+  const sql = `
+    SELECT COALESCE(
+      json_agg(
+        json_build_object(
+          'chunk_text', chunk_text,
+          'metadata', metadata,
+          'source', source,
+          'similarity', similarity
+        )
+        ORDER BY similarity DESC
+      ),
+      '[]'::json
+    ) AS knowledge
+    FROM (
+      SELECT kc.chunk_text, kc.metadata, kd.title AS source, 1 - (kc.embedding <=> $1::vector) AS similarity
+      FROM knowledge_chunks kc
+      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      WHERE kd.status = 'indexed'
+        AND kd.business_id = $4::uuid
+        AND kc.embedding IS NOT NULL
+        AND $3::boolean = true
+        AND kc.chunk_text NOT ILIKE 'dummy content%'
+        AND 1 - (kc.embedding <=> $1::vector) > 0.20
+      UNION ALL
+      SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
+      FROM knowledge_chunks kc
+      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      WHERE kd.status = 'indexed'
+        AND kd.business_id = $4::uuid
+        AND similarity(kc.chunk_text, $2) > 0.1
+        AND kc.chunk_text NOT ILIKE 'dummy content%'
+      ORDER BY similarity DESC
+      LIMIT $5
+    ) combined;`;
+  const result = await query<{ knowledge: HybridKnowledgeHit[] }>(sql, [
+    vectorStr,
+    messageText,
+    hasVector,
+    businessId,
+    limit,
+  ]);
+  return result.rows[0]?.knowledge || [];
+}
 
 export interface ProcessDocumentInput {
   title: string;
