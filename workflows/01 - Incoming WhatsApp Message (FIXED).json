@@ -31,7 +31,13 @@
             {
               "id": "1fd24149-38f1-446a-b18b-25631342af1b",
               "name": "phone",
-              "value": "={{ String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
+              "value": "={{ (() => { const p = $json.body.payload || {}; const key = (p._data && p._data.key) || {}; const cand = [p.fromAlt, p.participantAlt, key.remoteJidAlt, key.participantAlt, p.from, key.remoteJid]; for (const c of cand) { const s = String(c || ''); if (s && !s.includes('@lid')) return s.split('@')[0]; } return ''; })() }}",
+              "type": "string"
+            },
+            {
+              "id": "walid-assignment",
+              "name": "wa_lid",
+              "value": "={{ String($json.body.payload.from || '').includes('@lid') ? String($json.body.payload.from || '').split('@')[0] : '' }}",
               "type": "string"
             },
             {
@@ -44,6 +50,12 @@
               "id": "chat-id-assignment",
               "name": "chat_id",
               "value": "={{ String($json.body.payload.from || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "session-assignment",
+              "name": "session",
+              "value": "={{ String($json.body.session || 'default') }}",
               "type": "string"
             },
             {
@@ -61,7 +73,7 @@
             {
               "id": "124eb81e-db7e-437e-9acc-931c3b170677",
               "name": "customer_name",
-              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || String($json.body.payload.from || '').split('@')[0].replace(/^\\+/, '') }}",
+              "value": "={{ $json.body.payload.pushName || $json.body.payload.notifyName || \"WhatsApp Customer\" }}",
               "type": "string"
             },
             {
@@ -103,7 +115,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: sanitize(item.customer_name),\n    message_id: messageId\n  }\n}];"
+        "jsCode": "const item = $input.first()?.json || {};\nconst sanitize = (str) => typeof str === 'string' ? str.replace(/[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF]/g, '') : str;\nconst messageId = item.message_id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); });\nconst name = sanitize(item.customer_name);\nreturn [{\n  json: {\n    ...item,\n    message: sanitize(item.message),\n    customer_name: (name && name !== 'Unknown') ? name : 'WhatsApp Customer',\n    message_id: messageId\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -202,9 +214,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH result AS (\n    INSERT INTO contacts (business_id, phone, display_name, source)\n    SELECT b.id, $1, $2, 'whatsapp'\n    FROM businesses b\n    WHERE (b.waha_session_name = split_part($3, '@', 1)\n           OR b.waha_session_name = $3\n           OR regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'))\n      AND b.deleted_at IS NULL\n    ORDER BY CASE WHEN b.waha_session_name = split_part($3, '@', 1) THEN 0 ELSE 1 END\n    LIMIT 1\n    ON CONFLICT (business_id, phone)\n    DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW(), last_seen_at = NOW()\n    RETURNING id, business_id, phone\n)\nSELECT r.id, r.business_id, r.phone, b.waha_session_name\nFROM result r\nJOIN businesses b ON b.id = r.business_id;",
+        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, (SELECT resolved_phone FROM resolved), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) IS NOT NULL AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> NULLIF($5, '')) FROM businesses b WHERE (b.waha_session_name = split_part($3, '@', 1) OR b.waha_session_name = $3 OR regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g')) AND b.deleted_at IS NULL ORDER BY CASE WHEN b.waha_session_name = split_part($3, '@', 1) THEN 0 ELSE 1 END LIMIT 1 ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
         "options": {
-          "queryReplacement": "={{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.customer_name }}, {{ $('Sanitize Inputs').first().json.business_phone }}"
+          "queryReplacement": "={{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.customer_name }}, {{ $('Sanitize Inputs').first().json.business_phone }}, {{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.wa_lid }}, {{ $('Sanitize Inputs').first().json.chat_id }}"
         }
       },
       "type": "n8n-nodes-base.postgres",

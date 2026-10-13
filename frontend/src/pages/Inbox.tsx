@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getConversations } from '@/services/api'
+import { contactDisplayName, contactPhone } from '@/types/contact'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
 import { LoadingState, ErrorState } from '@/components/ErrorState/ErrorState'
@@ -83,19 +84,19 @@ export function InboxPage() {
                     className="touch-target w-full px-4 py-3 flex items-start gap-3 hover:bg-surface-50 active:bg-surface-100 transition-colors text-left border-b border-surface-50"
                   >
                     <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-semibold shrink-0">
-                      {conv.contact?.display_name?.charAt(0) || conv.contact?.phone?.charAt(0) || '?'}
+                      {contactDisplayName(conv.contact).charAt(0) || '?'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-surface-800 truncate">
-                          {conv.contact?.display_name || conv.contact?.phone || 'Unknown'}
+                          {contactDisplayName(conv.contact)}
                         </p>
                         <span className="text-[10px] text-surface-400 shrink-0">
                           {conv.last_message_at ? formatTime(conv.last_message_at) : ''}
                         </span>
                       </div>
                       <p className="text-xs text-surface-400 truncate mt-0.5">
-                        {conv.contact?.phone}
+                        {contactPhone(conv.contact) ?? 'WhatsApp'}
                       </p>
                       <div className="mt-1.5">
                         <StatusBadge status={conv.status} type="conversation" />

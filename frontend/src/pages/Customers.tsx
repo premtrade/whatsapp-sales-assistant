@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getContacts } from '@/services/api'
+import { contactDisplayName, contactPhone } from '@/types/contact'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
@@ -81,12 +82,12 @@ export function CustomersPage() {
                     <td className="table-cell">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-xs font-semibold shrink-0">
-                          {customer.display_name?.charAt(0) || '?'}
+                          {contactDisplayName(customer).charAt(0) || '?'}
                         </div>
-                        <span className="text-sm font-medium text-surface-800">{customer.display_name || customer.phone || 'Unknown'}</span>
+                        <span className="text-sm font-medium text-surface-800">{contactDisplayName(customer)}</span>
                       </div>
                     </td>
-                    <td className="table-cell text-surface-600">{customer.phone}</td>
+                    <td className="table-cell text-surface-600">{contactPhone(customer) ?? 'Pending'}</td>
                     <td className="table-cell text-surface-600 hidden md:table-cell">{customer.company || '-'}</td>
                     <td className="table-cell text-surface-600 capitalize hidden lg:table-cell">{customer.source}</td>
                     <td className="table-cell"><StatusBadge status={customer.status} type="contact" /></td>

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { config } from '../config';
+import logger from '../utils/logger';
 
 function wahaBaseUrl(): string {
   return `http://${config.waha.host}:${config.waha.port}`;
@@ -13,6 +14,63 @@ export interface WahaSessionInfo {
   status: string;
   qr?: string;
 }
+
+/**
+ * A WhatsApp chat JID. WAHA/WEBJS increasingly reports senders as
+ * `<lid>@lid` (Linked ID, a privacy-preserving identifier) instead of
+ * `<phone>@c.us`. Replies must go to whichever JID WAHA reported —
+ * sending to `<lid>@c.us` will fail / go nowhere.
+ */
+export type WahaChatId = string;
+
+export interface ContactRow {
+  phone: string;
+  wa_lid?: string | null;
+  wa_chat_id?: string | null;
+}
+
+/**
+ * Resolve the correct WAHA chatId for an outgoing message.
+ *
+ * Priority:
+ *  1. Stored wa_chat_id (the exact JID WAHA reported: ...@lid or ...@c.us)
+ *  2. A value that already contains '@' (assumed to be a full JID)
+ *  3. `<digits>@c.us` fallback for legacy plain-phone rows
+ */
+export function resolveWahaChatId(contact: Pick<ContactRow, 'phone' | 'wa_lid' | 'wa_chat_id'>): string {
+  const stored = (contact.wa_chat_id || '').trim();
+  if (stored.includes('@')) return stored;
+  const phone = (contact.phone || '').trim();
+  if (phone.includes('@')) return phone;
+  const lid = (contact.wa_lid || '').replace(/\D/g, '');
+  if (lid && (!phone || phone === lid)) return `${lid}@lid`;
+  const digits = phone.replace(/\D/g, '');
+  return digits ? `${digits}@c.us` : phone;
+}
+
+/**
+ * Resolve a WhatsApp LID to its real phone number via WAHA:
+ * GET /api/{session}/lids/{lid} -> { lid, pn }
+ * Returns the phone digits (no suffix) or null when unknown.
+ */
+export async function resolvePhoneByLid(session: string, lid: string): Promise<string | null> {
+  try {
+    const lidDigits = lid.replace(/\D/g, '');
+    if (!lidDigits) return null;
+    const res = await fetch(
+      `${wahaBaseUrl()}/api/${encodeURIComponent(session)}/lids/${encodeURIComponent(lidDigits)}`,
+      { headers: wahaHeaders(), signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { pn?: string | null };
+    const pn = (data?.pn || '').replace(/\D/g, '');
+    return pn || null;
+  } catch (err) {
+    logger.warn('WAHA LID lookup failed', { session, lid, error: err instanceof Error ? err.message : 'Unknown error' });
+    return null;
+  }
+}
+
 
 export async function getWahaSessionInfo(session: string): Promise<WahaSessionInfo | null> {
   const res = await fetch(`${wahaBaseUrl()}/api/sessions/${encodeURIComponent(session)}`, {

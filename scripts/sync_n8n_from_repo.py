@@ -39,6 +39,7 @@ import os
 
 # Which workflow files carry fixes we want synced to live n8n.
 TARGETS = [
+    "01 - Incoming WhatsApp Message.json",
     "Workflow 2 - AI Brain.json",
     "03 - Memory & Context Builder.json",
     "Workflow 7 - Handoff Tool.json",

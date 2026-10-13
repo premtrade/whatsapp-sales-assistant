@@ -55,7 +55,7 @@ export async function getContacts(filters: ContactFilters): Promise<{ data: Cont
   const total = parseInt(countResult.rows[0]?.total || '0', 10);
 
   const dataQuery = `
-    SELECT id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
+    SELECT id, phone, wa_lid, wa_chat_id, phone_verified, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
     FROM contacts
     ${where}
     ORDER BY ${sortBy} ${sortOrder}
@@ -77,7 +77,7 @@ export async function getContacts(filters: ContactFilters): Promise<{ data: Cont
 
 export async function getContactById(id: string, tenantId?: string): Promise<Contact> {
   let sql = `
-    SELECT id, business_id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
+    SELECT id, business_id, phone, wa_lid, wa_chat_id, phone_verified, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
     FROM contacts
     WHERE id = $1 AND deleted_at IS NULL
   `;
@@ -140,7 +140,7 @@ export async function getContactWithDetails(id: string, tenantId?: string): Prom
 
 export async function searchContacts(searchTerm: string, limit = 20, tenantId?: string): Promise<Contact[]> {
   let sql = `
-    SELECT id, business_id, phone, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
+    SELECT id, business_id, phone, wa_lid, wa_chat_id, phone_verified, display_name, email, company, source, preferred_language, opt_in, tags, notes, status, first_seen_at, last_seen_at, created_at, updated_at
     FROM contacts
     WHERE deleted_at IS NULL
       AND (display_name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1 OR company ILIKE $1)

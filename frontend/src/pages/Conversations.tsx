@@ -4,6 +4,7 @@ import { getConversations } from '@/services/api'
 import { SearchInput } from '@/components/SearchInput/SearchInput'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
+import { contactDisplayName, contactPhone } from '@/types/contact'
 
 export default function Conversations() {
   const [search, setSearch] = useState('')
@@ -17,8 +18,8 @@ export default function Conversations() {
 
   const filtered = search
     ? conversations.filter(c =>
-        (c.contact?.display_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (c.contact?.phone || '').includes(search) ||
+        contactDisplayName(c.contact).toLowerCase().includes(search.toLowerCase()) ||
+        (contactPhone(c.contact) || '').includes(search) ||
         (c.status || '').toLowerCase().includes(search.toLowerCase())
       )
     : conversations
@@ -27,8 +28,8 @@ export default function Conversations() {
     const rows = [['Contact', 'Phone', 'Status', 'Last Message', 'Channel']]
     filtered.forEach(c => {
       rows.push([
-        c.contact?.display_name || '',
-        c.contact?.phone || '',
+        contactDisplayName(c.contact),
+        contactPhone(c.contact) || '',
         c.status || '',
         c.last_message_at ? new Date(c.last_message_at).toLocaleString() : '',
         c.channel || ''
@@ -79,7 +80,7 @@ export default function Conversations() {
               ) : (
                 filtered.map(c => (
                   <tr key={c.id} className="hover:bg-surface-800/50">
-                    <td className="px-4 py-3 text-surface-100 font-medium">{c.contact?.display_name || c.contact?.phone || '—'}</td>
+                    <td className="px-4 py-3 text-surface-100 font-medium">{contactDisplayName(c.contact)}</td>
                     <td className="px-4 py-3"><StatusBadge status={c.status} type="conversation" /></td>
                     <td className="px-4 py-3 text-surface-300">{c.last_message_at ? new Date(c.last_message_at).toLocaleString() : '—'}</td>
                     <td className="px-4 py-3 text-surface-300">{c.channel || '—'}</td>

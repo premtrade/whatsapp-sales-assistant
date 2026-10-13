@@ -4,16 +4,12 @@ import { config } from '../config';
 import logger from '../utils/logger';
 import { Message } from '../types';
 import { emitNewMessage, emitDashboardStatsUpdated } from '../websocketServer';
-import { sendWahaText } from './waha.service';
+import { sendWahaText, resolveWahaChatId, type ContactRow } from './waha.service';
 import { getBusinessById } from './business.service';
 
 interface ConversationRow {
   contact_id: string;
   business_id: string;
-}
-
-interface ContactRow {
-  phone: string;
 }
 
 export async function getMessages(conversationId: string, limit = 50, offset = 0): Promise<Message[]> {
@@ -47,7 +43,7 @@ export async function sendMessage(
   }
 
   const contactResult = await query<ContactRow>(
-    'SELECT phone FROM contacts WHERE id = $1',
+    'SELECT phone, wa_lid, wa_chat_id FROM contacts WHERE id = $1',
     [conversation.contact_id]
   );
 
@@ -77,7 +73,7 @@ export async function sendMessage(
 
   logger.info('Message sent by staff', { conversationId, messageId: message.id, staffId });
 
-  await triggerWahaWebhook(conversationId, contact.phone, textBody, metadata, conversation.business_id);
+  await triggerWahaWebhook(conversationId, contact.phone, textBody, metadata, conversation.business_id, contact);
 
   // Emit real-time events with tenantId
   const tenantId = conversation.business_id;
@@ -92,7 +88,8 @@ async function triggerWahaWebhook(
   phone: string,
   textBody: string,
   metadata: Record<string, unknown>,
-  businessId: string
+  businessId: string,
+  contact?: ContactRow
 ): Promise<void> {
   try {
     // Resolve the tenant's own WhatsApp session so replies always come from
@@ -105,12 +102,18 @@ async function triggerWahaWebhook(
       logger.warn('Falling back to default WAHA session', { conversationId, businessId, error: err });
     }
 
-    // WAHA chatIds are JIDs: normalize bare phones to <phone>@c.us
-    const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
+    // WAHA chatIds are JIDs. WEBJS reports many senders as <lid>@lid — reply
+    // on the stored JID (wa_chat_id) instead of blindly using <lid>@c.us,
+    // which would fail or go nowhere.
+    const chatId = contact
+      ? resolveWahaChatId(contact)
+      : phone.includes('@')
+        ? phone
+        : `${phone.replace(/\D/g, '')}@c.us`;
 
     await sendWahaText({ session, chatId, text: textBody });
 
-    logger.info('WAHA message sent', { conversationId, phone, session });
+    logger.info('WAHA message sent', { conversationId, phone, chatId, session });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to trigger WAHA webhook', { conversationId, error: errorMessage });

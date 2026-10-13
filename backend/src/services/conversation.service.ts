@@ -90,7 +90,7 @@ export async function getConversations(filters: ConversationFilters): Promise<{ 
   const dataQuery = `
     SELECT 
       c.id, c.contact_id, c.channel, c.status, c.assigned_to, c.started_at, c.last_message_at, c.ended_at, c.created_at, c.updated_at,
-      ct.display_name as contact_display_name, ct.phone as contact_phone, ct.email as contact_email, ct.company as contact_company,
+      ct.display_name as contact_display_name, ct.phone as contact_phone, ct.wa_lid as contact_wa_lid, ct.wa_chat_id as contact_wa_chat_id, ct.phone_verified as contact_phone_verified, ct.email as contact_email, ct.company as contact_company,
       su.first_name as staff_first_name, su.last_name as staff_last_name, su.email as staff_email, su.role as staff_role,
       m.text_body as last_message_text, m.created_at as last_message_created_at,
       msg_count.message_count
@@ -116,6 +116,9 @@ export async function getConversations(filters: ConversationFilters): Promise<{ 
   const dataResult = await query<ConversationWithDetails & {
     contact_display_name: string;
     contact_phone: string;
+    contact_wa_lid: string | null;
+    contact_wa_chat_id: string | null;
+    contact_phone_verified: boolean;
     contact_email: string;
     contact_company: string;
     staff_first_name: string;
@@ -165,6 +168,9 @@ export async function getConversations(filters: ConversationFilters): Promise<{ 
       contact: {
         id: row.contact_id,
         phone: row.contact_phone,
+        wa_lid: row.contact_wa_lid,
+        wa_chat_id: row.contact_wa_chat_id,
+        phone_verified: row.contact_phone_verified,
         display_name: row.contact_display_name,
         email: row.contact_email,
         company: row.contact_company,
@@ -208,7 +214,7 @@ export async function getConversations(filters: ConversationFilters): Promise<{ 
 export async function getConversationById(id: string, tenantId?: string): Promise<ConversationWithDetails> {
   let sql = `SELECT 
       c.id, c.business_id, c.contact_id, c.channel, c.status, c.assigned_to, c.started_at, c.last_message_at, c.ended_at, c.created_at, c.updated_at,
-      ct.display_name as contact_display_name, ct.phone as contact_phone, ct.email as contact_email, ct.company as contact_company,
+      ct.display_name as contact_display_name, ct.phone as contact_phone, ct.wa_lid as contact_wa_lid, ct.wa_chat_id as contact_wa_chat_id, ct.phone_verified as contact_phone_verified, ct.email as contact_email, ct.company as contact_company,
       su.first_name as staff_first_name, su.last_name as staff_last_name, su.email as staff_email, su.role as staff_role
      FROM conversations c
      JOIN contacts ct ON c.contact_id = ct.id
@@ -224,6 +230,9 @@ export async function getConversationById(id: string, tenantId?: string): Promis
   const result = await query<ConversationWithDetails & {
     contact_display_name: string;
     contact_phone: string;
+    contact_wa_lid: string | null;
+    contact_wa_chat_id: string | null;
+    contact_phone_verified: boolean;
     contact_email: string;
     contact_company: string;
     staff_first_name: string;
@@ -255,6 +264,9 @@ export async function getConversationById(id: string, tenantId?: string): Promis
     contact: {
       id: row.contact_id,
       phone: row.contact_phone,
+      wa_lid: row.contact_wa_lid,
+      wa_chat_id: row.contact_wa_chat_id,
+      phone_verified: row.contact_phone_verified,
       display_name: row.contact_display_name,
       email: row.contact_email,
       company: row.contact_company,

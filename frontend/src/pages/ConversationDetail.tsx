@@ -8,6 +8,7 @@ import { LoadingState, ErrorState } from '@/components/ErrorState/ErrorState'
 import { useWebSocket } from '@/context/WebSocketContext'
 import toast from 'react-hot-toast'
 import type { Message, CustomerFact } from '@/types'
+import { contactDisplayName, contactPhone } from '@/types/contact'
 
 export function ConversationDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -101,13 +102,13 @@ export function ConversationDetailPage() {
                 </svg>
               </button>
               <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-semibold shrink-0">
-                {contact?.display_name?.charAt(0) || '?'}
+                {contactDisplayName(contact).charAt(0) || '?'}
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-surface-800 truncate">
-                  {contact?.display_name || contact?.phone || 'Unknown'}
+                  {contactDisplayName(contact)}
                 </p>
-                <p className="text-xs text-surface-400">{contact?.phone}</p>
+                <p className="text-xs text-surface-400">{contactPhone(contact) ?? 'WhatsApp'}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -223,8 +224,8 @@ export function ConversationDetailPage() {
               <div>
                 <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Customer</h3>
                 <div className="space-y-2">
-                  <ContextField label="Name" value={contact?.display_name} />
-                  <ContextField label="Phone" value={contact?.phone} />
+                  <ContextField label="Name" value={contactDisplayName(contact)} />
+                  <ContextField label="Phone" value={contactPhone(contact) ?? 'Pending — WhatsApp privacy ID'} />
                   <ContextField label="Email" value={contact?.email} />
                   <ContextField label="Company" value={contact?.company} />
                   <ContextField label="Language" value={contact?.preferred_language} />

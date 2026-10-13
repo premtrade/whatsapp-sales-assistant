@@ -3,7 +3,7 @@ import { NotFoundError, BadRequestError } from '../utils/errors';
 import { QuoteFilters, Quote } from '../types';
 import { emitDashboardStatsUpdated } from '../websocketServer';
 import { generateQuotePDF } from './pdf.service';
-import { sendWahaDocument } from './waha.service';
+import { sendWahaDocument, resolveWahaChatId } from './waha.service';
 import { config } from '../config';
 import { requirePlanFeature } from './subscription.service';
 
@@ -15,11 +15,14 @@ export async function sendQuotePdfToCustomer(quoteId: string, businessId: string
     status: string;
     valid_until: Date | null;
     customer_phone: string;
+    customer_wa_lid: string | null;
+    customer_wa_chat_id: string | null;
     customer_name: string;
     requires_review: boolean;
     waha_session_name: string | null;
   }>(
     `SELECT q.quote_number, q.pdf_url, q.status, q.valid_until, c.phone AS customer_phone,
+            c.wa_lid AS customer_wa_lid, c.wa_chat_id AS customer_wa_chat_id,
             c.display_name AS customer_name,
             COALESCE((q.metadata->>'requires_review')::boolean, false) AS requires_review,
             b.waha_session_name
@@ -39,14 +42,14 @@ export async function sendQuotePdfToCustomer(quoteId: string, businessId: string
     return { pdfUrl: quote.pdf_url || '', quoteNumber: quote.quote_number, alreadySent: true };
   }
   if (!['draft'].includes(quote.status)) throw new BadRequestError(`Quote cannot be sent from status '${quote.status}'`);
-  const phone = quote.customer_phone.replace(/\D/g, '');
-  if (!phone) throw new BadRequestError('Customer does not have a valid WhatsApp number');
+  const chatId = resolveWahaChatId({ phone: quote.customer_phone, wa_lid: quote.customer_wa_lid, wa_chat_id: quote.customer_wa_chat_id });
+  if (!chatId) throw new BadRequestError('Customer does not have a valid WhatsApp number');
 
   const filePath = await generateQuotePDF(quoteId);
   const filename = `${filePath.split(/[\\/]/).pop() || `Quote_${quote.quote_number}.pdf`}`;
   await sendWahaDocument({
     session: quote.waha_session_name || config.waha.session || 'default',
-    chatId: `${phone}@c.us`,
+    chatId,
     filePath,
     filename,
     caption: `Here is your quote ${quote.quote_number} for ${quote.customer_name}. It is valid until ${quote.valid_until ? new Date(quote.valid_until).toLocaleDateString() : 'further notice'}. Reply “I accept” to accept it.`,

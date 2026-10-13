@@ -10,7 +10,7 @@ import { PaymentRequiredError } from '../utils/errors';
 import { acceptQuoteFromWebhook, sendQuotePdfToCustomer } from '../services/quote.service';
 import { createAuditLog } from '../services/audit.service';
 import { query } from '../utils/database';
-import { sendWahaText } from '../services/waha.service';
+import { sendWahaText, resolveWahaChatId } from '../services/waha.service';
 import { config } from '../config';
 import { bookAppointment } from '../services/appointment.service';
 
@@ -251,12 +251,12 @@ router.post(
       });
       let customerConfirmationSent = false;
       let staffNotified = false;
-      const phoneDigits = booked.customerPhone.replace(/\D/g, '');
-      if (phoneDigits) {
+      const customerChatId = resolveWahaChatId({ phone: booked.customerPhone, wa_lid: booked.customerWaLid, wa_chat_id: booked.customerWaChatId });
+      if (customerChatId) {
         try {
           await sendWahaText({
             session: booked.wahaSession || config.waha.session || 'default',
-            chatId: `${phoneDigits}@c.us`,
+            chatId: customerChatId,
             text: `Your ${booked.appointment.title} with ${booked.businessName} is confirmed for ${timeLabel}${booked.appointment.location ? ` at ${booked.appointment.location}` : ''}.`,
           });
           customerConfirmationSent = true;
@@ -268,7 +268,8 @@ router.post(
         }
       }
       const staffPhoneDigits = booked.assignedPhone?.replace(/\D/g, '') || '';
-      if (staffPhoneDigits && staffPhoneDigits !== phoneDigits) {
+      const customerDigits = booked.customerPhone.replace(/\D/g, '');
+      if (staffPhoneDigits && staffPhoneDigits !== customerDigits) {
         try {
           await sendWahaText({
             session: booked.wahaSession || config.waha.session || 'default',
@@ -328,8 +329,8 @@ router.post(
 
       let customerNotified = false;
       try {
-        const details = await query<{ phone: string; waha_session_name: string | null }>(
-          `SELECT ct.phone, b.waha_session_name
+        const details = await query<{ phone: string; wa_lid: string | null; wa_chat_id: string | null; waha_session_name: string | null }>(
+          `SELECT ct.phone, ct.wa_lid, ct.wa_chat_id, b.waha_session_name
            FROM contacts ct
            JOIN businesses b ON b.id = ct.business_id
            WHERE ct.id = $1 AND ct.business_id = $2`,
@@ -337,11 +338,11 @@ router.post(
         );
         const customer = details.rows[0];
         if (customer?.phone) {
-          const phone = customer.phone.replace(/\D/g, '');
-          if (phone) {
+          const chatId = resolveWahaChatId(customer);
+          if (chatId) {
             await sendWahaText({
               session: customer.waha_session_name || config.waha.session || 'default',
-              chatId: `${phone}@c.us`,
+              chatId,
               text: 'Thanks, your quote has been accepted. The business team will follow up with you shortly.',
             });
             customerNotified = true;

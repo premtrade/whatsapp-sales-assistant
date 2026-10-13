@@ -150,6 +150,8 @@ export interface BookedAppointmentDetails {
   wahaSession: string | null;
   customerName: string;
   customerPhone: string;
+  customerWaLid: string | null;
+  customerWaChatId: string | null;
   assignedName: string | null;
   assignedPhone: string | null;
 }
@@ -162,9 +164,12 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Book
       waha_session_name: string | null;
       contact_name: string;
       contact_phone: string;
+      contact_wa_lid: string | null;
+      contact_wa_chat_id: string | null;
     }>(
       `SELECT b.name AS business_name, b.timezone, b.waha_session_name,
-              c.display_name AS contact_name, c.phone AS contact_phone
+              c.display_name AS contact_name, c.phone AS contact_phone,
+              c.wa_lid AS contact_wa_lid, c.wa_chat_id AS contact_wa_chat_id
        FROM businesses b
        JOIN contacts c ON c.business_id = b.id
        WHERE b.id = $1 AND c.id = $2 AND b.status IN ('active', 'trialing')
@@ -255,6 +260,8 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Book
       wahaSession: business.waha_session_name,
       customerName: business.contact_name,
       customerPhone: business.contact_phone,
+      customerWaLid: business.contact_wa_lid,
+      customerWaChatId: business.contact_wa_chat_id,
       assignedName,
       assignedPhone,
     };

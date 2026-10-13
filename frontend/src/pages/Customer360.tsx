@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getContact, getConversations, getQuotes, getAppointments } from '@/services/api'
+import { contactDisplayName, contactPhone } from '@/types/contact'
 import { PageHeader } from '@/components/ErrorState/ErrorState'
 import { ErrorState, LoadingState } from '@/components/ErrorState/ErrorState'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
@@ -70,13 +71,13 @@ export function Customer360Page() {
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-2xl font-bold">
-              {contact.display_name?.charAt(0) || '?'}
+              {contactDisplayName(contact).charAt(0) || '?'}
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-surface-800">
-                {contact.display_name || contact.phone || 'Unknown'}
+                {contactDisplayName(contact)}
               </h2>
-              <p className="text-surface-500">{contact.phone}</p>
+              <p className="text-surface-500">{contactPhone(contact) ?? 'WhatsApp (number pending — privacy ID)'}</p>
               {contact.email && (
                 <p className="text-sm text-surface-400">{contact.email}</p>
               )}
@@ -217,7 +218,7 @@ export function Customer360Page() {
           <div className="p-5 space-y-4">
             <div>
               <p className="text-xs text-surface-400 uppercase tracking-wide">Phone</p>
-              <p className="text-sm text-surface-800 mt-1">{contact.phone}</p>
+              <p className="text-sm text-surface-800 mt-1">{contactPhone(contact) ?? 'Pending — WhatsApp privacy ID'}</p>
             </div>
             {contact.email && (
               <div>

@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
 import { LoadingState, ErrorState } from '@/components/ErrorState/ErrorState'
 import { Badge } from '@/components/Badge/Badge'
+import { contactDisplayName, contactPhone } from '@/types/contact'
 
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -42,8 +43,8 @@ export function CustomerDetailPage() {
 return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title={contact.display_name || contact.phone || 'Unknown Customer'}
-        subtitle={contact.phone}
+        title={contactDisplayName(contact)}
+        subtitle={contactPhone(contact) ?? 'WhatsApp (number pending — privacy ID)'}
         actions={
           <button
             onClick={() => navigate('/inbox')}
@@ -60,8 +61,8 @@ return (
           <div className="card p-5">
             <h3 className="text-sm font-semibold text-surface-800 mb-4">Customer Information</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InfoField label="Full Name" value={contact.display_name || contact.phone} />
-              <InfoField label="Phone" value={contact.phone} />
+              <InfoField label="Full Name" value={contactDisplayName(contact)} />
+              <InfoField label="Phone" value={contactPhone(contact) ?? 'Pending — WhatsApp privacy ID'} />
               <InfoField label="Email" value={contact.email} />
               <InfoField label="Company" value={contact.company} />
               <InfoField label="Source" value={contact.source} />
