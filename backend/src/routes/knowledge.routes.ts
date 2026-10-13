@@ -3,6 +3,8 @@ import {
   listKnowledgeDocuments,
   getKnowledgeDocument,
   createKnowledgeDocumentController,
+  updateKnowledgeDocumentController,
+  deleteKnowledgeDocumentController,
   updateKnowledgeStatusController,
   searchKnowledgeChunks,
   searchKnowledgeChunksText,
@@ -25,6 +27,8 @@ router.get('/:id', authenticate, requireActiveSubscription, getKnowledgeDocument
 router.post('/', authenticate, requireActiveSubscription, createKnowledgeDocumentController);
 router.post('/upload', authenticate, requireActiveSubscription, uploadMiddleware, uploadKnowledgeDocumentController);
 router.patch('/:id/status', authenticate, requireActiveSubscription, updateKnowledgeStatusController);
+router.patch('/:id', authenticate, requireActiveSubscription, updateKnowledgeDocumentController);
+router.delete('/:id', authenticate, requireActiveSubscription, deleteKnowledgeDocumentController);
 router.post('/search/vector', optionalAuth, searchKnowledgeChunks);
 router.post('/search/text', optionalAuth, searchKnowledgeChunksText);
 // Internal: used by n8n to embed the incoming message with the same local model

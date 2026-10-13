@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { getKnowledgeDocuments, getKnowledgeDocumentById, createKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, processAndIndexDocument } from '../services/knowledge.service';
+import { getKnowledgeDocuments, getKnowledgeDocumentById, createKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, processAndIndexDocument } from '../services/knowledge.service';
 import { generateEmbedding, EMBEDDING_MODEL } from '../services/embedding';
 import { getStaffUserById } from '../services/staff.service';
 import { BadRequestError } from '../utils/errors';
@@ -44,6 +44,16 @@ const embedSchema = z.object({
   text: z.string().min(1, 'Text is required').max(8000),
 });
 
+const updateSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(255).optional(),
+  document_type: z.enum(['pdf', 'docx', 'txt', 'html', 'markdown', 'website', 'faq', 'policy', 'other']).optional(),
+  source: z.string().optional(),
+  file_name: z.string().optional(),
+  language: z.string().max(10).optional(),
+  status: z.enum(['pending', 'processing', 'indexed', 'failed', 'archived']).optional(),
+  metadata: z.record(z.unknown()).optional(),
+}).refine((v) => Object.keys(v).length > 0, { message: 'At least one field must be provided' });
+
 const createSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255),
   document_type: z.enum(['pdf', 'docx', 'txt', 'html', 'markdown', 'website', 'faq', 'policy', 'other']),
@@ -57,6 +67,7 @@ const createSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
   business_id: z.string().uuid().optional(),
 });
+
 
 export const listKnowledgeDocuments = async (req: Request, res: Response): Promise<void> => {
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
@@ -164,10 +175,81 @@ export const updateKnowledgeStatusController = async (req: Request, res: Respons
   });
 };
 
+// Full update of a knowledge document's editable fields (tenant-scoped).
+export const updateKnowledgeDocumentController = async (req: Request, res: Response): Promise<void> => {
+  const currentUser = (req as Request & { user?: UserPayload }).user;
+  if (!currentUser) {
+    throw new BadRequestError('Unauthorized');
+  }
+
+  const validated = updateSchema.parse(req.body);
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+
+  const doc = await updateKnowledgeDocument(req.params.id!, validated, tenantId);
+
+  await createAuditLog(
+    'knowledge_documents',
+    'update',
+    currentUser.id,
+    'staff',
+    `Knowledge document updated: ${doc.title}`,
+    undefined,
+    { fields: Object.keys(validated) },
+    { documentId: doc.id },
+    req.ip!,
+    req.get('user-agent')!,
+    tenantId
+  );
+
+  res.json({
+    success: true,
+    data: doc,
+    message: 'Knowledge document updated',
+  });
+};
+
+// Delete a knowledge document (tenant-scoped). Chunks cascade-delete via FK.
+export const deleteKnowledgeDocumentController = async (req: Request, res: Response): Promise<void> => {
+  const currentUser = (req as Request & { user?: UserPayload }).user;
+  if (!currentUser) {
+    throw new BadRequestError('Unauthorized');
+  }
+
+  const tenantId = currentUser.businessId || currentUser.tenantId;
+  await deleteKnowledgeDocument(req.params.id!, tenantId);
+
+  await createAuditLog(
+    'knowledge_documents',
+    'delete',
+    currentUser.id,
+    'staff',
+    `Knowledge document deleted`,
+    undefined,
+    undefined,
+    { documentId: req.params.id! },
+    req.ip!,
+    req.get('user-agent')!,
+    tenantId
+  );
+
+  res.json({
+    success: true,
+    message: 'Knowledge document deleted',
+  });
+};
+
 export const searchKnowledgeChunks = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = vectorSearchSchema.parse(req.body);
     const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+    // Strict tenant isolation: never search across tenants. This endpoint is
+    // optionalAuth (callable by n8n/internal), so an unauthenticated caller has
+    // no tenant context -> fail closed with empty results instead of leaking
+    // every business's chunks.
+    if (!tenantId) {
+      res.json({ success: true, data: [] });
+      return;
+    }
     const chunks = await searchKnowledgeChunksByVector(
       validated.vector,
       validated.limit || 5,
@@ -201,6 +283,11 @@ export const searchKnowledgeChunksText = async (req: Request, res: Response): Pr
   try {
     const validated = textSearchSchema.parse(req.body);
     const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+    // Strict tenant isolation: fail closed when there is no tenant context.
+    if (!tenantId) {
+      res.json({ success: true, data: [] });
+      return;
+    }
     const chunks = await searchKnowledgeChunksByText(
       validated.query,
       validated.limit || 5,

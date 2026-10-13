@@ -25,6 +25,7 @@ import type {
   AppointmentUpdateRequest,
   KnowledgeDocument,
   KnowledgeDocumentCreateRequest,
+  KnowledgeDocumentUpdateRequest,
   KnowledgeChunk,
   AuditLog,
   AuditLogListParams,
@@ -309,6 +310,15 @@ export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumen
 export async function createKnowledgeDocument(data: KnowledgeDocumentCreateRequest): Promise<KnowledgeDocument> {
   const response = await api.post<{ success: boolean; data: KnowledgeDocument }>('/knowledge/', data)
   return response.data.data
+}
+
+export async function updateKnowledgeDocument(id: string, data: KnowledgeDocumentUpdateRequest): Promise<KnowledgeDocument> {
+  const response = await api.patch<{ success: boolean; data: KnowledgeDocument }>(`/knowledge/${id}`, data)
+  return response.data.data
+}
+
+export async function deleteKnowledgeDocument(id: string): Promise<void> {
+  await api.delete<{ success: boolean; message: string }>(`/knowledge/${id}`)
 }
 
 export async function getKnowledgeChunks(documentId: string): Promise<KnowledgeChunk[]> {

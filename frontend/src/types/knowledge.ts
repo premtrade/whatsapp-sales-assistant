@@ -38,3 +38,13 @@ export interface KnowledgeDocumentCreateRequest {
   language?: string
   metadata?: Record<string, unknown>
 }
+
+export interface KnowledgeDocumentUpdateRequest {
+  title?: string
+  document_type?: 'pdf' | 'docx' | 'txt' | 'html' | 'markdown' | 'website' | 'faq' | 'policy' | 'other'
+  source?: string
+  file_name?: string
+  language?: string
+  status?: 'pending' | 'processing' | 'indexed' | 'failed' | 'archived'
+  metadata?: Record<string, unknown>
+}

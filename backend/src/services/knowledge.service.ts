@@ -164,6 +164,81 @@ export async function updateKnowledgeDocumentStatus(id: string, status: string, 
   return doc;
 }
 
+const UPDATABLE_FIELDS = ['title', 'document_type', 'source', 'file_name', 'language', 'status', 'metadata'] as const;
+type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
+
+// Full update of a knowledge document's editable fields, tenant-scoped.
+export async function updateKnowledgeDocument(
+  id: string,
+  updates: Partial<Pick<KnowledgeDocument, UpdatableField>>,
+  tenantId?: string
+): Promise<KnowledgeDocument> {
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  let idx = 1;
+
+  // Only allow whitelisted fields; ignore anything else.
+  for (const field of UPDATABLE_FIELDS) {
+    if (updates[field] !== undefined) {
+      sets.push(`${field} = $${idx++}`);
+      params.push(updates[field]);
+    }
+  }
+
+  if (sets.length === 0) {
+    throw new BadRequestError('No valid fields to update');
+  }
+
+  if (updates.status !== undefined) {
+    const validStatuses = ['pending', 'processing', 'indexed', 'failed', 'archived'];
+    if (!validStatuses.includes(updates.status)) {
+      throw new BadRequestError(`Invalid status: ${updates.status}`);
+    }
+  }
+  if (updates.document_type !== undefined) {
+    const validTypes = ['pdf', 'docx', 'txt', 'html', 'markdown', 'website', 'faq', 'policy', 'other'];
+    if (!validTypes.includes(updates.document_type)) {
+      throw new BadRequestError(`Invalid document_type: ${updates.document_type}`);
+    }
+  }
+
+  sets.push('updated_at = NOW()');
+
+  let sql = `UPDATE knowledge_documents SET ${sets.join(', ')} WHERE id = $${idx++}`;
+  params.push(id);
+  if (tenantId) {
+    sql += ` AND business_id = $${idx++}`;
+    params.push(tenantId);
+  }
+  sql += ' RETURNING id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at';
+
+  const result = await query<KnowledgeDocument>(sql, params);
+  const doc = result.rows[0];
+  if (!doc) {
+    throw new NotFoundError('Knowledge document not found');
+  }
+  logger.info('Knowledge document updated', { documentId: id, fields: Object.keys(updates), businessId: tenantId });
+  return doc;
+}
+
+// Delete a knowledge document (tenant-scoped). Associated chunks are removed by
+// the fk_chunks_document ON DELETE CASCADE constraint.
+export async function deleteKnowledgeDocument(id: string, tenantId?: string): Promise<void> {
+  let sql = 'DELETE FROM knowledge_documents WHERE id = $1';
+  const params: unknown[] = [id];
+  if (tenantId) {
+    sql += ' AND business_id = $2';
+    params.push(tenantId);
+  }
+  sql += ' RETURNING id';
+
+  const result = await query<{ id: string }>(sql, params);
+  if (result.rows.length === 0) {
+    throw new NotFoundError('Knowledge document not found');
+  }
+  logger.info('Knowledge document deleted', { documentId: id, businessId: tenantId });
+}
+
 export async function searchKnowledgeChunksByVector(
   vector: number[],
   limit: number = 5,
@@ -361,10 +436,13 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
   }
 }
 
-export async function reindexDocument(documentId: string): Promise<ProcessDocumentResult> {
-  const doc = await getKnowledgeDocumentById(documentId);
-  
-  await query(`DELETE FROM knowledge_chunks WHERE document_id = $1`, [documentId]);
-  
-  throw new BadRequestError('Reindexing requires original file. Please re-upload the document.');
+// Re-indexing needs the original file bytes to re-extract + re-embed. We do not
+// store the raw file, so we CANNOT reindex in place. This used to DELETE all
+// chunks first and then throw — which permanently destroyed the document's
+// vectors. It now validates the document exists (tenant-scoped) and returns a
+// clear instruction WITHOUT destroying any data.
+export async function reindexDocument(documentId: string, tenantId?: string): Promise<{ requiresReupload: true; documentId: string }> {
+  await getKnowledgeDocumentById(documentId, tenantId); // 404s if missing / wrong tenant
+  logger.info('Reindex requested; original file not stored, instructing re-upload', { documentId, businessId: tenantId });
+  return { requiresReupload: true, documentId };
 }
