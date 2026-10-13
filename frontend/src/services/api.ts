@@ -323,13 +323,10 @@ export async function deleteKnowledgeDocument(id: string): Promise<void> {
 
 export async function uploadKnowledgeDocument(formData: FormData): Promise<{ document: KnowledgeDocument; chunksCreated: number; message: string }> {
   // Uploads are multipart/form-data: use the shared axios instance (base URL +
-  // Bearer token interceptor) and let the browser set the boundary. The old
-  // raw fetch() hardcoded '/api/...' (ignoring VITE_API_URL) and threw a bare
-  // "Upload failed" without surfacing the backend's real reason.
+  // Bearer token interceptor) and let the browser set the boundary.
   const response = await api.post<{ success: boolean; data: { document: KnowledgeDocument; chunksCreated: number }; message: string }>(
     '/knowledge/upload',
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
+    formData
   );
   return {
     document: response.data.data.document,

@@ -8,26 +8,65 @@ import { BadRequestError } from '../utils/errors';
 import { getPagination, getOptionalString } from '../utils/helpers';
 import { createAuditLog } from '../services/audit.service';
 import { UserPayload } from '../types';
+import { query } from '../utils/database';
+import { normalizeMimeType, inferDocumentType } from '../services/textExtractor';
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
+    const ext = file.originalname ? file.originalname.split('.').pop()?.toLowerCase() : '';
+    const allowedExts = ['pdf', 'docx', 'txt', 'md', 'markdown', 'html', 'csv'];
     const allowed = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/docx',
+      'application/msword',
       'text/plain',
       'text/markdown',
+      'text/x-markdown',
       'text/html',
       'text/csv',
+      'application/csv',
+      'text/x-csv',
+      'application/octet-stream',
     ];
-    if (allowed.includes(file.mimetype)) {
+    if (allowed.includes(file.mimetype) || (ext && allowedExts.includes(ext))) {
       cb(null, true);
     } else {
       cb(new BadRequestError(`Unsupported file type: ${file.mimetype}`));
     }
   },
 });
+
+async function resolveTenantId(currentUser: UserPayload, fallbackId?: string): Promise<string> {
+  if (fallbackId) {
+    return fallbackId;
+  }
+  if (currentUser.businessId) {
+    return currentUser.businessId;
+  }
+  if (currentUser.tenantId) {
+    return currentUser.tenantId;
+  }
+  try {
+    const staff = await getStaffUserById(currentUser.id);
+    if (staff?.business_id) {
+      return staff.business_id;
+    }
+  } catch {
+    // continue
+  }
+  if (currentUser.role === 'super_admin') {
+    const businessRes = await query<{ id: string }>(
+      `SELECT id FROM businesses WHERE status = 'active' ORDER BY created_at ASC LIMIT 1`
+    );
+    if (businessRes.rows[0]?.id) {
+      return businessRes.rows[0].id;
+    }
+  }
+  throw new BadRequestError('Tenant context required: no active business found');
+}
 
 const vectorSearchSchema = z.object({
   vector: z.array(z.number()).min(1, 'Vector is required'),
@@ -133,7 +172,7 @@ export const createKnowledgeDocumentController = async (req: Request, res: Respo
 
   try {
     const validated = createSchema.parse(req.body);
-    const tenantId = currentUser.businessId || currentUser.tenantId || (await getStaffUserById(currentUser.id)).business_id;
+    const tenantId = await resolveTenantId(currentUser, validated.business_id);
     const doc = await createKnowledgeDocument({ ...validated, businessId: tenantId });
 
     await createAuditLog(
@@ -176,8 +215,8 @@ export const updateKnowledgeStatusController = async (req: Request, res: Respons
   }
 
   // Tenant-scoped: without the caller's businessId any staff user could flip
-  // the status of another tenant's document (cross-tenant write).
-  const tenantId = currentUser.businessId || currentUser.tenantId;
+  // the status of another tenant's document (cross-tenant write). Super admins have global scope.
+  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
 
   const doc = await updateKnowledgeDocumentStatus(req.params.id!, status, tenantId);
 
@@ -210,7 +249,7 @@ export const updateKnowledgeDocumentController = async (req: Request, res: Respo
   }
 
   const validated = updateSchema.parse(req.body);
-  const tenantId = currentUser.businessId || currentUser.tenantId;
+  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
 
   const doc = await updateKnowledgeDocument(req.params.id!, validated, tenantId);
 
@@ -242,7 +281,7 @@ export const deleteKnowledgeDocumentController = async (req: Request, res: Respo
     throw new BadRequestError('Unauthorized');
   }
 
-  const tenantId = currentUser.businessId || currentUser.tenantId;
+  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
   await deleteKnowledgeDocument(req.params.id!, tenantId);
 
   await createAuditLog(
@@ -269,10 +308,10 @@ export const deleteKnowledgeDocumentController = async (req: Request, res: Respo
 // proof that indexing produced content; without it the UI has no way to list
 // chunks and callers resort to unscoped guesses.
 export const getKnowledgeDocumentChunks = async (req: Request, res: Response): Promise<void> => {
-  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
-  // Fail closed: backend routes are authenticated, so a missing tenant here is
-  // unexpected — never return another tenant's chunks.
-  if (!tenantId) {
+  const user = (req as Request & { user?: UserPayload }).user;
+  const tenantId = user?.businessId || user?.tenantId;
+  // Fail closed for non-super-admins without tenant
+  if (!tenantId && user?.role !== 'super_admin') {
     res.json({ success: true, data: [] });
     return;
   }
@@ -430,18 +469,17 @@ export const uploadKnowledgeDocumentController = async (req: Request, res: Respo
   }
 
   const { title, document_type, language, source } = req.body;
-
-  if (!title || !document_type) {
-    throw new BadRequestError('Title and document_type are required');
-  }
+  const docTitle = (title && title.trim()) || req.file.originalname.replace(/\.[^/.]+$/, '');
+  const normalizedMime = normalizeMimeType(req.file.mimetype, req.file.originalname);
+  const docType = document_type || inferDocumentType(req.file.originalname, normalizedMime);
 
   try {
-    const tenantId = currentUser.businessId || currentUser.tenantId || (await getStaffUserById(currentUser.id)).business_id!;
+    const tenantId = await resolveTenantId(currentUser, req.body.business_id);
     const result = await processAndIndexDocument({
-      title,
-      documentType: document_type,
+      title: docTitle,
+      documentType: docType,
       fileBuffer: req.file.buffer,
-      mimeType: req.file.mimetype,
+      mimeType: normalizedMime,
       originalFileName: req.file.originalname,
       language: language || 'en',
       source: source || req.file.originalname,

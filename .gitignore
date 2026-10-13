@@ -1,4 +1,48 @@
-(empty)
-node_modules
-
+# Dependencies
+node_modules/
 tests/node_modules/
+
+# Secrets & environment files - never commit
+.env
+.env.*
+!.env.example
+local-creds.json
+creds-dec.json
+login.json
+docker/postgres/certs/*.key
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Deploy / tooling caches
+.vercel/
+
+# Local scratch & debug artifacts (root-anchored so real tests are unaffected)
+/_*.txt
+/_*.js
+/_*.py
+/test_*.js
+/test_*.ps1
+/test-webhook.json
+/apply-migrations.ps1
+/fix_phone_format.ps1
+/repro.js
+/verify_endpoints.js
+/create_test_file.js
+/credrefs.txt
+/query.sql
+/tmp_listing.txt
+/tmp_trigger.js
+/live_01_nodes.json
+/import-*-fixed.json
+/docker-build-log.txt
+/facts*-out.txt
+/out_*.txt
+/patch_part1.txt
+/n8n_wf_backup_before_guards.sql
+/_ctest/
+/_ctest.zip
+/focused-release-review/
+/temp-beta/
+/scripts/_tmp_*

@@ -24,6 +24,11 @@ export function KnowledgePage() {
   const [editDoc, setEditDoc] = useState<KnowledgeDocument | null>(null)
   const [editForm, setEditForm] = useState<KnowledgeDocumentUpdateRequest>({})
   const [deleteTarget, setDeleteTarget] = useState<KnowledgeDocument | null>(null)
+  const [feedbackBanner, setFeedbackBanner] = useState<{
+    type: 'success' | 'error'
+    title: string
+    message: string
+  } | null>(null)
   const queryClient = useQueryClient()
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -34,14 +39,26 @@ export function KnowledgePage() {
   const uploadMutation = useMutation({
     mutationFn: (formData: FormData) => uploadKnowledgeDocument(formData),
     onSuccess: (result) => {
-      toast.success(result.message || `Document indexed (${result.chunksCreated} chunks created)`)
+      const msg = result.message || `Document "${result.document.title}" uploaded and indexed (${result.chunksCreated} chunks created).`
+      toast.success(msg)
+      setFeedbackBanner({
+        type: 'success',
+        title: 'Upload Successful',
+        message: msg,
+      })
       queryClient.invalidateQueries({ queryKey: ['knowledge', 'documents'] })
       setIsUploadOpen(false)
       setUploadForm({ title: '', document_type: 'pdf', language: 'en', source: '' })
       setUploadFile(null)
     },
     onError: (error: Error) => {
-      toast.error(error.message)
+      const msg = error.message || 'Failed to upload document'
+      toast.error(msg)
+      setFeedbackBanner({
+        type: 'error',
+        title: 'Upload Failed',
+        message: msg,
+      })
     },
   })
 
@@ -49,26 +66,49 @@ export function KnowledgePage() {
     mutationFn: ({ id, data }: { id: string; data: KnowledgeDocumentUpdateRequest }) =>
       updateKnowledgeDocument(id, data),
     onSuccess: (doc) => {
-      toast.success(`"${doc.title}" updated`)
+      const msg = `"${doc.title}" updated successfully`
+      toast.success(msg)
+      setFeedbackBanner({
+        type: 'success',
+        title: 'Document Updated',
+        message: msg,
+      })
       queryClient.invalidateQueries({ queryKey: ['knowledge', 'documents'] })
       setEditDoc(null)
       setSelectedDoc(doc)
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to update document')
+      const msg = error.message || 'Failed to update document'
+      toast.error(msg)
+      setFeedbackBanner({
+        type: 'error',
+        title: 'Update Failed',
+        message: msg,
+      })
     },
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteKnowledgeDocument(id),
     onSuccess: () => {
-      toast.success('Document deleted')
+      toast.success('Document deleted successfully')
+      setFeedbackBanner({
+        type: 'success',
+        title: 'Document Deleted',
+        message: 'The document and its indexed vectors were permanently deleted.',
+      })
       queryClient.invalidateQueries({ queryKey: ['knowledge', 'documents'] })
       setDeleteTarget(null)
       setSelectedDoc(null)
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to delete document')
+      const msg = error.message || 'Failed to delete document'
+      toast.error(msg)
+      setFeedbackBanner({
+        type: 'error',
+        title: 'Delete Failed',
+        message: msg,
+      })
     },
   })
 
@@ -97,9 +137,22 @@ export function KnowledgePage() {
     const file = e.target.files?.[0]
     if (file) {
       setUploadFile(file)
-      if (!uploadForm.title) {
-        setUploadForm(prev => ({ ...prev, title: file.name.replace(/\.[^/.]+$/, '') }))
-      }
+      const baseName = file.name.replace(/\.[^/.]+$/, '')
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      setUploadForm(prev => {
+        let detectedType = prev.document_type
+        if (ext === 'pdf') detectedType = 'pdf'
+        else if (ext === 'docx') detectedType = 'docx'
+        else if (ext === 'txt') detectedType = 'txt'
+        else if (ext === 'md' || ext === 'markdown') detectedType = 'markdown'
+        else if (ext === 'html' || ext === 'htm') detectedType = 'html'
+        else if (ext === 'csv') detectedType = 'txt'
+        return {
+          ...prev,
+          title: prev.title || baseName,
+          document_type: detectedType,
+        }
+      })
     }
   }
 
@@ -182,6 +235,42 @@ export function KnowledgePage() {
           </div>
         }
       />
+
+      {feedbackBanner && (
+        <div
+          className={`p-4 rounded-xl border flex items-start justify-between gap-3 shadow-sm animate-fade-in ${
+            feedbackBanner.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-danger-50 border-danger-200 text-danger-900'
+          }`}
+          role="alert"
+        >
+          <div className="flex items-start gap-3">
+            {feedbackBanner.type === 'success' ? (
+              <svg className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-danger-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <div>
+              <p className="text-sm font-semibold">{feedbackBanner.title}</p>
+              <p className="text-sm opacity-90">{feedbackBanner.message}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFeedbackBanner(null)}
+            className="text-surface-400 hover:text-surface-600 p-1"
+            aria-label="Dismiss banner"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         {isLoading ? (
@@ -437,8 +526,18 @@ export function KnowledgePage() {
         </Modal>
       )}
 
-      <Modal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} title="Upload Knowledge Document" size="lg">
+      <Modal isOpen={isUploadOpen} onClose={() => { if (!uploadMutation.isPending) setIsUploadOpen(false) }} title="Upload Knowledge Document" size="lg">
         <form onSubmit={handleUploadSubmit} className="space-y-4">
+          {uploadMutation.isPending && (
+            <div className="p-3.5 bg-primary-50 border border-primary-200 rounded-xl text-primary-900 text-sm flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin shrink-0" />
+              <div>
+                <p className="font-semibold text-primary-950">Uploading & Indexing Document</p>
+                <p className="text-xs text-primary-800 mt-0.5">Extracting text and generating embeddings for the AI assistant...</p>
+              </div>
+            </div>
+          )}
+
           <div>
             <label htmlFor="file" className="block text-sm font-medium text-surface-700 mb-1">
               File <span className="text-danger-500">*</span>
@@ -446,13 +545,22 @@ export function KnowledgePage() {
             <input
               type="file"
               id="file"
-              ref={(el) => el?.click()}
               onChange={handleFileChange}
               accept=".pdf,.docx,.txt,.md,.html,.csv"
               required
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              disabled={uploadMutation.isPending}
+              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
             />
-            <p className="text-xs text-surface-400 mt-1">Supported: PDF, DOCX, TXT, MD, HTML, CSV (max 50MB)</p>
+            {uploadFile ? (
+              <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+              </p>
+            ) : (
+              <p className="text-xs text-surface-400 mt-1">Supported formats: PDF, DOCX, TXT, MD, HTML, CSV (max 50MB)</p>
+            )}
           </div>
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-surface-700 mb-1">
@@ -464,6 +572,7 @@ export function KnowledgePage() {
               value={uploadForm.title}
               onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
               required
+              disabled={uploadMutation.isPending}
               className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
@@ -475,6 +584,7 @@ export function KnowledgePage() {
               id="document_type"
               value={uploadForm.document_type}
               onChange={(e) => setUploadForm(prev => ({ ...prev, document_type: e.target.value }))}
+              disabled={uploadMutation.isPending}
               className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="pdf">PDF</option>
@@ -495,6 +605,7 @@ export function KnowledgePage() {
               id="language"
               value={uploadForm.language}
               onChange={(e) => setUploadForm(prev => ({ ...prev, language: e.target.value }))}
+              disabled={uploadMutation.isPending}
               className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="en">English</option>
@@ -512,6 +623,7 @@ export function KnowledgePage() {
               value={uploadForm.source}
               onChange={(e) => setUploadForm(prev => ({ ...prev, source: e.target.value }))}
               placeholder="e.g., website URL, internal doc ID"
+              disabled={uploadMutation.isPending}
               className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>

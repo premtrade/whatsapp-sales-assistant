@@ -60,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Removed Flowise from the project entirely: service definition removed from `docker-compose.yml`, Flowise environment variables removed from `.env` and `.env.example`, Flowise database removed from `docker/postgres/init-multiple-dbs.sql`, Flowise references removed from backup/restore/health-check/setup scripts, and `docker/flowise/` configuration directory deleted.
 
+### Changed
+- Phase 3 repository hygiene: `.gitignore` extended to protect secrets and
+  local scratch; ~115 junk files removed (debug `out_*`/`tmp_*` scripts,
+  `focused-release-review/`, `_ctest/`, `temp-beta/`, `workflows/live/` dumps,
+  tracked `out_*.txt`/`.js`/`.json`/`.txt` files); `backend/scripts/` scratch
+  deleted; old self-signed cert backups removed.
+- `docs/runbook.md` gained a new section: "Deploying n8n Workflow Changes
+  (Manual Sync)" - n8n workflow sync is a manual deploy step (CI/CD only
+  covers lint/test/build/deploy).
+
 ### Fixed
 - Qdrant health check updated to use a bash TCP check (`/dev/tcp`) instead of `wget`, since the Qdrant container image does not include `wget` or `curl`
 - Flowise now uses a separate database (`flowise`) instead of sharing `whatsapp_sales` with n8n, resolving migration conflicts where the `LinkWorkspaceId` migration failed because n8n's `user` table schema differs from Flowise's

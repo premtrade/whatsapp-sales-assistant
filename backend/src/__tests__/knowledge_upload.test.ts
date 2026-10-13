@@ -70,6 +70,9 @@ function routeQuery(text: string, params: unknown[]): unknown {
   if (text.includes('FROM staff_users')) {
     return { rows: [STAFF_ROW] };
   }
+  if (text.includes('FROM businesses')) {
+    return { rows: [{ id: 'biz-1' }] };
+  }
   if (text.includes('SELECT id FROM knowledge_documents WHERE checksum')) {
     // Postgres applies whatever WHERE the SQL expresses; the mock mirrors it so a
     // tenant-unscoped duplicate check sees other tenants' documents.
@@ -101,17 +104,24 @@ function makeToken(): string {
   );
 }
 
-async function postUpload(content: Buffer, fileName: string): Promise<{ status: number; body: string }> {
+function makeSuperAdminToken(): string {
+  return jwt.sign(
+    { userId: 'user-owner', email: 'owner@waflo.app', role: 'super_admin' },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+}
+
+async function postUpload(content: Buffer, fileName: string, token: string = makeToken(), mimeType: string = 'text/plain'): Promise<{ status: number; body: string }> {
   const form = new FormData();
-  form.append('file', new File([content], fileName, { type: 'text/plain' }));
+  form.append('file', new File([content], fileName, { type: mimeType }));
   form.append('title', 'Garco Services & Pricing');
-  form.append('document_type', 'txt');
   form.append('language', 'en');
   form.append('source', 'manual upload');
 
   const res = await fetch(`${baseUrl}/api/knowledge/upload`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${makeToken()}` },
+    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
   return { status: res.status, body: await res.text() };
@@ -145,6 +155,12 @@ describe('POST /api/knowledge/upload', () => {
   it('uploads and indexes a txt document (chunks carry tenant business_id)', async () => {
     const { status, body } = await postUpload(Buffer.from(fixtureContent), 'pricing.txt');
     expect({ status, body }).toEqual({ status: 201, body: expect.any(String) });
+    expect(JSON.parse(body).data.chunksCreated).toBeGreaterThan(0);
+  });
+
+  it('allows super_admin to upload document without tenant in JWT (resolves to active business)', async () => {
+    const { status, body } = await postUpload(Buffer.from('Roofing warranty details'), 'warranty.txt', makeSuperAdminToken());
+    expect(status).toBe(201);
     expect(JSON.parse(body).data.chunksCreated).toBeGreaterThan(0);
   });
 

@@ -40,7 +40,48 @@ docker compose restart n8n
 docker compose up -d --build
 ```
 
-## 2. Troubleshooting
+## 2. Deploying n8n Workflow Changes (Manual Sync)
+
+> n8n workflow definitions live in `workflows/live/` and CI/CD does NOT push them.
+> After merging workflow changes, run the manual sync below.
+
+### Why "synced but broken" happens
+n8n 2.x keeps TWO copies of every workflow:
+- `workflow_entity.nodes` — the editor **DRAFT**
+- `workflow_history.nodes` — the **EXECUTABLE** copy selected via `activeVersionId`
+
+The sync script updates BOTH in place; a plain `docker restart n8n` reloads the
+executable copy. Also, credential IDs are per n8n instance — the script remaps
+them by (type, name) before writing.
+
+### Production (standalone containers)
+```powershell
+python3 scripts/sync_n8n_from_repo.py workflows/live > n8n_sync.sql
+N8N_DB=$(docker exec n8n printenv DB_POSTGRESDB_DATABASE)
+docker exec -i -e "PGPASSWORD=$POSTGRES_PASSWORD" postgres psql -U postgres -d $N8N_DB -v ON_ERROR_STOP=1 < n8n_sync.sql
+docker restart n8n
+
+# verify
+docker exec n8n wget -qO- http://localhost:5678/healthz
+docker exec postgres psql -U postgres -d n8n -t -c "SELECT name, status FROM workflow_entity WHERE active;"
+```
+
+### Local (docker-compose)
+```powershell
+python3 scripts/sync_n8n_from_repo.py workflows/live > n8n_sync.sql
+N8N_DB=$(docker compose exec -T n8n printenv DB_POSTGRESDB_DATABASE)
+docker compose exec -T postgres psql -U postgres -d $N8N_DB -v ON_ERROR_STOP=1 < n8n_sync.sql
+docker compose restart n8n
+```
+
+### Post-deploy checks
+- 5 synced workflows (01 - Incoming WhatsApp Message, Workflow 2, 03 - Memory
+  & Context Builder, Workflow 7 - Handoff Tool, 08 - AI Output Processor)
+  execute successfully
+- active workflow count == 11
+- `docker compose logs n8n --tail 100` → no credential-ID errors
+
+## 3. Troubleshooting
 
 ### n8n Workflow Not Triggering
 1. Check n8n logs: `docker compose logs n8n --tail 100`
@@ -81,7 +122,7 @@ docker compose up -d --build
    - Timeout: Increase timeout in HTTP Request node
    - DB connection: Check Postgres health
 
-## 3. Database Maintenance
+## 4. Database Maintenance
 
 ### Backup
 ```powershell
@@ -120,7 +161,7 @@ FROM pg_catalog.pg_statio_user_tables
 ORDER BY pg_total_relation_size(relid) DESC;
 ```
 
-## 4. SSL Certificate Rotation
+## 5. SSL Certificate Rotation
 
 ### Generate New Certs
 ```powershell
@@ -138,7 +179,7 @@ SELECT ssl_is_used() FROM pg_stat_ssl LIMIT 1;
 -- Should return 't'
 ```
 
-## 5. User Management
+## 6. User Management
 
 ### Create Staff User (in n8n or admin dashboard)
 ```sql
@@ -155,7 +196,7 @@ WHERE phone = '+1876xxxxxxxx'
 RETURNING *;
 ```
 
-## 6. Common Operational Tasks
+## 7. Common Operational Tasks
 
 ### Check Active Conversations
 ```sql

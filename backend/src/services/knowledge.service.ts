@@ -453,7 +453,7 @@ export interface ProcessDocumentResult {
 export async function processAndIndexDocument(input: ProcessDocumentInput): Promise<ProcessDocumentResult> {
   const { title, documentType, fileBuffer, mimeType, originalFileName, language = 'en', source, metadata = {}, businessId } = input;
 
-  if (!isMimeTypeSupported(mimeType)) {
+  if (!isMimeTypeSupported(mimeType, originalFileName)) {
     throw new BadRequestError(`Unsupported file type: ${mimeType}`);
   }
 
@@ -481,7 +481,7 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
   }
 
   try {
-    const extracted = await extractTextFromBuffer(fileBuffer, mimeType);
+    const extracted = await extractTextFromBuffer(fileBuffer, mimeType, originalFileName);
     if (!extracted.text || extracted.text.trim().length === 0) {
       throw new BadRequestError('No text content extracted from document');
     }
