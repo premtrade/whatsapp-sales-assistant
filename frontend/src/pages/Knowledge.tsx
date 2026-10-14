@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getKnowledgeDocuments, createKnowledgeDocument, uploadKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument } from '@/services/api'
+import { getKnowledgeDocuments, createKnowledgeDocument, uploadKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, getKnowledgeChunks, reindexKnowledgeDocument } from '@/services/api'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { ErrorState, LoadingState, PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
@@ -21,6 +21,15 @@ export function KnowledgePage() {
     source: '',
   })
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [createMode, setCreateMode] = useState<'upload' | 'text'>('upload')
+  const [textForm, setTextForm] = useState({
+    title: '',
+    document_type: 'faq',
+    language: 'en',
+    source: '',
+    content: '',
+  })
+  const [showChunks, setShowChunks] = useState(false)
   const [editDoc, setEditDoc] = useState<KnowledgeDocument | null>(null)
   const [editForm, setEditForm] = useState<KnowledgeDocumentUpdateRequest>({})
   const [deleteTarget, setDeleteTarget] = useState<KnowledgeDocument | null>(null)
@@ -34,6 +43,14 @@ export function KnowledgePage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['knowledge', 'documents', { search, status }],
     queryFn: () => getKnowledgeDocuments({ page: 1, limit: 50, status, search }),
+  })
+
+  // Lazy chunk inspection for the details modal — only fetched when expanded so
+  // the list view stays cheap and failures don't block the page.
+  const { data: chunks, isLoading: chunksLoading } = useQuery({
+    queryKey: ['knowledge', 'chunks', selectedDoc?.id],
+    queryFn: () => getKnowledgeChunks(selectedDoc!.id),
+    enabled: !!selectedDoc && showChunks,
   })
 
   const uploadMutation = useMutation({
@@ -59,6 +76,45 @@ export function KnowledgePage() {
         title: 'Upload Failed',
         message: msg,
       })
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (payload: { title: string; document_type: string; language: string; source?: string; content: string }) =>
+      createKnowledgeDocument(payload),
+    onSuccess: (result) => {
+      const msg = result.message || `Document "${result.document.title}" created and indexed (${result.chunksCreated ?? 0} chunks created).`
+      toast.success(msg)
+      setFeedbackBanner({
+        type: 'success',
+        title: 'Document Created',
+        message: msg,
+      })
+      queryClient.invalidateQueries({ queryKey: ['knowledge', 'documents'] })
+      setIsUploadOpen(false)
+      setTextForm({ title: '', document_type: 'faq', language: 'en', source: '', content: '' })
+      setCreateMode('upload')
+    },
+    onError: (error: Error) => {
+      const msg = error.message || 'Failed to create document'
+      toast.error(msg)
+      setFeedbackBanner({
+        type: 'error',
+        title: 'Create Failed',
+        message: msg,
+      })
+    },
+  })
+
+  const reindexMutation = useMutation({
+    mutationFn: (id: string) => reindexKnowledgeDocument(id),
+    onSuccess: (result) => {
+      // Reindex is a no-op read: it only returns re-upload guidance, so no
+      // document/chunk state changed and the list needs no refetch.
+      toast.success(result.message || 'Re-upload the original file to re-index this document.')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to request re-index')
     },
   })
 
@@ -177,6 +233,26 @@ export function KnowledgePage() {
     uploadMutation.mutate(formData)
   }
 
+  const handleTextSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!textForm.title.trim()) {
+      toast.error('Title is required')
+      return
+    }
+    if (!textForm.content.trim()) {
+      toast.error('Content is required')
+      return
+    }
+
+    createMutation.mutate({
+      title: textForm.title.trim(),
+      document_type: textForm.document_type,
+      language: textForm.language,
+      source: textForm.source.trim() || undefined,
+      content: textForm.content,
+    })
+  }
+
   const documents = data?.data || []
 
   if (error) {
@@ -206,11 +282,11 @@ export function KnowledgePage() {
         actions={
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsUploadOpen(true)}
+              onClick={() => { setCreateMode('upload'); setIsUploadOpen(true) }}
               className="btn-primary text-sm px-4 py-2"
-              disabled={uploadMutation.isPending}
+              disabled={uploadMutation.isPending || createMutation.isPending}
             >
-              {uploadMutation.isPending ? 'Uploading...' : '+ Add Document'}
+              {uploadMutation.isPending || createMutation.isPending ? 'Saving...' : '+ Add Document'}
             </button>
             <select
               value={status}
@@ -296,7 +372,7 @@ export function KnowledgePage() {
                 {documents.map((doc) => (
                   <tr
                     key={doc.id}
-                    onClick={() => setSelectedDoc(doc)}
+                    onClick={() => { setSelectedDoc(doc); setShowChunks(false) }}
                     className="table-row cursor-pointer"
                   >
                     <td className="table-cell font-medium text-surface-800">{doc.title}</td>
@@ -350,7 +426,7 @@ export function KnowledgePage() {
       </div>
 
       {selectedDoc && (
-        <Modal isOpen={!!selectedDoc} onClose={() => setSelectedDoc(null)} title="Document Details" size="lg">
+        <Modal isOpen={!!selectedDoc} onClose={() => { setSelectedDoc(null); setShowChunks(false) }} title="Document Details" size="lg">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -392,17 +468,64 @@ export function KnowledgePage() {
                 </div>
               ) : null}
             </div>
-            <div className="flex justify-between gap-2 pt-4 border-t border-surface-100">
+            <div className="pt-4 border-t border-surface-100">
               <button
-                onClick={() => { setDeleteTarget(selectedDoc); setSelectedDoc(null) }}
-                className="btn-secondary text-danger-600 hover:text-danger-700"
+                type="button"
+                onClick={() => setShowChunks(prev => !prev)}
+                className="flex items-center justify-between w-full text-left"
               >
-                Delete
+                <span className="text-sm font-medium text-surface-700">
+                  Indexed Chunks{typeof selectedDoc.chunk_count === 'number' ? ` (${selectedDoc.chunk_count})` : ''}
+                </span>
+                <svg className={`w-4 h-4 text-surface-400 transition-transform ${showChunks ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
+              {showChunks && (
+                <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
+                  {chunksLoading ? (
+                    <LoadingState type="skeleton" count={3} />
+                  ) : chunks && chunks.length > 0 ? (
+                    chunks.map((chunk) => (
+                      <div key={chunk.id} className="p-3 bg-surface-50 rounded-lg border border-surface-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-surface-500">Chunk {chunk.chunk_number}</span>
+                          {typeof chunk.token_count === 'number' && (
+                            <span className="text-xs text-surface-400">{chunk.token_count} tokens</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-surface-700 whitespace-pre-wrap break-words">{chunk.chunk_text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-surface-400 py-2">No chunks indexed for this document.</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-between gap-2 pt-4 border-t border-surface-100">
               <div className="flex gap-2">
-                <button onClick={() => setSelectedDoc(null)} className="btn-secondary">Close</button>
                 <button
-                  onClick={() => { openEdit(selectedDoc); setSelectedDoc(null) }}
+                  onClick={() => { setDeleteTarget(selectedDoc); setSelectedDoc(null); setShowChunks(false) }}
+                  className="btn-secondary text-danger-600 hover:text-danger-700"
+                >
+                  Delete
+                </button>
+                {(selectedDoc.status === 'failed' || selectedDoc.status === 'processing') && (
+                  <button
+                    onClick={() => reindexMutation.mutate(selectedDoc.id)}
+                    className="btn-secondary"
+                    disabled={reindexMutation.isPending}
+                    title="Original files are not stored — re-upload the document to re-index it"
+                  >
+                    {reindexMutation.isPending ? 'Requesting...' : 'Request Re-index'}
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setSelectedDoc(null); setShowChunks(false) }} className="btn-secondary">Close</button>
+                <button
+                  onClick={() => { openEdit(selectedDoc); setSelectedDoc(null); setShowChunks(false) }}
                   className="btn-primary"
                 >
                   Edit
@@ -526,7 +649,29 @@ export function KnowledgePage() {
         </Modal>
       )}
 
-      <Modal isOpen={isUploadOpen} onClose={() => { if (!uploadMutation.isPending) setIsUploadOpen(false) }} title="Upload Knowledge Document" size="lg">
+      <Modal isOpen={isUploadOpen} onClose={() => { if (!uploadMutation.isPending && !createMutation.isPending) setIsUploadOpen(false) }} title="Add Knowledge Document" size="lg">
+        <div className="flex gap-1 p-1 bg-surface-100 rounded-lg mb-4">
+          <button
+            type="button"
+            onClick={() => setCreateMode('upload')}
+            className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              createMode === 'upload' ? 'bg-white shadow-sm text-surface-900' : 'text-surface-500 hover:text-surface-700'
+            }`}
+          >
+            Upload File
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreateMode('text')}
+            className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              createMode === 'text' ? 'bg-white shadow-sm text-surface-900' : 'text-surface-500 hover:text-surface-700'
+            }`}
+          >
+            Write Text
+          </button>
+        </div>
+
+        {createMode === 'upload' ? (
         <form onSubmit={handleUploadSubmit} className="space-y-4">
           {uploadMutation.isPending && (
             <div className="p-3.5 bg-primary-50 border border-primary-200 rounded-xl text-primary-900 text-sm flex items-center gap-3">
@@ -636,6 +781,114 @@ export function KnowledgePage() {
             </button>
           </div>
         </form>
+        ) : (
+        <form onSubmit={handleTextSubmit} className="space-y-4">
+          {createMutation.isPending && (
+            <div className="p-3.5 bg-primary-50 border border-primary-200 rounded-xl text-primary-900 text-sm flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin shrink-0" />
+              <div>
+                <p className="font-semibold text-primary-950">Creating & Indexing Document</p>
+                <p className="text-xs text-primary-800 mt-0.5">Chunking content and generating embeddings for the AI assistant...</p>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="text-title" className="block text-sm font-medium text-surface-700 mb-1">
+              Title <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="text-title"
+              value={textForm.title}
+              onChange={(e) => setTextForm(prev => ({ ...prev, title: e.target.value }))}
+              required
+              disabled={createMutation.isPending}
+              placeholder="e.g., Pricing FAQ, Return Policy"
+              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="text-document-type" className="block text-sm font-medium text-surface-700 mb-1">
+                Document Type <span className="text-danger-500">*</span>
+              </label>
+              <select
+                id="text-document-type"
+                value={textForm.document_type}
+                onChange={(e) => setTextForm(prev => ({ ...prev, document_type: e.target.value }))}
+                disabled={createMutation.isPending}
+                className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="faq">FAQ</option>
+                <option value="policy">Policy</option>
+                <option value="website">Website</option>
+                <option value="txt">Text</option>
+                <option value="markdown">Markdown</option>
+                <option value="html">HTML</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="text-language" className="block text-sm font-medium text-surface-700 mb-1">
+                Language
+              </label>
+              <select
+                id="text-language"
+                value={textForm.language}
+                onChange={(e) => setTextForm(prev => ({ ...prev, language: e.target.value }))}
+                disabled={createMutation.isPending}
+                className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="text-source" className="block text-sm font-medium text-surface-700 mb-1">
+              Source (optional)
+            </label>
+            <input
+              type="text"
+              id="text-source"
+              value={textForm.source}
+              onChange={(e) => setTextForm(prev => ({ ...prev, source: e.target.value }))}
+              placeholder="e.g., website URL, internal doc ID"
+              disabled={createMutation.isPending}
+              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="text-content" className="block text-sm font-medium text-surface-700 mb-1">
+              Content <span className="text-danger-500">*</span>
+            </label>
+            <textarea
+              id="text-content"
+              value={textForm.content}
+              onChange={(e) => setTextForm(prev => ({ ...prev, content: e.target.value }))}
+              required
+              rows={10}
+              maxLength={50000}
+              disabled={createMutation.isPending}
+              placeholder="Paste or write the knowledge the AI should use, e.g. Q&A pairs, policies, product details..."
+              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-y"
+            />
+            <p className="text-xs text-surface-400 mt-1">
+              {textForm.content.length} / 50000 characters. Content is automatically chunked and embedded for AI retrieval.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-surface-100">
+            <button type="button" onClick={() => setIsUploadOpen(false)} className="btn-secondary" disabled={createMutation.isPending}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={createMutation.isPending || !textForm.content.trim() || !textForm.title.trim()}>
+              {createMutation.isPending ? 'Creating & Indexing...' : 'Create & Index'}
+            </button>
+          </div>
+        </form>
+        )}
       </Modal>
     </div>
   )

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { getKnowledgeDocuments, getKnowledgeDocumentById, getKnowledgeChunksByDocument, createKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, searchKnowledgeChunksHybrid, processAndIndexDocument } from '../services/knowledge.service';
+import { getKnowledgeDocuments, getKnowledgeDocumentById, getKnowledgeChunksByDocument, createKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, updateKnowledgeDocumentStatus, searchKnowledgeChunksByVector, searchKnowledgeChunksByText, searchKnowledgeChunksHybrid, processAndIndexDocument, reindexDocument, createTextKnowledgeDocument } from '../services/knowledge.service';
 import { generateEmbedding, EMBEDDING_MODEL } from '../services/embedding';
 import { getStaffUserById } from '../services/staff.service';
 import { BadRequestError } from '../utils/errors';
@@ -118,6 +118,10 @@ const createSchema = z.object({
   status: z.enum(['pending', 'processing', 'indexed', 'failed', 'archived']).optional(),
   metadata: z.record(z.unknown()).optional(),
   business_id: z.string().uuid().optional(),
+  // Manual text documents (FAQ, policy, website copy) written in the dashboard.
+  // When present the content is chunked + embedded synchronously, mirroring
+  // the file-upload indexing pipeline, so the AI can retrieve it immediately.
+  content: z.string().min(1, 'Content is required').max(50000).optional(),
 });
 
 
@@ -173,6 +177,45 @@ export const createKnowledgeDocumentController = async (req: Request, res: Respo
   try {
     const validated = createSchema.parse(req.body);
     const tenantId = await resolveTenantId(currentUser, validated.business_id);
+
+    // Manual text document (FAQ / policy / website copy): chunk + embed the
+    // supplied content so it is immediately searchable by the AI.
+    if (validated.content) {
+      const result = await createTextKnowledgeDocument({
+        title: validated.title,
+        documentType: validated.document_type,
+        content: validated.content,
+        language: validated.language || 'en',
+        source: validated.source,
+        businessId: tenantId,
+        metadata: { ...validated.metadata, uploadedBy: currentUser.id },
+      });
+
+      await createAuditLog(
+        'knowledge_documents',
+        'create',
+        currentUser.id,
+        'staff',
+        `Text knowledge document created and indexed: ${result.document.title}`,
+        undefined,
+        { documentId: result.document.id, chunksCreated: result.chunksCreated },
+        { documentId: result.document.id },
+        req.ip!,
+        req.get('user-agent')!,
+        tenantId
+      );
+
+      res.status(201).json({
+        success: true,
+        data: {
+          document: result.document,
+          chunksCreated: result.chunksCreated,
+        },
+        message: `Document created and indexed (${result.chunksCreated} chunks created)`,
+      });
+      return;
+    }
+
     const doc = await createKnowledgeDocument({ ...validated, businessId: tenantId });
 
     await createAuditLog(
@@ -301,6 +344,39 @@ export const deleteKnowledgeDocumentController = async (req: Request, res: Respo
   res.json({
     success: true,
     message: 'Knowledge document deleted',
+  });
+};
+
+// Re-index a document. The original file bytes are not stored, so this cannot
+// re-derive vectors in place; it validates the document exists (tenant-scoped)
+// and returns an instruction to re-upload, without destroying existing chunks.
+export const reindexKnowledgeDocumentController = async (req: Request, res: Response): Promise<void> => {
+  const currentUser = (req as Request & { user?: UserPayload }).user;
+  if (!currentUser) {
+    throw new BadRequestError('Unauthorized');
+  }
+
+  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
+  const result = await reindexDocument(req.params.id!, tenantId);
+
+  await createAuditLog(
+    'knowledge_documents',
+    'reindex_requested',
+    currentUser.id,
+    'staff',
+    `Reindex requested for knowledge document ${result.documentId}`,
+    undefined,
+    undefined,
+    { documentId: result.documentId },
+    req.ip!,
+    req.get('user-agent')!,
+    tenantId
+  );
+
+  res.json({
+    success: true,
+    data: result,
+    message: 'Original file is not stored. Please re-upload the document to re-index it.',
   });
 };
 

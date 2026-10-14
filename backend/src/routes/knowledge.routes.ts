@@ -7,6 +7,7 @@ import {
   updateKnowledgeDocumentController,
   deleteKnowledgeDocumentController,
   updateKnowledgeStatusController,
+  reindexKnowledgeDocumentController,
   searchKnowledgeChunks,
   searchKnowledgeChunksText,
   hybridSearchKnowledge,
@@ -31,6 +32,9 @@ router.get('/:id/chunks', authenticate, requireActiveSubscription, getKnowledgeD
 router.get('/:id', authenticate, requireActiveSubscription, getKnowledgeDocument);
 router.post('/', authenticate, requireActiveSubscription, createKnowledgeDocumentController);
 router.post('/upload', authenticate, requireActiveSubscription, uploadMiddleware, uploadKnowledgeDocumentController);
+// Re-index request: original files are not stored, so re-indexing requires a
+// re-upload. This validates the document exists and returns that instruction.
+router.post('/:id/reindex', authenticate, requireActiveSubscription, reindexKnowledgeDocumentController);
 router.patch('/:id/status', authenticate, requireActiveSubscription, updateKnowledgeStatusController);
 router.patch('/:id', authenticate, requireActiveSubscription, updateKnowledgeDocumentController);
 router.delete('/:id', authenticate, requireActiveSubscription, deleteKnowledgeDocumentController);

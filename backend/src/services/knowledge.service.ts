@@ -545,3 +545,97 @@ export async function reindexDocument(documentId: string, tenantId?: string): Pr
   logger.info('Reindex requested; original file not stored, instructing re-upload', { documentId, businessId: tenantId });
   return { requiresReupload: true, documentId };
 }
+
+export interface CreateTextDocumentInput {
+  title: string;
+  documentType: string;
+  content: string;
+  businessId: string;
+  language?: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
+}
+
+// Manual text document (FAQ, policy, website copy...) written in the dashboard.
+// Chunked + embedded synchronously so the AI can retrieve it immediately, with
+// the same indexing pipeline as file uploads (checksum dedupe, failure marking).
+export async function createTextKnowledgeDocument(input: CreateTextDocumentInput): Promise<ProcessDocumentResult> {
+  const { title, documentType, content, businessId, language = 'en', source, metadata = {} } = input;
+
+  if (!title || !title.trim()) {
+    throw new BadRequestError('Title is required');
+  }
+  if (!content || !content.trim()) {
+    throw new BadRequestError('Content is required');
+  }
+
+  const validTypes = ['pdf', 'docx', 'txt', 'html', 'markdown', 'website', 'faq', 'policy', 'other'];
+  if (!validTypes.includes(documentType)) {
+    throw new BadRequestError(`Invalid document_type: ${documentType}`);
+  }
+
+  const checksum = crypto.createHash('sha256').update(content).digest('hex');
+  const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2', [checksum, businessId]);
+  if (existing.rows.length > 0) {
+    throw new ConflictError('Document with this content already exists');
+  }
+
+  const docResult = await query<KnowledgeDocument>(
+    `INSERT INTO knowledge_documents (title, document_type, source, language, status, metadata, checksum, business_id)
+     VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7)
+     RETURNING id, business_id, title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, created_at, updated_at`,
+    [title.trim(), documentType, source || null, language, metadata, checksum, businessId]
+  );
+
+  const doc = docResult.rows[0];
+  if (!doc) {
+    throw new BadRequestError('Failed to create knowledge document');
+  }
+
+  try {
+    const chunks = chunkText(content, { maxTokens: 800, overlapTokens: 100 });
+    if (chunks.length === 0) {
+      throw new BadRequestError('Failed to create chunks from document');
+    }
+
+    const chunkTexts = chunks.map(c => c.text);
+    const embeddings = await generateEmbeddingsBatch(chunkTexts);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const embedding = embeddings[i];
+      if (!chunk || !embedding) continue;
+      const vectorStr = formatEmbeddingForPgVector(embedding);
+
+      await query(
+        `INSERT INTO knowledge_chunks (document_id, business_id, chunk_number, chunk_text, token_count, embedding, embedding_model, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8)`,
+        [doc.id, businessId, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, metadata]
+      );
+    }
+
+    await query(
+      `UPDATE knowledge_documents SET status = 'indexed', updated_at = NOW() WHERE id = $1`,
+      [doc.id]
+    );
+
+    logger.info('Text document indexed successfully', {
+      documentId: doc.id,
+      title: doc.title,
+      chunksCreated: chunks.length,
+    });
+
+    return { document: { ...doc, status: 'indexed' }, chunksCreated: chunks.length };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    await query(
+      `UPDATE knowledge_documents
+       SET status = 'failed', updated_at = NOW(),
+           metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('error', $2::text, 'failed_at', NOW())
+       WHERE id = $1`,
+      [doc.id, message]
+    );
+    logger.error('Text document indexing failed', { documentId: doc.id, error: message });
+    throw error;
+  }
+}

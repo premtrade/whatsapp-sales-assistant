@@ -37,6 +37,7 @@ export interface KnowledgeDocumentCreateRequest {
   file_size?: number
   language?: string
   metadata?: Record<string, unknown>
+  content?: string
 }
 
 export interface KnowledgeDocumentUpdateRequest {

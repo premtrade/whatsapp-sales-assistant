@@ -307,9 +307,15 @@ export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumen
   return response.data.data
 }
 
-export async function createKnowledgeDocument(data: KnowledgeDocumentCreateRequest): Promise<KnowledgeDocument> {
-  const response = await api.post<{ success: boolean; data: KnowledgeDocument }>('/knowledge/', data)
-  return response.data.data
+export async function createKnowledgeDocument(data: KnowledgeDocumentCreateRequest): Promise<{ document: KnowledgeDocument; chunksCreated?: number; message?: string }> {
+  // Backend returns `{ document, chunksCreated, message }` for text documents
+  // (chunked + embedded synchronously) and the bare document otherwise.
+  const response = await api.post<{ success: boolean; data: KnowledgeDocument | { document: KnowledgeDocument; chunksCreated: number }; message?: string }>('/knowledge/', data)
+  const payload = response.data.data
+  if (payload && typeof payload === 'object' && 'document' in payload) {
+    return { document: payload.document, chunksCreated: payload.chunksCreated, message: response.data.message }
+  }
+  return { document: payload as KnowledgeDocument }
 }
 
 export async function updateKnowledgeDocument(id: string, data: KnowledgeDocumentUpdateRequest): Promise<KnowledgeDocument> {
@@ -338,6 +344,13 @@ export async function uploadKnowledgeDocument(formData: FormData): Promise<{ doc
 export async function getKnowledgeChunks(documentId: string): Promise<KnowledgeChunk[]> {
   const response = await api.get<{ success: boolean; data: KnowledgeChunk[] }>(`/knowledge/${documentId}/chunks`)
   return response.data.data
+}
+
+// Re-index request: original file bytes are not stored, so the backend returns
+// an instruction to re-upload rather than re-deriving vectors in place.
+export async function reindexKnowledgeDocument(id: string): Promise<{ requiresReupload: boolean; documentId: string; message: string }> {
+  const response = await api.post<{ success: boolean; data: { requiresReupload: boolean; documentId: string }; message: string }>(`/knowledge/${id}/reindex`)
+  return { ...response.data.data, message: response.data.message }
 }
 
 // Customer Facts
