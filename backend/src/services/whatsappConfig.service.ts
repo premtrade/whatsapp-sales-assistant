@@ -2,6 +2,7 @@ import { config } from '../config';
 import { getSettingByKey, getSettings, upsertSetting } from './settings.service';
 import { getBusinessById } from './business.service';
 import { getWahaSessionInfo, ensureWahaSession, getWahaQrCode } from './waha.service';
+import { query } from '../utils/database';
 import logger from '../utils/logger';
 
 interface WAHASessionResponse {
@@ -173,7 +174,35 @@ export async function updateWhatsAppConfig(tenantId: string, data: {
     })
   );
 
+  // Keep the businesses row in sync: the n8n "01 - Incoming WhatsApp Message"
+  // workflow resolves the tenant via businesses.waha_session_name /
+  // businesses.whatsapp_phone. Without this sync, configuring WhatsApp in the
+  // dashboard only wrote the settings rows and the n8n lookup matched nothing
+  // (empty business_id -> no knowledge base, no business name in replies).
+  await syncBusinessWhatsAppIdentity(tenantId, data.phoneNumber).catch((error) => {
+    logger.warn('Failed to sync businesses.whatsapp identity', { tenantId, error: error instanceof Error ? error.message : 'Unknown error' });
+  });
+
   return getWhatsAppConfig(tenantId);
+}
+
+/**
+ * Mirror the WhatsApp identity the n8n workflows look up onto the businesses
+ * row. waha_session_name defaults to the configured session (single-session
+ * deployments) and whatsapp_phone is only overwritten when a real number is
+ * supplied (empty saves must not wipe it).
+ */
+async function syncBusinessWhatsAppIdentity(tenantId: string, phoneNumber?: string): Promise<void> {
+  const session = config.waha.session || 'default';
+  const phone = phoneNumber?.trim() || null;
+  await query(
+    `UPDATE businesses
+     SET waha_session_name = COALESCE(waha_session_name, $2),
+         whatsapp_phone = CASE WHEN $3::text IS NULL THEN whatsapp_phone ELSE $3 END,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [tenantId, session, phone]
+  );
 }
 
 export async function getWhatsAppStatus(tenantId: string): Promise<WhatsAppStatus> {
