@@ -53,12 +53,15 @@ const STAFF_ROW = {
 
 // Documents that already exist (simulates migration 051's NOT NULL constraint on
 // knowledge_chunks.business_id and cross-tenant content ownership).
-const EXISTING_DOCS: Array<{ id: string; checksum: string; business_id: string }> = [];
+const EXISTING_DOCS: Array<{ id: string; checksum: string; business_id: string; status?: string }> = [];
 
 // Captures params of every knowledge_documents INSERT so tests can assert the
 // checksum is actually persisted (the text path dedupes on a checksum it must
 // store — a missing checksum column silently defeats duplicate protection).
 const DOCUMENT_INSERTS: unknown[][] = [];
+
+// Captures DELETE statements purging prior failed attempts for a checksum.
+const FAILED_DOC_DELETES: unknown[][] = [];
 
 let server: ReturnType<typeof createServer>;
 let baseUrl: string;
@@ -83,13 +86,22 @@ function routeQuery(text: string, params: unknown[]): unknown {
   }
   if (text.includes('SELECT id FROM knowledge_documents WHERE checksum')) {
     // Postgres applies whatever WHERE the SQL expresses; the mock mirrors it so a
-    // tenant-unscoped duplicate check sees other tenants' documents.
+    // tenant-unscoped duplicate check sees other tenants' documents, and a
+    // previous FAILED attempt does not block a retry.
     const checksum = params[0] as string;
     const scoped = text.includes('business_id');
     const rows = EXISTING_DOCS.filter(
-      (d) => d.checksum === checksum && (!scoped || d.business_id === params[1])
+      (d) =>
+        d.checksum === checksum &&
+        (!scoped || d.business_id === params[1]) &&
+        (d.status ?? 'indexed') !== 'failed'
     );
     return { rows: rows.map((d) => ({ id: d.id })) };
+  }
+  if (text.includes('DELETE FROM knowledge_documents WHERE checksum')) {
+    // Purges stale failed attempts before re-inserting the same content.
+    FAILED_DOC_DELETES.push(params ?? []);
+    return { rows: [] };
   }
   if (/FROM knowledge_documents\s+WHERE id/.test(text)) {
     // getKnowledgeDocumentById / reindex lookup (tenant-scoped via business_id).
@@ -168,6 +180,7 @@ afterAll(async () => {
 beforeEach(() => {
   EXISTING_DOCS.length = 0;
   DOCUMENT_INSERTS.length = 0;
+  FAILED_DOC_DELETES.length = 0;
 });
 
 describe('POST /api/knowledge/upload', () => {
@@ -192,6 +205,20 @@ describe('POST /api/knowledge/upload', () => {
 
     const { status } = await postUpload(Buffer.from(fixtureContent), 'pricing.txt');
     expect(status).toBe(201);
+  });
+
+  it('allows re-uploading a file whose previous attempt FAILED (retry succeeds, stale row purged)', async () => {
+    EXISTING_DOCS.push({
+      id: 'doc-failed',
+      checksum: crypto.createHash('sha256').update(Buffer.from(fixtureContent)).digest('hex'),
+      business_id: 'biz-1',
+      status: 'failed',
+    });
+
+    const { status } = await postUpload(Buffer.from(fixtureContent), 'pricing.txt');
+    expect(status).toBe(201);
+    expect(FAILED_DOC_DELETES).toHaveLength(1);
+    expect(FAILED_DOC_DELETES[0]).toContain(crypto.createHash('sha256').update(Buffer.from(fixtureContent)).digest('hex'));
   });
 });
 
@@ -247,6 +274,22 @@ describe('POST /api/knowledge (manual text document)', () => {
 
     const { status } = await postCreate({ title: 'Site Visits', document_type: 'faq', content });
     expect(status).toBe(201);
+  });
+
+  it('allows re-creating content whose previous attempt FAILED (retry succeeds, stale row purged)', async () => {
+    const content = 'Doors are warrantied for two years against manufacturing defects.';
+    EXISTING_DOCS.push({
+      id: 'doc-failed',
+      checksum: crypto.createHash('sha256').update(content).digest('hex'),
+      business_id: 'biz-1',
+      status: 'failed',
+    });
+
+    const { status } = await postCreate({ title: 'Warranty Retry', document_type: 'policy', content });
+    expect(status).toBe(201);
+    // The stale failed row is purged so it cannot block or duplicate again.
+    expect(FAILED_DOC_DELETES).toHaveLength(1);
+    expect(FAILED_DOC_DELETES[0]).toContain(crypto.createHash('sha256').update(content).digest('hex'));
   });
 
   it('creates a metadata-only document when no content is supplied', async () => {

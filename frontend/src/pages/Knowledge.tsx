@@ -34,7 +34,7 @@ export function KnowledgePage() {
   const [editForm, setEditForm] = useState<KnowledgeDocumentUpdateRequest>({})
   const [deleteTarget, setDeleteTarget] = useState<KnowledgeDocument | null>(null)
   const [feedbackBanner, setFeedbackBanner] = useState<{
-    type: 'success' | 'error'
+    type: 'success' | 'error' | 'info'
     title: string
     message: string
   } | null>(null)
@@ -84,6 +84,17 @@ export function KnowledgePage() {
     },
     onError: (error: Error) => {
       const msg = error.message || 'Failed to upload document'
+      // A duplicate upload is not a failure: the document is already indexed
+      // and usable. Show it as info so users aren't alarmed into retrying.
+      if (/already exists/i.test(msg)) {
+        toast('This document is already in your knowledge base')
+        setFeedbackBanner({
+          type: 'info',
+          title: 'Already in Knowledge Base',
+          message: 'This exact document was already uploaded and indexed — no need to add it again. It is listed under "All Statuses".',
+        })
+        return
+      }
       toast.error(msg)
       setFeedbackBanner({
         type: 'error',
@@ -111,6 +122,15 @@ export function KnowledgePage() {
     },
     onError: (error: Error) => {
       const msg = error.message || 'Failed to create document'
+      if (/already exists/i.test(msg)) {
+        toast('This document is already in your knowledge base')
+        setFeedbackBanner({
+          type: 'info',
+          title: 'Already in Knowledge Base',
+          message: 'This exact content was already created and indexed — no need to add it again. It is listed under "All Statuses".',
+        })
+        return
+      }
       toast.error(msg)
       setFeedbackBanner({
         type: 'error',
@@ -331,6 +351,8 @@ export function KnowledgePage() {
           className={`p-4 rounded-xl border flex items-start justify-between gap-3 shadow-sm animate-fade-in ${
             feedbackBanner.type === 'success'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : feedbackBanner.type === 'info'
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
               : 'bg-danger-50 border-danger-200 text-danger-900'
           }`}
           role="alert"
@@ -338,7 +360,11 @@ export function KnowledgePage() {
           <div className="flex items-start gap-3">
             {feedbackBanner.type === 'success' ? (
               <svg className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 01-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : feedbackBanner.type === 'info' ? (
+              <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             ) : (
               <svg className="w-5 h-5 text-danger-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -366,7 +392,15 @@ export function KnowledgePage() {
         {isLoading ? (
           <LoadingState type="skeleton" count={8} />
         ) : documents.length === 0 ? (
-          <EmptyState icon={<NoDataIcon />} title="No knowledge documents" description="Knowledge documents will help the AI respond accurately." />
+          <EmptyState
+            icon={<NoDataIcon />}
+            title={status ? `No ${status} documents` : 'No knowledge documents'}
+            description={
+              status
+                ? `No documents match the "${status}" status filter. Switch to "All Statuses" to see everything.`
+                : 'Knowledge documents will help the AI respond accurately.'
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

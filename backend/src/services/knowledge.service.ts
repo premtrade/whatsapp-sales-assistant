@@ -113,10 +113,20 @@ export async function createKnowledgeDocument(input: Partial<KnowledgeDocument> 
   }
 
   if (checksum) {
-    const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2', [checksum, businessId]);
+    // Only rows that actually produced a usable index count as duplicates. A
+    // previous attempt that FAILED (or never indexed) must not block a retry,
+    // so exclude it here and purge it below before re-inserting.
+    const existing = await query(
+      'SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2 AND status <> $3',
+      [checksum, businessId, 'failed']
+    );
     if (existing.rows.length > 0) {
       throw new ConflictError('Document with this checksum already exists for this tenant');
     }
+    await query(
+      'DELETE FROM knowledge_documents WHERE checksum = $1 AND business_id = $2 AND status = $3',
+      [checksum, businessId, 'failed']
+    );
   }
 
   const result = await query<KnowledgeDocument>(
@@ -463,10 +473,20 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
   }
 
   const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-  const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2', [checksum, businessId]);
+  // Only rows that actually produced a usable index block a duplicate. A prior
+  // attempt that failed extraction/indexing must not block a retry: exclude it
+  // here and purge it (chunks cascade) so the re-upload reprocesses cleanly.
+  const existing = await query(
+    'SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2 AND status <> $3',
+    [checksum, businessId, 'failed']
+  );
   if (existing.rows.length > 0) {
     throw new ConflictError('Document with this content already exists');
   }
+  await query(
+    'DELETE FROM knowledge_documents WHERE checksum = $1 AND business_id = $2 AND status = $3',
+    [checksum, businessId, 'failed']
+  );
 
   const docResult = await query<KnowledgeDocument>(
     `INSERT INTO knowledge_documents (title, document_type, source, file_name, mime_type, file_size, checksum, language, status, metadata, business_id)
@@ -575,10 +595,20 @@ export async function createTextKnowledgeDocument(input: CreateTextDocumentInput
   }
 
   const checksum = crypto.createHash('sha256').update(content).digest('hex');
-  const existing = await query('SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2', [checksum, businessId]);
+  // Only rows that actually produced a usable index block a duplicate. A prior
+  // attempt that failed indexing must not block a retry: exclude it here and
+  // purge it (chunks cascade) so the re-submit reprocesses cleanly.
+  const existing = await query(
+    'SELECT id FROM knowledge_documents WHERE checksum = $1 AND business_id = $2 AND status <> $3',
+    [checksum, businessId, 'failed']
+  );
   if (existing.rows.length > 0) {
     throw new ConflictError('Document with this content already exists');
   }
+  await query(
+    'DELETE FROM knowledge_documents WHERE checksum = $1 AND business_id = $2 AND status = $3',
+    [checksum, businessId, 'failed']
+  );
 
   const docResult = await query<KnowledgeDocument>(
     `INSERT INTO knowledge_documents (title, document_type, source, language, status, metadata, checksum, business_id)
