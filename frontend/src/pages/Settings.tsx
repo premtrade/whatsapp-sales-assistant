@@ -9,11 +9,12 @@ import { SettingInput } from '@/components/Settings/SettingInput'
 import { StaffModal, type StaffFormData } from '@/components/Settings/StaffModal'
 import { ConfirmDialog } from '@/components/Settings/ConfirmDialog'
 import { WhatsAppConfig } from '@/components/Settings/WhatsAppConfig'
+import { CrmIntegration } from '@/components/Settings/CrmIntegration'
 import { SystemHealth } from '@/components/Settings/SystemHealth'
 import toast from 'react-hot-toast'
 import type { Setting, StaffUser } from '@/types'
 
-type TabId = 'general' | 'staff' | 'whatsapp' | 'system'
+type TabId = 'general' | 'staff' | 'whatsapp' | 'integrations' | 'system'
 
 function groupSettings(settings: Setting[]): { company: Setting[]; ai: Setting[]; notifications: Setting[]; other: Setting[] } {
   const company: Setting[] = []
@@ -130,6 +131,7 @@ export function SettingsPage() {
     { id: 'general', label: 'General', description: 'Company, AI and notification preferences' },
     { id: 'staff', label: 'Staff', description: 'Team members, roles and access' },
     { id: 'whatsapp', label: 'WhatsApp', description: 'Business account, templates and pairing' },
+    { id: 'integrations', label: 'Integrations', description: 'Connect Odoo and other CRMs' },
     { id: 'system', label: 'System', description: 'Health, maintenance and audit trail' },
   ]
 
@@ -380,6 +382,12 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'whatsapp' && <WhatsAppConfig />}
+
+          {activeTab === 'integrations' && (
+            <div className="card p-5">
+              <CrmIntegration />
+            </div>
+          )}
 
           {activeTab === 'system' && (
             <div className="space-y-6">

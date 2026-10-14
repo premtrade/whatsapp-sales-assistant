@@ -49,6 +49,8 @@ import type {
   OwnerDashboardStats,
   FinancialMetrics,
   ConversionMetrics,
+  CrmSettings,
+  CrmSettingsUpdateRequest,
 } from '../types'
 
 const rawApiUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
@@ -794,5 +796,22 @@ export async function registerBetaInterestApi(email: string, inviteToken?: strin
   const response = await api.post<{ success: boolean; data: any }>('/beta/register', { email, inviteToken })
   return response.data.data
 }
+
+// CRM Integration (Odoo)
+export async function getCrmSettings(): Promise<CrmSettings> {
+  const response = await api.get<{ success: boolean; data: CrmSettings }>('/integrations/crm')
+  return response.data.data
+}
+
+export async function updateCrmSettings(data: CrmSettingsUpdateRequest): Promise<CrmSettings> {
+  const response = await api.put<{ success: boolean; data: CrmSettings }>('/integrations/crm', data)
+  return response.data.data
+}
+
+export async function testCrmConnection(): Promise<{ success: boolean; message: string }> {
+  const response = await api.post<{ success: boolean; message: string }>('/integrations/crm/test')
+  return { success: response.data.success, message: response.data.message }
+}
+
 
 

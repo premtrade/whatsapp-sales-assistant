@@ -6,6 +6,7 @@ import { generateQuotePDF } from './pdf.service';
 import { sendWahaDocument, resolveWahaChatId } from './waha.service';
 import { config } from '../config';
 import { requirePlanFeature } from './subscription.service';
+import { syncQuoteToCrm } from './crm.service';
 
 export async function sendQuotePdfToCustomer(quoteId: string, businessId: string): Promise<{ pdfUrl: string; quoteNumber: string; alreadySent: boolean }> {
   await requirePlanFeature(businessId, 'pdf_quotes');
@@ -205,6 +206,12 @@ export async function updateQuoteStatus(id: string, status: string, tenantId?: s
     await emitDashboardStatsUpdated(undefined, emitTenantId);
   }
 
+  // Fire-and-forget CRM sync when a quote is accepted. Never awaited so a slow
+  // or misconfigured CRM cannot block the status update.
+  if (status === 'accepted' && emitTenantId) {
+    void syncQuoteToCrm({ tenantId: emitTenantId, quoteId: quote.id });
+  }
+
   return {
     ...quote,
     requires_review: Boolean((quote as { metadata?: { requires_review?: boolean } }).metadata?.requires_review),
@@ -241,6 +248,10 @@ export async function acceptQuoteFromWebhook(
   );
   const accepted = result.rows[0];
   if (!accepted) return { success: false };
+
+  // Fire-and-forget CRM sync on customer-accepted quotes. Never awaited.
+  void syncQuoteToCrm({ tenantId: accepted.business_id, quoteId: accepted.id });
+
   return {
     success: true,
     quoteId: accepted.id,

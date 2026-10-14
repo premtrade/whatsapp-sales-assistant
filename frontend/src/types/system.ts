@@ -34,6 +34,27 @@ export interface SystemHealthItem {
   detail: string;
 }
 
+export interface CrmSettings {
+  provider: 'odoo' | 'none'
+  enabled: boolean
+  configured: boolean
+  odoo: {
+    url: string
+    database: string
+    hasApiKey: boolean
+  }
+}
+
+export interface CrmSettingsUpdateRequest {
+  provider: 'odoo' | 'none'
+  enabled: boolean
+  odoo: {
+    url: string
+    database: string
+    apiKey?: string
+  }
+}
+
 export interface SystemHealthResponse {
   services: SystemHealthItem[];
   overall: 'operational' | 'degraded' | 'down';

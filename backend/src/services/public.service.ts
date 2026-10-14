@@ -48,6 +48,11 @@ const DEFAULT_SETTINGS: Array<{ key: string; value: string; dataType: string; de
   { key: 'ai_prompt', value: '', dataType: 'string', description: 'Custom AI prompt/instructions' },
   { key: 'currency', value: 'JMD', dataType: 'string', description: 'Business currency' },
   { key: 'timezone', value: 'America/Jamaica', dataType: 'string', description: 'Business timezone' },
+  { key: 'crm_provider', value: 'none', dataType: 'string', description: 'CRM integration provider (odoo | none)' },
+  { key: 'crm_sync_enabled', value: 'false', dataType: 'boolean', description: 'Enable automatic CRM sync' },
+  { key: 'odoo_url', value: '', dataType: 'string', description: 'Odoo base URL (e.g. https://odoo.example.com)' },
+  { key: 'odoo_db', value: '', dataType: 'string', description: 'Odoo database name (X-Odoo-Database header)' },
+  { key: 'odoo_api_key', value: '', dataType: 'string', description: 'Odoo API key (Bearer token)' },
 ];
 
 export function normalizeSlug(value: string): string {

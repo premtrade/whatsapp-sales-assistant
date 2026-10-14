@@ -2,6 +2,7 @@ import { query } from '../utils/database';
 import { NotFoundError, BadRequestError } from '../utils/errors';
 import { PaginationQuery, TenantScopedQuery } from '../types/index';
 import logger from '../utils/logger';
+import { syncLeadToCrm } from './crm.service';
 
 export interface LeadScore {
   id: string;
@@ -248,6 +249,17 @@ export async function updateLeadScoreStatus(id: string, status: string, tenantId
   if (!score) throw new NotFoundError('Lead score not found');
 
   logger.info('Lead score status updated', { leadScoreId: id, newStatus: status });
+
+  // Fire-and-forget CRM sync: only qualified/converted leads are worth pushing
+  // to the CRM. Never awaited — a slow/broken CRM must not block the request.
+  if (status === 'qualified' || status === 'converted') {
+    void syncLeadToCrm({
+      tenantId,
+      contactId: score.contact_id,
+      note: `Lead marked ${status} (total score ${score.total_score}).`,
+      estimatedRevenue: null,
+    });
+  }
 
   return score;
 }

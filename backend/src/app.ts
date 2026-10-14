@@ -32,6 +32,7 @@ import { healthRoutes } from './routes/health.routes';
 import webhookRoutes from './routes/webhook.routes';
 import publicRoutes from './routes/public.routes';
 import subscriptionRoutes from './routes/subscription.routes';
+import integrationRoutes from './routes/integration.routes';
 import ownerRoutes from './routes/owner.routes';
 import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
@@ -134,6 +135,8 @@ app.use('/api/whatsapp', whatsappConfigRoutes);
 app.use('/whatsapp', whatsappConfigRoutes);
 app.use('/api/system', systemHealthRoutes);
 app.use('/system', systemHealthRoutes);
+app.use('/api/integrations', integrationRoutes);
+app.use('/integrations', integrationRoutes);
 
 app.get('/', (_req: Request, res: Response<ApiResponse>): void => {
   res.json({
