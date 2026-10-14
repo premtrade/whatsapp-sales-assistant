@@ -330,9 +330,19 @@ export async function deleteKnowledgeDocument(id: string): Promise<void> {
 export async function uploadKnowledgeDocument(formData: FormData): Promise<{ document: KnowledgeDocument; chunksCreated: number; message: string }> {
   // Uploads are multipart/form-data: use the shared axios instance (base URL +
   // Bearer token interceptor) and let the browser set the boundary.
+  //
+  // CRITICAL: the instance sets a default 'Content-Type: application/json'.
+  // Axios >= 1.20 *serializes FormData to a JSON string* whenever the request
+  // content type is JSON (see transformRequest: `hasJSONContentType ?
+  // JSON.stringify(formDataToJSON(data)) : data`), which turns the file into
+  // `{"file":{}}` — multer then never sees a file and the API replies
+  // 400 "File is required". Clearing the header for this one request makes
+  // axios pass the FormData through so the browser attaches the multipart
+  // boundary. (Verified locally against the project's axios 1.20.0.)
   const response = await api.post<{ success: boolean; data: { document: KnowledgeDocument; chunksCreated: number }; message: string }>(
     '/knowledge/upload',
-    formData
+    formData,
+    { headers: { 'Content-Type': undefined } }
   );
   return {
     document: response.data.data.document,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getKnowledgeDocuments, createKnowledgeDocument, uploadKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, getKnowledgeChunks, reindexKnowledgeDocument } from '@/services/api'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
@@ -39,6 +39,20 @@ export function KnowledgePage() {
     message: string
   } | null>(null)
   const queryClient = useQueryClient()
+
+  // Pages restored from the back-forward cache (bfcache) can keep a File object
+  // in React state whose underlying blob data is no longer readable, which
+  // uploads as an empty/missing part (API replies "File is required"). Clearing
+  // the selection on pagehide forces a fresh pick after such navigations.
+  useEffect(() => {
+    const handlePageHide = () => {
+      setUploadFile(null)
+    }
+    window.addEventListener('pagehide', handlePageHide)
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide)
+    }
+  }, [])
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['knowledge', 'documents', { search, status }],
