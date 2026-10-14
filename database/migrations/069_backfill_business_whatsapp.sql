@@ -12,20 +12,18 @@
 -- (the hybrid search requires a UUID businessId) - it then answers with
 -- "I don't have specific service details in my current context".
 --
--- This backfill makes the single-session (default) deployment resolve the
--- tenant for every existing business. Multi-tenant deployments should set a
--- unique waha_session_name per business afterwards.
+-- This backfill sets whatsapp_phone from settings for businesses where it is NULL.
+-- waha_session_name is left as-is to respect the partial unique index;
+-- multi-tenant deployments should set a unique waha_session_name per business.
 SET search_path TO public;
 
 UPDATE businesses
-SET waha_session_name = COALESCE(waha_session_name, 'default'),
-    whatsapp_phone = COALESCE(whatsapp_phone, (
-        SELECT NULLIF(s.setting_value, '')
-        FROM settings s
-        WHERE s.business_id = businesses.id
-          AND s.setting_key = 'whatsapp_phone_number'
-        LIMIT 1
-    )),
+SET whatsapp_phone = COALESCE(whatsapp_phone, (
+    SELECT NULLIF(s.setting_value, '')
+    FROM settings s
+    WHERE s.business_id = businesses.id
+      AND s.setting_key = 'whatsapp_phone_number'
+    LIMIT 1
+)),
     updated_at = NOW()
-WHERE waha_session_name IS NULL
-   OR whatsapp_phone IS NULL;
+WHERE whatsapp_phone IS NULL;
