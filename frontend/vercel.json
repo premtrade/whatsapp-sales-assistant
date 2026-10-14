@@ -9,8 +9,8 @@
       "destination": "/api/ws"
     },
     {
-      "source": "/api/:path*",
-      "destination": "http://206.189.179.60/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "http://206.189.179.60/api/$1"
     },
     {
       "source": "/health",

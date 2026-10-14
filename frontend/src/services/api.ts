@@ -298,7 +298,11 @@ export async function getKnowledgeDocuments(params?: { page?: number; limit?: nu
   const cleanParams = Object.fromEntries(
     Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== null && v !== '')
   )
-  const response = await api.get<{ success: boolean; data: KnowledgeDocument[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/knowledge/', { params: cleanParams })
+  // NOTE: no trailing slash. The Vercel rewrite (/api/:path*) does not match
+  // trailing-slash URLs, so '/knowledge/' would fall through to the SPA
+  // fallback and return index.html instead of JSON (axios then silently
+  // parses it as text -> an empty list with no error).
+  const response = await api.get<{ success: boolean; data: KnowledgeDocument[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/knowledge', { params: cleanParams })
   return extractPaginatedData(response)
 }
 
@@ -310,7 +314,7 @@ export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumen
 export async function createKnowledgeDocument(data: KnowledgeDocumentCreateRequest): Promise<{ document: KnowledgeDocument; chunksCreated?: number; message?: string }> {
   // Backend returns `{ document, chunksCreated, message }` for text documents
   // (chunked + embedded synchronously) and the bare document otherwise.
-  const response = await api.post<{ success: boolean; data: KnowledgeDocument | { document: KnowledgeDocument; chunksCreated: number }; message?: string }>('/knowledge/', data)
+  const response = await api.post<{ success: boolean; data: KnowledgeDocument | { document: KnowledgeDocument; chunksCreated: number }; message?: string }>('/knowledge', data)
   const payload = response.data.data
   if (payload && typeof payload === 'object' && 'document' in payload) {
     return { document: payload.document, chunksCreated: payload.chunksCreated, message: response.data.message }
