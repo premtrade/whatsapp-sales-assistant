@@ -1,12 +1,26 @@
 import { query } from '../utils/database';
 import { NotFoundError, BadRequestError } from '../utils/errors';
 import { ContactFilters, Contact, CustomerFact } from '../types';
+import { resolveSortColumn } from '../utils/helpers';
 
 export interface ContactWithDetails extends Contact {
   facts: CustomerFact[];
   quotes: unknown[];
   appointments: unknown[];
 }
+
+const CONTACT_SORTABLE_COLUMNS = [
+  'created_at',
+  'updated_at',
+  'first_seen_at',
+  'last_seen_at',
+  'display_name',
+  'phone',
+  'email',
+  'company',
+  'status',
+  'source',
+] as const;
 
 function buildWhereClause(filters: ContactFilters): { where: string; params: unknown[] } {
   const conditions: string[] = [];
@@ -44,7 +58,7 @@ function buildWhereClause(filters: ContactFilters): { where: string; params: unk
 export async function getContacts(filters: ContactFilters): Promise<{ data: Contact[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
   const page = filters.page || 1;
   const limit = filters.limit || 20;
-  const sortBy = filters.sortBy || 'created_at';
+  const sortBy = resolveSortColumn(filters.sortBy, CONTACT_SORTABLE_COLUMNS, 'created_at');
   const sortOrder = filters.sortOrder === 'asc' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
 

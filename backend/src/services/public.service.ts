@@ -15,6 +15,7 @@ export interface PublicSignupRequest {
   ownerName: string;
   email: string;
   password: string;
+  currency?: string;
 }
 
 export interface PublicSignupResponse {
@@ -46,7 +47,7 @@ const DEFAULT_SETTINGS: Array<{ key: string; value: string; dataType: string; de
   { key: 'message_limit', value: '1000', dataType: 'integer', description: 'WhatsApp messages per 24h' },
   { key: 'webhook_url', value: '', dataType: 'string', description: 'n8n webhook URL' },
   { key: 'ai_prompt', value: '', dataType: 'string', description: 'Custom AI prompt/instructions' },
-  { key: 'currency', value: 'JMD', dataType: 'string', description: 'Business currency' },
+  { key: 'currency', value: 'USD', dataType: 'string', description: 'Business currency' },
   { key: 'timezone', value: 'America/Jamaica', dataType: 'string', description: 'Business timezone' },
   { key: 'crm_provider', value: 'none', dataType: 'string', description: 'CRM integration provider (odoo | none)' },
   { key: 'crm_sync_enabled', value: 'false', dataType: 'boolean', description: 'Enable automatic CRM sync' },
@@ -123,16 +124,16 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
     slug,
     whatsapp_phone: phone,
     waha_session_name: sessionName,
-    currency: 'JMD',
+    currency: data.currency || 'USD',
     timezone: 'America/Jamaica',
     status: 'trialing',
   });
 
-  try {
-    await createTrial(business.id, 'starter');
-  } catch (error) {
-    logger.warn('Trial subscription init failed; migration backfill will cover tenant', { businessId: business.id, error });
-  }
+  // A self-serve tenant without a usable subscription is worse than no tenant:
+  // every dashboard call is gated by requireActiveSubscription (402), while the
+  // n8n pipeline never checks subscriptions and keeps answering WhatsApp. So
+  // surface the failure rather than logging it and continuing.
+  await createTrial(business.id, 'starter');
 
   // Record beta registration with the business ID now that it exists.
   try {
@@ -197,7 +198,7 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
       businessId: business.id,
       tenantId: business.id,
     },
-    process.env.JWT_SECRET || process.env.BACKEND_JWT_SECRET || 'change_me_to_a_random_64_char_string',
+    config.jwt.secret,
     { expiresIn: '1d' }
   );
 

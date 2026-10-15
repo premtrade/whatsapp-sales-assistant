@@ -4,6 +4,7 @@ import { NotFoundError, BadRequestError, AppError } from '../utils/errors';
 import { ConversationFilters, Conversation, Message, Contact } from '../types';
 import { getLeadScoreByContact } from './leadScore.service';
 import { emitConversationStatusUpdated, emitDashboardStatsUpdated } from '../websocketServer';
+import { resolveSortColumn } from '../utils/helpers';
 
 export interface ConversationWithDetails extends Conversation {
   contact: Contact;
@@ -22,6 +23,16 @@ export interface ConversationWithDetails extends Conversation {
     estimated_budget: string;
   };
 }
+
+const CONVERSATION_SORTABLE_COLUMNS = [
+  'started_at',
+  'last_message_at',
+  'ended_at',
+  'created_at',
+  'updated_at',
+  'status',
+  'channel',
+] as const;
 
 export interface CreateConversationInput {
   contactId: string;
@@ -77,7 +88,7 @@ function buildWhereClause(filters: ConversationFilters): { where: string; params
 export async function getConversations(filters: ConversationFilters): Promise<{ data: ConversationWithDetails[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
   const page = filters.page || 1;
   const limit = filters.limit || 20;
-  const sortBy = filters.sortBy || 'last_message_at';
+  const sortBy = resolveSortColumn(filters.sortBy, CONVERSATION_SORTABLE_COLUMNS, 'last_message_at');
   const sortOrder = filters.sortOrder === 'asc' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
 

@@ -1,3 +1,5 @@
+import { EMBEDDING_MAX_TOKENS } from './embedding';
+
 export interface ChunkOptions {
   maxTokens?: number;
   overlapTokens?: number;
@@ -9,8 +11,12 @@ export interface TextChunk {
   chunkIndex: number;
 }
 
-const DEFAULT_MAX_TOKENS = 800;
-const DEFAULT_OVERLAP_TOKENS = 100;
+// all-mpnet-base-v2 (the active embedder, see services/embedding.ts) truncates
+// past 384 tokens, so every chunk must fit inside that window or the embedding
+// silently covers only the first ~60% of the text and retrieval for the tail
+// degrades. The default is set to leave headroom for the overlap prefix.
+const DEFAULT_MAX_TOKENS = 384;
+const DEFAULT_OVERLAP_TOKENS = 64;
 
 export function countTokens(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
@@ -20,8 +26,11 @@ export function chunkText(
   text: string,
   options: ChunkOptions = {}
 ): TextChunk[] {
-  const maxTokens = options.maxTokens || DEFAULT_MAX_TOKENS;
-  const overlapTokens = options.overlapTokens || DEFAULT_OVERLAP_TOKENS;
+  // Never hand the embedder more than it can consume, regardless of what the
+  // caller requests. The overlap prefix is counted, so this also bounds the
+  // overlap-augmented chunks below.
+  const maxTokens = Math.min(options.maxTokens || DEFAULT_MAX_TOKENS, EMBEDDING_MAX_TOKENS);
+  const overlapTokens = Math.min(options.overlapTokens || DEFAULT_OVERLAP_TOKENS, EMBEDDING_MAX_TOKENS);
 
   const sentences = splitIntoSentences(text);
   const chunks: TextChunk[] = [];
@@ -77,7 +86,19 @@ export function chunkText(
     });
   }
 
-  return chunks;
+  // Final safety net: the overlap prefix can in rare cases push a chunk a few
+  // tokens over the limit. Split anything still over the ceiling so the
+  // invariant "no chunk exceeds EMBEDDING_MAX_TOKENS" holds by construction.
+  return chunks
+    .flatMap((chunk) => {
+      if (chunk.tokenCount <= EMBEDDING_MAX_TOKENS) return [chunk];
+      return splitLongSentence(chunk.text, EMBEDDING_MAX_TOKENS).map((lc, i) => ({
+        text: lc,
+        tokenCount: countTokens(lc),
+        chunkIndex: chunkIndex++,
+      }));
+    })
+    .filter((chunk) => chunk.text.length > 0);
 }
 
 function splitIntoSentences(text: string): string[] {
@@ -105,7 +126,7 @@ function splitLongSentence(sentence: string, maxTokens: number): string[] {
     }
   }
   if (current) parts.push(current.trim());
-  return parts;
+  return parts.filter((p) => p.length > 0);
 }
 
 function getOverlapText(text: string, overlapTokens: number): string {
@@ -115,5 +136,5 @@ function getOverlapText(text: string, overlapTokens: number): string {
 }
 
 export function validateChunkSize(text: string, maxTokens = DEFAULT_MAX_TOKENS): boolean {
-  return countTokens(text) <= maxTokens;
+  return countTokens(text) <= Math.min(maxTokens, EMBEDDING_MAX_TOKENS);
 }

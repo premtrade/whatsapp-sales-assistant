@@ -3,6 +3,22 @@ import { NotFoundError, BadRequestError } from '../utils/errors';
 import { PaginationQuery, TenantScopedQuery } from '../types/index';
 import logger from '../utils/logger';
 import { syncLeadToCrm } from './crm.service';
+import { resolveSortColumn } from '../utils/helpers';
+
+const LEAD_SCORE_SORTABLE_COLUMNS = [
+  'total_score',
+  'budget_score',
+  'urgency_score',
+  'project_type_score',
+  'location_score',
+  'engagement_score',
+  'status',
+  'project_type',
+  'estimated_budget',
+  'last_calculated_at',
+  'created_at',
+  'updated_at',
+] as const;
 
 export interface LeadScore {
   id: string;
@@ -93,7 +109,7 @@ function buildWhereClause(filters: LeadScoreFilters): { where: string; params: u
 export async function getLeadScores(filters: LeadScoreFilters): Promise<{ data: LeadScoreWithContact[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
   const page = filters.page || 1;
   const limit = filters.limit || 20;
-  const sortBy = filters.sortBy || 'total_score';
+  const sortBy = resolveSortColumn(filters.sortBy, LEAD_SCORE_SORTABLE_COLUMNS, 'total_score');
   const sortOrder = filters.sortOrder === 'asc' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
 
@@ -229,6 +245,122 @@ export async function calculateAndSaveLeadScore(input: LeadScoreInput, tenantId:
   });
 
   return score;
+}
+
+/**
+ * Qualitative signals the LLM already extracts, mapped to numeric
+ * sub-scores (0-100) for the weighted lead-scoring model. Keeps the
+ * heuristic in one place so the backend remains the single source of
+ * truth for scoring, regardless of whether the trigger comes from the
+ * dashboard API or an n8n webhook.
+ */
+export interface LeadScoreDerivationInput {
+  contactId: string;
+  conversationId?: string | null;
+  businessId: string;
+  intent?: string;
+  leadStage?: string;
+  sentiment?: string;
+  factsExtracted?: unknown[];
+  escalate?: boolean;
+  escalationReason?: string;
+}
+
+export function deriveLeadScoreSubScores(input: LeadScoreDerivationInput): {
+  budgetScore: number;
+  urgencyScore: number;
+  projectTypeScore: number;
+  locationScore: number;
+  engagementScore: number;
+} {
+  const facts = Array.isArray(input.factsExtracted) ? input.factsExtracted : [];
+  const factText = JSON.stringify(facts).toLowerCase();
+  const intent = (input.intent || 'general_inquiry').toLowerCase();
+  const leadStage = (input.leadStage || 'new').toLowerCase();
+  const sentiment = (input.sentiment || 'neutral').toLowerCase();
+  const escalate = input.escalate === true;
+
+  // Budget: quote/estimate intent + explicit budget mentions + higher lead stage.
+  let budgetScore = 20;
+  if (intent === 'quote' || factText.includes('budget') || factText.includes('price') || factText.includes('cost')) {
+    budgetScore += 35;
+  }
+  if (leadStage === 'qualified') budgetScore += 25;
+  else if (leadStage === 'qualifying') budgetScore += 10;
+
+  // Urgency: qualifying/urgent stage, angry sentiment, escalation.
+  let urgencyScore = 30;
+  if (leadStage === 'qualified') urgencyScore += 30;
+  if (sentiment === 'negative' || sentiment === 'angry') urgencyScore += 20;
+  if (escalate) urgencyScore += 20;
+
+  // Project type: quote/appointment intent + explicit product/type mentioned.
+  let projectTypeScore = 25;
+  if (intent === 'quote' || intent === 'appointment') projectTypeScore += 35;
+  if (factText.includes('site visit') || factText.includes('consultation')) projectTypeScore += 20;
+
+  // Location: explicit location/address/city mentioned.
+  let locationScore = 20;
+  if (factText.includes('location') || factText.includes('address') || factText.includes('city')) locationScore += 40;
+
+  // Engagement: facts extracted shows active discovery; escalation signals high engagement.
+  let engagementScore = 30;
+  if (facts.length > 0) engagementScore += 30;
+  if (escalate) engagementScore += 20;
+
+  return {
+    budgetScore: Math.max(0, Math.min(100, budgetScore)),
+    urgencyScore: Math.max(0, Math.min(100, urgencyScore)),
+    projectTypeScore: Math.max(0, Math.min(100, projectTypeScore)),
+    locationScore: Math.max(0, Math.min(100, locationScore)),
+    engagementScore: Math.max(0, Math.min(100, engagementScore)),
+  };
+}
+
+/**
+ * Derives sub-scores from qualitative LLM output, then saves via the
+ * weighted model + CRM sync + audit trail. Reused by both the dashboard
+ * API and the n8n webhook so scoring logic lives in one place.
+ */
+export async function deriveAndSaveLeadScore(input: LeadScoreDerivationInput): Promise<LeadScore> {
+  const scores = deriveLeadScoreSubScores(input);
+
+  const weightedTotal = Math.round(
+    scores.budgetScore * 0.25 +
+    scores.urgencyScore * 0.20 +
+    scores.projectTypeScore * 0.25 +
+    scores.locationScore * 0.15 +
+    scores.engagementScore * 0.15
+  );
+
+  const facts = Array.isArray(input.factsExtracted) ? input.factsExtracted : [];
+  const reasoning: Record<string, unknown> = {};
+  reasoning.derived = true;
+  reasoning.signals = {
+    intent: input.intent,
+    leadStage: input.leadStage,
+    sentiment: input.sentiment,
+    escalate: input.escalate,
+    factCount: facts.length,
+  };
+
+  return calculateAndSaveLeadScore(
+    {
+      contactId: input.contactId,
+      conversationId: input.conversationId || undefined,
+      budgetScore: scores.budgetScore,
+      urgencyScore: scores.urgencyScore,
+      projectTypeScore: scores.projectTypeScore,
+      locationScore: scores.locationScore,
+      engagementScore: scores.engagementScore,
+      projectType: input.intent === 'quote' || input.intent === 'appointment' ? (input.intent as string) : undefined,
+      estimatedBudget: input.escalationReason || undefined,
+      preferredTimeline: undefined,
+      projectLocation: undefined,
+      scoreReasoning: reasoning,
+    },
+    input.businessId
+  );
 }
 
 export async function updateLeadScoreStatus(id: string, status: string, tenantId: string): Promise<LeadScore> {

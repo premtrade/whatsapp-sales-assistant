@@ -195,8 +195,12 @@ main() {
         [ -f "$file" ] && all_migrations+=("$file")
     done
     
-    # Sort migrations by filename
-    IFS=$'\n' all_migrations=($(sort <<<"${all_migrations[*]}")); unset IFS
+    # Sort migrations by basename (the numeric migration number) so the
+    # order is deterministic across both directories. Sorting by full path
+    # previously put database/migrations/ (m) before database/schema/ (s),
+    # so every incremental migration ran before the base schema on a fresh
+    # database and aborted with "relation does not exist".
+    IFS=$'\n' all_migrations=($(printf '%s\n' "${all_migrations[@]}" | sort -t/ -k3)); unset IFS
     
     local total=${#all_migrations[@]}
     local applied=0

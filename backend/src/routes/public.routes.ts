@@ -17,6 +17,7 @@ const signupSchema = z.object({
   ownerName: z.string().min(1, 'Owner name is required'),
   email: z.string().email('Invalid email format'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  currency: z.string().min(3).max(3).optional().default('USD'),
 });
 
 const contactSchema = z.object({

@@ -7,7 +7,7 @@
 - Rotate all passwords and API keys before deploying to production.
 - Use strong, randomly generated secrets:
   - `N8N_ENCRYPTION_KEY`: 32+ character random string
-  - `BACKEND_JWT_SECRET`: 64+ character random string
+  - `JWT_SECRET`: 64+ character random string
   - Database passwords: minimum 16 characters, mixed case, numbers, symbols
 
 ## 2. Database Security

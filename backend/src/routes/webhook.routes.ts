@@ -13,6 +13,7 @@ import { query } from '../utils/database';
 import { sendWahaText, resolveWahaChatId } from '../services/waha.service';
 import { config } from '../config';
 import { bookAppointment } from '../services/appointment.service';
+import { deriveAndSaveLeadScore } from '../services/leadScore.service';
 
 const router = Router();
 
@@ -70,6 +71,18 @@ const appointmentBookSchema = z.object({
 const quoteSendSchema = z.object({
   quote_id: z.string().uuid(),
   business_id: z.string().uuid(),
+});
+
+const leadScoreSchema = z.object({
+  contact_id: z.string().uuid(),
+  conversation_id: z.string().uuid().optional(),
+  business_id: z.string().uuid(),
+  intent: z.string().optional(),
+  lead_stage: z.string().optional(),
+  sentiment: z.string().optional(),
+  facts_extracted: z.array(z.unknown()).optional(),
+  escalate: z.boolean().optional(),
+  escalation_reason: z.string().optional(),
 });
 
 // Type for webhook processing config
@@ -375,6 +388,44 @@ router.post(
       const message = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({ success: false, error: message });
     }
+  }
+);
+
+/**
+ * n8n webhook: derive and persist a lead score from the AI Brain's
+ * qualitative output. Reuses deriveAndSaveLeadScore so scoring logic
+ * lives in the backend (weighted model + CRM sync + audit trail) and is
+ * never written as hardcoded zeros.
+ *
+ * Auth: shared secret via X-Webhook-Secret (N8N_WEBHOOK_SECRET) plus
+ * X-Timestamp replay protection.
+ */
+router.post(
+  '/lead-score',
+  webhookRateLimiter,
+  validateWebhookSource({
+    sourceName: 'n8n-lead-score',
+    secretHeaderName: 'x-webhook-secret',
+    secretEnvVarName: 'N8N_WEBHOOK_SECRET',
+  }),
+  async (req: WebhookRequest, res: Response): Promise<void> => {
+    const parseResult = leadScoreSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw new BadRequestError(`Malformed lead-score webhook payload: ${parseResult.error.errors.map((e) => e.message).join(', ')}`);
+    }
+    const { contact_id, conversation_id, business_id, intent, lead_stage, sentiment, facts_extracted, escalate, escalation_reason } = parseResult.data;
+    const score = await deriveAndSaveLeadScore({
+      contactId: contact_id,
+      conversationId: conversation_id || null,
+      businessId: business_id,
+      intent,
+      leadStage: lead_stage,
+      sentiment,
+      factsExtracted: facts_extracted || [],
+      escalate,
+      escalationReason: escalation_reason,
+    });
+    res.status(200).json({ success: true, data: score });
   }
 );
 

@@ -214,7 +214,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, (SELECT resolved_phone FROM resolved), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) IS NOT NULL AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> NULLIF($5, '')) FROM businesses b WHERE (regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR b.waha_session_name = $3) AND b.deleted_at IS NULL ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
+        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, (SELECT resolved_phone FROM resolved), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) IS NOT NULL AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> NULLIF($5, '')) FROM businesses b WHERE (regexp_replace(regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') OR b.waha_session_name = $3) AND b.deleted_at IS NULL ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
         "options": {
           "queryReplacement": "={{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.customer_name }}, {{ $('Sanitize Inputs').first().json.business_phone }}, {{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.wa_lid }}, {{ $('Sanitize Inputs').first().json.chat_id }}"
         }
@@ -380,7 +380,8 @@
             "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
             "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
             "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}",
-            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}"
+            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}",
+            "business_phone": "={{ $('Normalize Payload').first().json.business_phone }}"
           },
           "matchingColumns": [],
           "schema": [

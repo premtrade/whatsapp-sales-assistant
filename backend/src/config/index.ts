@@ -97,7 +97,7 @@ export const config: Config = {
     schema: getEnv('POSTGRES_SCHEMA', 'public'),
   },
   jwt: {
-    secret: getEnv('JWT_SECRET', getEnv('BACKEND_JWT_SECRET', 'change_me_to_a_random_64_char_string')),
+    secret: getEnv('JWT_SECRET'),
     expiresIn: getEnv('JWT_EXPIRES_IN', '1d'),
   },
   waha: {
@@ -128,3 +128,14 @@ export const config: Config = {
     embeddingModel: getEnv('EMBEDDING_MODEL', 'gemini-embedding-001'),
   },
 };
+
+// Fail fast in production if the JWT signing key is missing, too short, or still a default value.
+// A weak/default key lets anyone forge super-admin tokens and bypass all authorization.
+if (config.env === 'production') {
+  const { secret } = config.jwt;
+  if (!secret || secret.length < 32 || secret.startsWith('change_me')) {
+    throw new Error(
+      'Refusing to start: JWT_SECRET must be set, at least 32 characters, and not a default value in production',
+    );
+  }
+}

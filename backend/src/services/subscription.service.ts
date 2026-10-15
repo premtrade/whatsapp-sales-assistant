@@ -248,6 +248,17 @@ export async function createTrialSubscription(
     }
 
     // Use INSERT ... ON CONFLICT DO NOTHING to handle concurrent requests safely.
+    //
+    // The arbiter index is the partial unique index created in migration
+    // 056_active_subscription_unique.sql:
+    //   CREATE UNIQUE INDEX uq_active_subscription_per_business
+    //   ON subscriptions(business_id) WHERE status IN ('trialing','active','past_due')
+    //
+    // The ON CONFLICT WHERE clause must therefore be an index predicate that
+    // PostgreSQL can prove implies that index's predicate. A runtime subquery
+    // (the previous "(SELECT COUNT(*) ...) = 0" form) cannot be proven to imply
+    // it, so Postgres raised 42P10 on every execution and the row was never
+    // inserted — which silently left self-serve tenants with no subscription.
     await query(
       `INSERT INTO subscriptions
          (business_id, plan_id, status,
@@ -259,7 +270,7 @@ export async function createTrialSubscription(
          NOW() + make_interval(days => $3),
          '{"source":"public-signup"}'::jsonb
        )
-       ON CONFLICT (business_id) WHERE (SELECT COUNT(*) FROM subscriptions WHERE business_id = $1 AND status IN ('trialing','active','past_due')) = 0
+       ON CONFLICT (business_id) WHERE status IN ('trialing', 'active', 'past_due')
        DO NOTHING`,
       [businessId, plan.id, days]
     );

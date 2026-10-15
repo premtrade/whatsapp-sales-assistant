@@ -506,7 +506,7 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
       throw new BadRequestError('No text content extracted from document');
     }
 
-    const chunks = chunkText(extracted.text, { maxTokens: 800, overlapTokens: 100 });
+    const chunks = chunkText(extracted.text);
     if (chunks.length === 0) {
       throw new BadRequestError('Failed to create chunks from document');
     }
@@ -623,7 +623,7 @@ export async function createTextKnowledgeDocument(input: CreateTextDocumentInput
   }
 
   try {
-    const chunks = chunkText(content, { maxTokens: 800, overlapTokens: 100 });
+    const chunks = chunkText(content);
     if (chunks.length === 0) {
       throw new BadRequestError('Failed to create chunks from document');
     }

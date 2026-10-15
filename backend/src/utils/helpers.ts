@@ -1,3 +1,25 @@
+/**
+ * Resolves a caller-supplied sort column against an explicit allow-list.
+ *
+ * `sortBy` reaches services straight from `req.query`, so it must never be
+ * interpolated into an `ORDER BY` clause without validation: even though the
+ * `pg` driver uses the extended protocol, an unvalidated column reference is
+ * still a blind boolean/time-based injection vector.
+ *
+ * Unknown or missing values fall back to `fallback`, so existing callers that
+ * send nothing keep their current ordering.
+ */
+export function resolveSortColumn(
+  sortBy: string | undefined,
+  allowedColumns: readonly string[],
+  fallback: string
+): string {
+  if (sortBy && allowedColumns.includes(sortBy)) {
+    return sortBy;
+  }
+  return fallback;
+}
+
 export function getSortOrder(sortOrder?: string): 'asc' | 'desc' | undefined {
   if (sortOrder === 'asc' || sortOrder === 'desc') {
     return sortOrder;

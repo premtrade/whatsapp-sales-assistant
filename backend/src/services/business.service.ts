@@ -125,7 +125,7 @@ export async function createBusiness(data: BusinessCreateRequest): Promise<Busin
     data.phone || null,
     data.website || null,
     data.address || null,
-    data.currency || 'JMD',
+    data.currency || 'USD',
     data.timezone || 'America/Jamaica',
     data.whatsapp_phone || null,
     data.waha_session_name || null,

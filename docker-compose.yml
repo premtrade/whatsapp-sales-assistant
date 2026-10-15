@@ -290,7 +290,7 @@ services:
       AI_DEFAULT_MODEL: ${AI_DEFAULT_MODEL:-qwen/qwen3.8-27b}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${BACKEND_JWT_EXPIRES_IN:-1d}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       # Billing: hosts allowed to receive Stripe checkout/portal return URLs,
       # plus Stripe keys (empty until configured — the billing page then shows
       # a "payments not configured" notice instead of failing silently).

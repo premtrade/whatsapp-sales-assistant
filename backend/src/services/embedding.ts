@@ -19,6 +19,14 @@ import logger from '../utils/logger';
 export const EMBEDDING_MODEL = 'Xenova/all-mpnet-base-v2';
 const EMBEDDING_DIMENSION = 768;
 
+/**
+ * Maximum tokens the active embedder accepts. all-mpnet-base-v2 truncates
+ * past 384 tokens, so the chunker must keep every chunk under this ceiling —
+ * otherwise the embedding silently covers only the first ~60% of the text and
+ * retrieval for the tail of a chunk degrades.
+ */
+export const EMBEDDING_MAX_TOKENS = 384;
+
 // Longest text we send to the model. all-mpnet-base-v2 has a 384-token limit and
 // transformers.js truncates past it; slicing first avoids pointless work/warnings.
 const MAX_INPUT_CHARS = 8000;

@@ -1,6 +1,43 @@
 import mammoth from 'mammoth';
 import { BadRequestError } from '../utils/errors';
 
+/**
+ * Hard ceiling on extracted text before chunking. Guards against
+ * decompression-bomb documents (a small upload expanding to hundreds of MB of
+ * text) and unbounded embedding/prompt cost. Multer's 50 MB body cap is not a
+ * substitute — it permits a tiny ZIP that expands far past it.
+ */
+const MAX_EXTRACTED_TEXT_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Lightweight HTML sanitizer for knowledge-base uploads.
+ *
+ * Stored chunk text is later injected into an LLM system prompt (see the
+ * knowledge-search path in knowledge.service.ts), so any HTML that reaches
+ * chunkText is effectively tenant-controlled content reaching the model — a
+ * prompt-injection surface. We strip non-content elements and all remaining
+ * tags rather than trusting a full HTML parser.
+ */
+export function sanitizeHtml(html: string): string {
+  if (typeof html !== 'string') return '';
+  // Remove script/style and their contents first, before any tag stripping.
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export interface ExtractedText {
   text: string;
   pageCount?: number;
@@ -61,19 +98,42 @@ export async function extractTextFromBuffer(
   fileName?: string
 ): Promise<ExtractedText> {
   const normalized = normalizeMimeType(mimeType, fileName);
+  let text: string;
+  let pageCount: number | undefined;
   switch (normalized) {
     case 'application/pdf':
-      return extractFromPDF(buffer);
+      ({ text, pageCount } = await extractFromPDF(buffer));
+      break;
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-      return extractFromDOCX(buffer);
+      ({ text } = await extractFromDOCX(buffer));
+      break;
     case 'text/plain':
     case 'text/markdown':
     case 'text/html':
     case 'text/csv':
-      return { text: buffer.toString('utf-8') };
+      text = buffer.toString('utf-8');
+      break;
     default:
       throw new BadRequestError(`Unsupported file type: ${mimeType || fileName || 'unknown'}`);
   }
+
+  // HTML is the one type whose raw output is not safe to feed to chunkText and
+  // the LLM prompt: strip script/style/svg and all remaining tags.
+  if (normalized === 'text/html') {
+    text = sanitizeHtml(text);
+  }
+
+  // Decompression-bomb / pathological-content guard. A 50 MB upload cap is
+  // not enough — a tiny ZIP can expand to hundreds of MB of text, and an
+  // attacker-controlled document can inflate the embedding cost and the prompt
+  // window. Reject anything beyond a sane ceiling.
+  if (text.length > MAX_EXTRACTED_TEXT_BYTES) {
+    throw new BadRequestError(
+      `Extracted text exceeds the ${MAX_EXTRACTED_TEXT_BYTES} byte limit (${text.length} bytes)`
+    );
+  }
+
+  return { text, pageCount };
 }
 
 async function extractFromPDF(buffer: Buffer): Promise<ExtractedText> {

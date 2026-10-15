@@ -69,11 +69,11 @@
       },
       "typeVersion": 2.7,
       "parameters": {
-        "query": "SELECT id, name, slug, currency, timezone FROM businesses WHERE (id = NULLIF($1,'')::uuid OR (NULLIF($1,'') IS NULL AND waha_session_name = $2)) AND status = 'active' AND deleted_at IS NULL ORDER BY CASE WHEN id = NULLIF($1,'')::uuid THEN 0 ELSE 1 END, created_at DESC LIMIT 1;",
+        "query": "SELECT id, name, slug, currency, timezone FROM businesses WHERE (id = NULLIF($1,'')::uuid OR (NULLIF($1,'') IS NULL AND waha_session_name = $2) OR regexp_replace(regexp_replace(whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace($3, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g')) AND status = 'active' AND deleted_at IS NULL ORDER BY CASE WHEN id = NULLIF($1,'')::uuid THEN 0 WHEN regexp_replace(regexp_replace(whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace($3, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') THEN 1 ELSE 2 END, created_at DESC LIMIT 1;",
         "operation": "executeQuery",
         "options": {
           "continueOnFail": true,
-          "queryReplacement": "{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.session || 'default') }}"
+          "queryReplacement": "{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.session || 'default') }}, {{ String($('When Executed by Another Workflow').first().json.business_phone || '') }}"
         }
       },
       "position": [
