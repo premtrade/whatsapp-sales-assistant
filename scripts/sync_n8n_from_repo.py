@@ -131,16 +131,12 @@ def main():
         )
 
         # 2) Write EXECUTABLE copy (workflow_history) for the active/published version.
+        # Update every stored version, not just the selected active/published one.
+        # n8n can keep stale executable versions alive; updating all of them
+        # prevents a published-but-older version from masking the repo content.
         hist_where = (
             'h."workflowId" = (SELECT id FROM workflow_entity WHERE name = '
             f"{name_lit}) "
-            "AND ("
-            'h."versionId" = (SELECT "activeVersionId" FROM workflow_entity WHERE name = '
-            f"{name_lit}) "
-            "OR "
-            'h."versionId" = (SELECT "publishedVersionId" FROM workflow_published_version '
-            f'WHERE "workflowId" = (SELECT id FROM workflow_entity WHERE name = {name_lit}))'
-            ")"
         )
         print(
             "UPDATE workflow_history h "
