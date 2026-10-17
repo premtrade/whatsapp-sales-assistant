@@ -134,7 +134,7 @@ function extractPaginatedData<T>(response: { data: { success: boolean; data: T[]
 
 // Auth
 export async function login(data: LoginRequest): Promise<LoginResponse> {
-  const response = await api.post<{ data: { token: string; user: StaffUser } }>('/auth/login', data)
+  const response = await api.post<{ success: boolean; data: { token: string; user: StaffUser } }>('/auth/login', data)
   return {
     token: response.data.data.token,
     staff: response.data.data.user,
@@ -142,8 +142,11 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function getCurrentStaff(): Promise<StaffUser> {
-  const response = await api.get<StaffUser>('/auth/me')
-  return response.data
+  // Backend wraps the row as { success: true, data: <staff row> }; the old
+  // code returned the whole envelope, so callers saw `undefined` fields and
+  // treated a valid session as logged-out.
+  const response = await api.get<{ success: boolean; data: StaffUser }>('/auth/me')
+  return response.data.data
 }
 
 // Dashboard

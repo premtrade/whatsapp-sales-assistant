@@ -24,6 +24,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/00_init-multiple-dbs.sql
+      - ./database/migrations/000_create_migration_tracker.sql:/docker-entrypoint-initdb.d/00b_migration_tracker.sql
       - ./database/schema/000_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql
       - ./database/schema/001_functions.sql:/docker-entrypoint-initdb.d/02_functions.sql
       - ./database/schema/002_contacts.sql:/docker-entrypoint-initdb.d/03_contacts.sql
@@ -78,6 +79,17 @@ services:
       - ./database/migrations/060_beta_and_audit_tables.sql:/docker-entrypoint-initdb.d/60_beta_and_audit_tables.sql
       - ./database/migrations/061_contact_inquiries.sql:/docker-entrypoint-initdb.d/61_contact_inquiries.sql
       - ./database/migrations/062_plan_limits_update.sql:/docker-entrypoint-initdb.d/62_plan_limits_update.sql
+      - ./database/migrations/062_platform_owner_global_scope.sql:/docker-entrypoint-initdb.d/62b_platform_owner_global_scope.sql
+      - ./database/migrations/063_global_settings_scope.sql:/docker-entrypoint-initdb.d/63_global_settings_scope.sql
+      - ./database/migrations/064_plan_limits_update.sql:/docker-entrypoint-initdb.d/64_plan_limits_update.sql
+      - ./database/migrations/065_repair_conversation_lead_stage.sql:/docker-entrypoint-initdb.d/65_repair_conversation_lead_stage.sql
+      - ./database/migrations/066_staff_users_deleted_at.sql:/docker-entrypoint-initdb.d/66_staff_users_deleted_at.sql
+      - ./database/migrations/067_staff_email_employee_uniqueness.sql:/docker-entrypoint-initdb.d/67_staff_email_employee_uniqueness.sql
+      - ./database/migrations/068_add_whatsapp_lid.sql:/docker-entrypoint-initdb.d/68_add_whatsapp_lid.sql
+      - ./database/migrations/069_backfill_business_whatsapp.sql:/docker-entrypoint-initdb.d/69_backfill_business_whatsapp.sql
+      - ./database/migrations/070_crm_integration.sql:/docker-entrypoint-initdb.d/70_crm_integration.sql
+      - ./database/migrations/071_remove_demo_garco_business.sql:/docker-entrypoint-initdb.d/71_remove_demo_garco_business.sql
+      - ./database/migrations/072_login_repair.sql:/docker-entrypoint-initdb.d/72_login_repair.sql
 
     networks:
       - backend
