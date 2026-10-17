@@ -279,6 +279,13 @@ jobs:
 
             cd "$RELEASE_PATH"
             compose() {
+              # NOTE: only strip vars the CI exports for its own shell (they are
+              # also read from --env-file for interpolation). NEVER strip
+              # secrets the backend needs at runtime (JWT_SECRET, REDIS_*,
+              # CORS_ORIGINS, ...): `env -u` removes them from the environment
+              # compose inherits, so `${JWT_SECRET}` interpolates to an empty
+              # string and the backend boot-crashes with
+              # "Missing required environment variable: JWT_SECRET".
               env -u POSTGRES_USER -u POSTGRES_DB -u POSTGRES_PASSWORD -u BACKEND_PORT \
               docker compose -p whatsapp-sales-assistant \
                 --project-directory "$RELEASE_PATH" \
@@ -293,11 +300,19 @@ jobs:
             POSTGRES_DB="$(printf '%s' "$COMPOSE_CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["postgres"]["environment"]["POSTGRES_DB"])')"
             POSTGRES_PASSWORD="$(printf '%s' "$COMPOSE_CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["postgres"]["environment"]["POSTGRES_PASSWORD"])')"
             BACKEND_PORT="$(printf '%s' "$COMPOSE_CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["backend"]["environment"].get("BACKEND_PORT", 4000))')"
+            # Fail fast if the release would boot-crash: these have no defaults
+            # and the backend refuses to start without them.
+            JWT_SECRET_CHECK="$(printf '%s' "$COMPOSE_CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["backend"]["environment"].get("JWT_SECRET") or "")')"
             unset COMPOSE_CONFIG
             test -n "$POSTGRES_USER"
             test -n "$POSTGRES_DB"
             test -n "$POSTGRES_PASSWORD"
             test -n "$BACKEND_PORT"
+            if [ -z "$JWT_SECRET_CHECK" ]; then
+              echo "Refusing to deploy: JWT_SECRET resolves to empty in the backend service (missing from $DEPLOY_PATH/.env?)" >&2
+              exit 1
+            fi
+            unset JWT_SECRET_CHECK
             export POSTGRES_USER POSTGRES_DB POSTGRES_PASSWORD BACKEND_PORT
 
             echo "==> Backing up PostgreSQL databases before deployment..."
