@@ -420,7 +420,7 @@ export async function searchKnowledgeChunksHybrid(
       WHERE kd.status = 'indexed'
         AND kd.business_id = $4::uuid
         AND kc.embedding IS NOT NULL
-        AND $3::boolean = true
+        -- AND $3::boolean = true
         AND kc.chunk_text NOT ILIKE 'dummy content%'
         -- no similarity threshold; return best available chunks
       UNION ALL
