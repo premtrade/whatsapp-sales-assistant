@@ -69,11 +69,11 @@
       },
       "typeVersion": 2.7,
       "parameters": {
-        "query": "SELECT id, name, slug, currency, timezone FROM businesses WHERE (id = NULLIF($1,'')::uuid OR (NULLIF($1,'') IS NULL AND waha_session_name = $2) OR regexp_replace(regexp_replace(whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace($3, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g')) AND status = 'active' AND deleted_at IS NULL ORDER BY CASE WHEN id = NULLIF($1,'')::uuid THEN 0 WHEN regexp_replace(regexp_replace(whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace($3, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') THEN 1 ELSE 2 END, created_at DESC LIMIT 1;",
+        "query": "SELECT id, name, slug, currency, timezone FROM businesses WHERE (id = NULLIF($1,'')::uuid OR (NULLIF($1,'') IS NULL AND waha_session_name = $2)) AND status = 'active' AND deleted_at IS NULL ORDER BY CASE WHEN id = NULLIF($1,'')::uuid THEN 0 ELSE 1 END, created_at DESC LIMIT 1;",
         "operation": "executeQuery",
         "options": {
           "continueOnFail": true,
-          "queryReplacement": "{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.session || 'default') }}, {{ String($('When Executed by Another Workflow').first().json.business_phone || '0') }}"
+          "queryReplacement": "{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.session || 'default') }}"
         }
       },
       "position": [
@@ -216,7 +216,8 @@
         "specifyBody": "json",
         "jsonBody": "={{ { text: String($('When Executed by Another Workflow').first().json.message || '') } }}",
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "continueOnFail": true
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -251,9 +252,10 @@
         "sendHeaders": false,
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ embeddingB64: $('Prepare Search Params').first().json.embedding_b64, message: String($('Prepare Search Params').first().json.message_text || '').slice(0, 500), hasVector: Boolean($('Prepare Search Params').first().json.has_vector), businessId: String($('When Executed by Another Workflow').first().json.business_id || ''), limit: 10 }) }}",
+        "jsonBody": "={{ JSON.stringify({ embeddingB64: $('Prepare Search Params').first().json.embedding_b64, message: String($('Prepare Search Params').first().json.message_text || '').slice(0, 500), hasVector: Boolean($('Prepare Search Params').first().json.has_vector), businessId: String($('When Executed by Another Workflow').first().json.business_id || ''), limit: 50 }) }}",
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "continueOnFail": true
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -382,7 +384,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const products = $('Get Products').first()?.json?.products || []; const quotes = $('Get Quotes').first()?.json?.quotes || []; const appointments = $('Get Appointments').first()?.json?.appointments || []; const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const _tz = business.timezone || 'America/Jamaica'; const _localTime = new Intl.DateTimeFormat('en-US', {timeZone:_tz,dateStyle:'full',timeStyle:'short'}).format(new Date()); const _h = new Date().toLocaleString('en-US', {timeZone:_tz,hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : ((_hr >= 17 && _hr < 24) || (_hr >= 0 && _hr < 4)) ? 'evening' : 'morning'; const settings = $('Get Business Settings').first()?.json || {}; return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || business.slug || settings.setting_value || 'ROLINJ.IO', currency: business.currency || 'USD', time_greeting: _greet, business_id: business.id || null, business_timezone: _tz, current_business_time: _localTime, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const products = $('Get Products').first()?.json?.products || []; const quotes = $('Get Quotes').first()?.json?.quotes || []; const appointments = $('Get Appointments').first()?.json?.appointments || []; const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const _tz = business.timezone || 'America/Jamaica'; const _localTime = new Intl.DateTimeFormat('en-US', {timeZone:_tz,dateStyle:'full',timeStyle:'short'}).format(new Date()); const _h = new Date().toLocaleString('en-US', {timeZone:_tz,hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : ((_hr >= 17 && _hr < 24) || (_hr >= 0 && _hr < 4)) ? 'evening' : 'morning'; const settings = $('Get Business Settings').first()?.json || {}; return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, knowledge_count: knowledge.length, knowledge_preview: knowledge.map(function(k){return k.chunk_text||\"\";}).join(\" | \").slice(0,300), products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || business.slug || settings.setting_value || 'ROLINJ.IO', time_greeting: _greet, business_id: business.id || null, business_timezone: _tz, current_business_time: _localTime, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

@@ -421,14 +421,14 @@ export async function searchKnowledgeChunksHybrid(
         AND kc.embedding IS NOT NULL
         AND $3::boolean = true
         AND kc.chunk_text NOT ILIKE 'dummy content%'
-        AND 1 - (kc.embedding <=> $1::vector) > 0.15
+        -- no similarity threshold; return best available chunks
       UNION ALL
       SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
       FROM knowledge_chunks kc
       JOIN knowledge_documents kd ON kd.id = kc.document_id
       WHERE kd.status = 'indexed'
         AND kd.business_id = $4::uuid
-        AND similarity(kc.chunk_text, $2) > 0.1
+        -- no trigram threshold
         AND kc.chunk_text NOT ILIKE 'dummy content%'
       ORDER BY similarity DESC
       LIMIT $5
