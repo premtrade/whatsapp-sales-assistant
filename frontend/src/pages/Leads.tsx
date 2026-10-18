@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getConversations, getLeadScores, getLeadPipeline } from '@/services/api'
+import { getConversations, getLeadScores } from '@/services/api'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
-import { LoadingState } from '@/components/ErrorState/ErrorState'
+import { LoadingState, ErrorState } from '@/components/ErrorState/ErrorState'
+import { SearchInput } from '@/components/SearchInput/SearchInput'
 import { useNavigate } from 'react-router-dom'
 
 const leadStages = [
@@ -30,11 +31,17 @@ function LeadScoreBadge({ score }: { score: number }) {
 
 export function LeadsPage() {
   const [view, setView] = useState<'pipeline' | 'list'>('pipeline')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const navigate = useNavigate()
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => getConversations({ page: 1, limit: 100 }),
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['leads', { search, page }],
+    queryFn: () => {
+      const params: Record<string, unknown> = { page, limit: 50 }
+      if (search.trim()) params.search = search.trim()
+      return getConversations(params as any)
+    },
   })
 
   const { data: leadScores } = useQuery({
@@ -42,28 +49,28 @@ export function LeadsPage() {
     queryFn: () => getLeadScores({ page: 1, limit: 100 }),
   })
 
-  const { data: pipeline } = useQuery({
-    queryKey: ['lead-pipeline'],
-    queryFn: getLeadPipeline,
-  })
-
   const conversations = data?.data || []
-  const scoresMap = new Map(leadScores?.data?.map((s: any) => [s.contact_id, s.score]) || [])
+  const scoresMap = useMemo(() => new Map(leadScores?.data?.map((s: any) => [s.contact_id, s.score]) || []), [leadScores])
 
-  // Use real lead score from the database, with fallback for contacts without scores
   const getLeadScore = (conv: any) => {
     const realScore = scoresMap.get(conv.contact_id)
     if (realScore !== undefined) return realScore
-    // Fallback: estimate based on conversation status
     const baseScore = conv.status === 'waiting_agent' ? 70 : conv.status === 'waiting_customer' ? 50 : 25
     return Math.min(100, baseScore)
   }
 
-  const totalPipelineValue = conversations.filter((c) => c.status !== 'closed').length
-  const qualifiedLeads = conversations.filter((c) => c.status === 'waiting_agent').length
+  const stagesWithConvs = useMemo(() => {
+    return leadStages.map((stage) => ({
+      ...stage,
+      conversations: conversations.filter((c: any) => c.status === stage.id),
+    }))
+  }, [conversations])
+
+  const totalPipelineValue = conversations.filter((c: any) => c.status !== 'closed').length
+  const qualifiedLeads = conversations.filter((c: any) => c.status === 'waiting_agent').length
 
   if (error) {
-    return <div className="card p-8"><LoadingState type="spinner" /></div>
+    return <div className="card p-8"><ErrorState onRetry={() => refetch()} /></div>
   }
 
   return (
@@ -72,7 +79,7 @@ export function LeadsPage() {
         title="Sales Pipeline"
         subtitle="Track leads through your sales process"
         actions={
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
             <div className="flex sm:hidden items-center gap-4 mr-auto">
               <div className="text-left">
                 <p className="text-[11px] text-surface-400">Active</p>
@@ -92,6 +99,9 @@ export function LeadsPage() {
                 <p className="text-xs text-surface-400">Qualified</p>
                 <p className="text-lg font-semibold text-warning-600">{qualifiedLeads}</p>
               </div>
+            </div>
+            <div className="w-full sm:w-48">
+              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} onClear={() => { setSearch(''); setPage(1) }} placeholder="Search leads..." />
             </div>
             <div className="flex items-center gap-1 bg-surface-100 rounded-lg p-0.5 ml-auto sm:ml-0">
               <button
@@ -125,56 +135,53 @@ export function LeadsPage() {
         </div>
       ) : view === 'pipeline' ? (
         <div className="flex sm:grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 sm:pb-0">
-          {leadStages.map((stage) => {
-            const stageConversations = conversations.filter((c) => c.status === stage.id)
-            return (
-              <div key={stage.id} className="card flex flex-col min-w-[78vw] sm:min-w-0 snap-start">
-                <div className="px-4 py-3 border-b border-surface-100">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
-                      <span className="text-sm font-semibold text-surface-800">{stage.label}</span>
-                    </div>
-                    <span className="text-xs font-medium text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full">
-                      {stageConversations.length}
-                    </span>
+          {stagesWithConvs.map((stage) => (
+            <div key={stage.id} className="card flex flex-col min-w-[78vw] sm:min-w-0 snap-start">
+              <div className="px-4 py-3 border-b border-surface-100">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
+                    <span className="text-sm font-semibold text-surface-800">{stage.label}</span>
                   </div>
-                  <p className="text-xs text-surface-400">{stage.description}</p>
+                  <span className="text-xs font-medium text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full">
+                    {stage.conversations.length}
+                  </span>
                 </div>
-                <div className="flex-1 p-2 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
-                  {stageConversations.length === 0 ? (
-                    <p className="text-xs text-surface-400 text-center py-4">No leads</p>
-                  ) : (
-                    stageConversations.map((conv) => {
-                      const score = getLeadScore(conv)
-                      return (
-                        <button
-                          key={conv.id}
-                          onClick={() => navigate(`/inbox/${conv.id}`)}
-                          className="touch-target w-full p-3 rounded-lg border border-surface-100 hover:border-primary-200 hover:bg-primary-50/30 active:bg-primary-50 transition-colors text-left group"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-surface-800 truncate">
-                                {conv.contact?.display_name || conv.contact?.phone || 'Unknown'}
-                              </p>
-                              <p className="text-xs text-surface-400 mt-0.5">
-                                {conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : '-'}
-                              </p>
-                            </div>
-                            <LeadScoreBadge score={score} />
-                          </div>
-                          {conv.contact?.company && (
-                            <p className="text-xs text-surface-400 mt-1 truncate">{conv.contact.company}</p>
-                          )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
+                <p className="text-xs text-surface-400">{stage.description}</p>
               </div>
-            )
-          })}
+              <div className="flex-1 p-2 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
+                {stage.conversations.length === 0 ? (
+                  <p className="text-xs text-surface-400 text-center py-4">No leads</p>
+                ) : (
+                  stage.conversations.map((conv: any) => {
+                    const score = getLeadScore(conv)
+                    return (
+                      <button
+                        key={conv.id}
+                        onClick={() => navigate(`/inbox/${conv.id}`)}
+                        className="touch-target w-full p-3 rounded-lg border border-surface-100 hover:border-primary-200 hover:bg-primary-50/30 active:bg-primary-50 transition-colors text-left group"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-surface-800 truncate">
+                              {conv.contact?.display_name || conv.contact?.phone || 'Unknown'}
+                            </p>
+                            <p className="text-xs text-surface-400 mt-0.5">
+                              {conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : '-'}
+                            </p>
+                          </div>
+                          <LeadScoreBadge score={score} />
+                        </div>
+                        {conv.contact?.company && (
+                          <p className="text-xs text-surface-400 mt-1 truncate">{conv.contact.company}</p>
+                        )}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -190,7 +197,7 @@ export function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-50">
-                {conversations.map((conv) => (
+                {conversations.map((conv: any) => (
                   <tr
                     key={conv.id}
                     onClick={() => navigate(`/inbox/${conv.id}`)}
