@@ -441,6 +441,7 @@ export async function searchKnowledgeChunksHybrid(
     limit,
   ]);
   const hits = result.rows[0]?.knowledge || [];
+  logger.info('Hybrid knowledge search', { businessId, hasVector, messageText: messageText.slice(0, 80), hits: hits.length });
   if (hits.length > 0) return hits;
 
   // Fallback: if semantic/trigram retrieval returns nothing, return the most recent
