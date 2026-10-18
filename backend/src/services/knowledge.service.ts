@@ -413,9 +413,10 @@ export async function searchKnowledgeChunksHybrid(
       '[]'::json
     ) AS knowledge
     FROM (
+      -- Semantic search branch (only when we have a valid vector for meaningful results)
       SELECT kc.chunk_text, kc.metadata, kd.title AS source, 1 - (kc.embedding <=> $1::vector) AS similarity
       FROM knowledge_chunks kc
-      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      JOIN knowledge_documents kd ON kc.document_id = kd.id
       WHERE kd.status = 'indexed'
         AND kd.business_id = $4::uuid
         AND kc.embedding IS NOT NULL
@@ -423,16 +424,17 @@ export async function searchKnowledgeChunksHybrid(
         AND kc.chunk_text NOT ILIKE 'dummy content%'
         -- no similarity threshold; return best available chunks
       UNION ALL
+      -- Text search branch (always available for fallback results)
       SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
       FROM knowledge_chunks kc
-      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      JOIN knowledge_documents kd ON kc.document_id = kd.id
       WHERE kd.status = 'indexed'
         AND kd.business_id = $4::uuid
-        -- no trigram threshold
         AND kc.chunk_text NOT ILIKE 'dummy content%'
-      ORDER BY similarity DESC
-      LIMIT $5
-    ) combined;`;
+    ) combined;
+
+    ORDER BY similarity DESC
+    LIMIT $5";
   const result = await query<{ knowledge: HybridKnowledgeHit[] }>(sql, [
     vectorStr,
     messageText,
