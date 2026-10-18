@@ -216,7 +216,8 @@
         "specifyBody": "json",
         "jsonBody": "={{ { text: String($('When Executed by Another Workflow').first().json.message || '') } }}",
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "continueOnFail": true
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -253,7 +254,8 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ embeddingB64: $('Prepare Search Params').first().json.embedding_b64, message: String($('Prepare Search Params').first().json.message_text || '').slice(0, 500), hasVector: Boolean($('Prepare Search Params').first().json.has_vector), businessId: String($('When Executed by Another Workflow').first().json.business_id || ''), limit: 10 }) }}",
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "continueOnFail": true
         }
       },
       "type": "n8n-nodes-base.httpRequest",

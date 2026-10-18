@@ -421,7 +421,7 @@ export async function searchKnowledgeChunksHybrid(
         AND kc.embedding IS NOT NULL
         AND $3::boolean = true
         AND kc.chunk_text NOT ILIKE 'dummy content%'
-        AND 1 - (kc.embedding <=> $1::vector) > 0.20
+        AND 1 - (kc.embedding <=> $1::vector) > 0.15
       UNION ALL
       SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
       FROM knowledge_chunks kc
@@ -440,7 +440,27 @@ export async function searchKnowledgeChunksHybrid(
     businessId,
     limit,
   ]);
-  return result.rows[0]?.knowledge || [];
+  const hits = result.rows[0]?.knowledge || [];
+  if (hits.length > 0) return hits;
+
+  // Fallback: if semantic/trigram retrieval returns nothing, return the most recent
+  // indexed chunks for the business so the AI still has authoritative context.
+  const fallback = await query<{ chunk_text: string; metadata: Record<string, unknown>; source: string; similarity: number }>(
+    `SELECT kc.chunk_text, kc.metadata, kd.title AS source, 0::float AS similarity
+     FROM knowledge_chunks kc
+     JOIN knowledge_documents kd ON kd.id = kc.document_id
+     WHERE kd.status = 'indexed' AND kd.business_id = $1::uuid AND kc.embedding IS NOT NULL
+       AND kc.chunk_text NOT ILIKE 'dummy content%'
+     ORDER BY kc.created_at DESC
+     LIMIT $2`,
+    [businessId, limit]
+  );
+  return fallback.rows.map((r) => ({
+    chunk_text: r.chunk_text,
+    metadata: r.metadata,
+    source: r.source,
+    similarity: r.similarity,
+  }));
 }
 
 export interface ProcessDocumentInput {
