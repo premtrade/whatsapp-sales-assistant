@@ -90,15 +90,14 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<number[]
     const batch = texts.slice(i, i + BATCH_SIZE).map((t) =>
       typeof t === 'string' && t.trim().length > 0 ? t.slice(0, MAX_INPUT_CHARS) : 'empty'
     );
-    // transformers.js RUNTIME accepts string[] (one tensor batch per forward
-    // pass); its published type only declares the single-string overload.
-    const batched = extractor as unknown as (input: string[], opts: object) => Promise<unknown[]>;
+    // transformers.js v2 feature-extraction returns ONE tensor with dims
+    // [batch, 768] for array input (data length = batch × 768) — NOT an array of
+    // per-item tensors. Parsing it correctly is what splitBatchOutput does.
+    const batched = extractor as unknown as (input: string[], opts: object) => Promise<unknown>;
     const outputs = await batched(batch, { pooling: 'mean', normalize: true });
-    // Batched feature-extraction returns an array of tensors.
-    const tensors = Array.isArray(outputs) ? outputs : [outputs];
-    for (const output of tensors) {
-      const data = (output as { data: ArrayLike<number> }).data;
-      const embedding = Array.prototype.slice.call(data) as number[];
+
+    const rows = splitBatchOutput(outputs, batch.length);
+    for (const embedding of rows) {
       if (embedding.length !== EMBEDDING_DIMENSION) {
         throw new Error(
           `Unexpected embedding dimension: ${embedding.length} (expected ${EMBEDDING_DIMENSION})`
@@ -109,6 +108,50 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<number[]
   }
 
   return embeddings;
+}
+
+// Split the model output into one 768-dim embedding per input text.
+//
+// transformers.js v2 returns a single flat tensor of shape [batch, hidden]
+// (e.g. data.length === 6144 for a batch of 8). The previous code did
+// `Array.isArray(outputs) ? outputs : [outputs]` and then measured the WHOLE
+// flat tensor as one embedding — so any upload with more than one chunk died
+// with "Unexpected embedding dimension: 6144 (expected 768)" (500 on upload).
+// Handles both the real tensor shape and a hypothetical per-item array.
+function splitBatchOutput(outputs: unknown, batchSize: number): number[][] {
+  if (Array.isArray(outputs)) {
+    return outputs.map((o) => Array.prototype.slice.call((o as { data: ArrayLike<number> }).data) as number[]);
+  }
+
+  const data = (outputs as { data?: ArrayLike<number> }).data;
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Batch of a single text can come back as a plain [768] vector.
+  if (data.length === EMBEDDING_DIMENSION) {
+    return [Array.prototype.slice.call(data) as number[]];
+  }
+
+  if (data.length % EMBEDDING_DIMENSION !== 0) {
+    throw new Error(
+      `Unexpected embedding data length: ${data.length} (not a multiple of ${EMBEDDING_DIMENSION})`
+    );
+  }
+
+  const rows: number[][] = [];
+  for (let start = 0; start < data.length; start += EMBEDDING_DIMENSION) {
+    rows.push(
+      Array.prototype.slice.call(data, start, start + EMBEDDING_DIMENSION) as number[]
+    );
+  }
+
+  if (rows.length !== batchSize) {
+    throw new Error(
+      `Unexpected embedding batch size: ${rows.length} (expected ${batchSize})`
+    );
+  }
+  return rows;
 }
 
 export function formatEmbeddingForPgVector(embedding: number[]): string {
