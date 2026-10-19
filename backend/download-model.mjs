@@ -27,6 +27,6 @@ console.log(`Downloading reranker model "${rerankModel}" into ${env.cacheDir} ..
 const { AutoTokenizer, AutoModelForSequenceClassification } = await import('@xenova/transformers');
 const rerankTokenizer = await AutoTokenizer.from_pretrained(rerankModel);
 const rerankModelInstance = await AutoModelForSequenceClassification.from_pretrained(rerankModel, { quantized: true });
-const warm = rerankTokenizer(['warmup query', 'warmup passage']);
+const warm = rerankTokenizer(['warmup query', 'warmup passage'], { padding: true, truncation: true });
 await rerankModelInstance({ input_ids: warm.input_ids, attention_mask: warm.attention_mask });
 console.log('Reranker model cached successfully.');

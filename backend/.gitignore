@@ -3,6 +3,8 @@ dist
 logs
 .env
 .env.local
+# transformers.js model cache (download-model.mjs writes here during docker build)
+.cache/
 *.log
 .DS_Store
 coverage
