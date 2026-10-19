@@ -402,45 +402,54 @@ export async function searchKnowledgeChunksHybrid(
     return [];
   }
 
-  const vectorStr = `[${vector.join(',')}]`;
-  // Per-branch LIMIT + outer LIMIT (previously a stray ";" before the outer
-  // ORDER BY split this into two statements -> "syntax error at or near ORDER",
-  // and even without it the outer ORDER BY/LIMIT applied to a single
-  // json_agg row, so every call returned 2x the whole tenant KB unsliced).
   const perBranch = Math.min(Math.max(limit * 2, 10), 50);
   const minSimilarity = 0.15;
-  const semanticSql = `
-      (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
-              1 - (kc.embedding <=> $1::vector) AS similarity
-       FROM knowledge_chunks kc
-       JOIN knowledge_documents kd ON kc.document_id = kd.id
-       WHERE kd.status = 'indexed'
-         AND kd.business_id = $3::uuid
-         AND kc.embedding IS NOT NULL
-         AND kc.chunk_text NOT ILIKE 'dummy content%'
-       ORDER BY kc.embedding <=> $1::vector
-       LIMIT $4)`;
-  const textSql = `
-      (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
-              COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
-       FROM knowledge_chunks kc
-       JOIN knowledge_documents kd ON kc.document_id = kd.id
-       WHERE kd.status = 'indexed'
-         AND kd.business_id = $3::uuid
-         AND kc.chunk_text NOT ILIKE 'dummy content%'
-       ORDER BY similarity(kc.chunk_text, $2) DESC
-       LIMIT $4)`;
-  const sql = useVector
-    ? `SELECT chunk_text, metadata, source, similarity FROM (${semanticSql} UNION ALL ${textSql}) combined WHERE similarity >= $5 ORDER BY similarity DESC LIMIT $6`
-    : `SELECT chunk_text, metadata, source, similarity FROM (${textSql}) combined WHERE similarity >= $5 ORDER BY similarity DESC LIMIT $6`;
-  const result = await query<HybridKnowledgeHit>(sql, [
-    vectorStr,
-    messageText,
-    businessId,
-    perBranch,
-    minSimilarity,
-    limit,
-  ]);
+  // NOTE: each branch variant has its own param list. The text-only variant
+  // must NOT include the vector param at all — leaving a $1::vector cast
+  // with an empty-string value makes Postgres throw "could not determine
+  // data type of parameter $1".
+  let sql: string;
+  let params: unknown[];
+  if (useVector) {
+    const vectorStr = `[${(vector as number[]).join(',')}]`;
+    sql = `SELECT chunk_text, metadata, source, similarity FROM (
+        (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
+                1 - (kc.embedding <=> $1::vector) AS similarity
+         FROM knowledge_chunks kc
+         JOIN knowledge_documents kd ON kc.document_id = kd.id
+         WHERE kd.status = 'indexed'
+           AND kd.business_id = $3::uuid
+           AND kc.embedding IS NOT NULL
+           AND kc.chunk_text NOT ILIKE 'dummy content%'
+         ORDER BY kc.embedding <=> $1::vector
+         LIMIT $4)
+        UNION ALL
+        (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
+                COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
+         FROM knowledge_chunks kc
+         JOIN knowledge_documents kd ON kc.document_id = kd.id
+         WHERE kd.status = 'indexed'
+           AND kd.business_id = $3::uuid
+           AND kc.chunk_text NOT ILIKE 'dummy content%'
+         ORDER BY similarity(kc.chunk_text, $2) DESC
+         LIMIT $4)
+      ) combined WHERE similarity >= $5 ORDER BY similarity DESC LIMIT $6`;
+    params = [vectorStr, messageText, businessId, perBranch, minSimilarity, limit];
+  } else {
+    sql = `SELECT chunk_text, metadata, source, similarity FROM (
+        (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
+                COALESCE(similarity(kc.chunk_text, $1), 0) AS similarity
+         FROM knowledge_chunks kc
+         JOIN knowledge_documents kd ON kc.document_id = kd.id
+         WHERE kd.status = 'indexed'
+           AND kd.business_id = $2::uuid
+           AND kc.chunk_text NOT ILIKE 'dummy content%'
+         ORDER BY similarity(kc.chunk_text, $1) DESC
+         LIMIT $3)
+      ) combined WHERE similarity >= $4 ORDER BY similarity DESC LIMIT $5`;
+    params = [messageText, businessId, perBranch, minSimilarity, limit];
+  }
+  const result = await query<HybridKnowledgeHit>(sql, params);
   // Deduplicate: same chunk_text can come from both branches; keep max score.
   const seen = new Map<string, HybridKnowledgeHit>();
   for (const r of result.rows) {
