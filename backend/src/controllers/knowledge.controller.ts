@@ -89,7 +89,7 @@ const embedSchema = z.object({
 // out (empty knowledge -> generic "our company" greeting). The caller sends the
 // vector base64-encoded (no commas) and the backend decodes it server-side.
 const hybridSearchSchema = z.object({
-  embeddingB64: z.string().min(1, 'embeddingB64 is required').max(200000),
+  embeddingB64: z.string().max(200000).default(''),
   message: z.string().min(1, 'message is required').max(500),
   hasVector: z.boolean().default(true),
   businessId: z.string().uuid('businessId must be a UUID'),
@@ -503,23 +503,29 @@ export const hybridSearchKnowledge = async (req: Request, res: Response): Promis
     const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
 
     // Decode the base64 vector -> 768 floats -> pgvector literal.
-    let vector: number[];
-    try {
-      const json = Buffer.from(validated.embeddingB64, 'base64').toString('utf-8');
-      const parsed: unknown = JSON.parse(json);
-      if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every((n) => typeof n === 'number' && Number.isFinite(n))) {
-        throw new BadRequestError('embeddingB64 must decode to a JSON array of finite numbers');
+    // Empty string = no usable embedding (model cold-start/failure upstream):
+    // fall through to text-only search rather than 400ing (which n8n's
+    // continueOnFail turns into zero knowledge for the AI).
+    let vector: number[] = [];
+    let hasVector = false;
+    if (validated.embeddingB64) {
+      try {
+        const json = Buffer.from(validated.embeddingB64, 'base64').toString('utf-8');
+        const parsed: unknown = JSON.parse(json);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+          vector = parsed as number[];
+          hasVector = validated.hasVector && vector.length === 768;
+        }
+      } catch {
+        vector = [];
+        hasVector = false;
       }
-      vector = parsed as number[];
-    } catch (error) {
-      if (error instanceof BadRequestError) throw error;
-      throw new BadRequestError('embeddingB64 is not valid base64-encoded JSON');
     }
 
     const chunks = await searchKnowledgeChunksHybrid(
       vector,
       validated.message,
-      validated.hasVector,
+      hasVector,
       validated.businessId,
       validated.limit || 10,
       tenantId

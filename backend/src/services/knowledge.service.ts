@@ -384,9 +384,13 @@ export async function searchKnowledgeChunksHybrid(
   limit = 10,
   tenantId?: string
 ): Promise<HybridKnowledgeHit[]> {
-  if (!vector || vector.length === 0) {
-    throw new BadRequestError('Vector is required');
+  if (!messageText || messageText.trim().length === 0) {
+    throw new BadRequestError('messageText is required');
   }
+  // Text-only path: embedding unavailable (cold start / failure upstream).
+  // Previously this threw 'Vector is required' -> 400 -> n8n continueOnFail
+  // silently dropped ALL knowledge. hasVector=false now runs trigram only.
+  const useVector = hasVector && !!vector && vector.length === 768;
   if (!businessId) {
     throw new BadRequestError('businessId is required');
   }
@@ -399,70 +403,55 @@ export async function searchKnowledgeChunksHybrid(
   }
 
   const vectorStr = `[${vector.join(',')}]`;
-  const sql = `
-    SELECT COALESCE(
-      json_agg(
-        json_build_object(
-          'chunk_text', chunk_text,
-          'metadata', metadata,
-          'source', source,
-          'similarity', similarity
-        )
-        ORDER BY similarity DESC
-      ),
-      '[]'::json
-    ) AS knowledge
-    FROM (
-      /* Semantic search branch (only when we have a valid vector for meaningful results) */
-      SELECT kc.chunk_text, kc.metadata, kd.title AS source, 1 - (kc.embedding <=> $1::vector) AS similarity
-      FROM knowledge_chunks kc
-      JOIN knowledge_documents kd ON kc.document_id = kd.id
-      WHERE kd.status = 'indexed'
-        AND kd.business_id = $4::uuid
-        AND kc.embedding IS NOT NULL
-        /* hasVector condition removed to allow text fallback */
-        AND kc.chunk_text NOT ILIKE 'dummy content%'
-      UNION ALL
-      /* Text search branch (always available for fallback results) */
-      SELECT kc.chunk_text, kc.metadata, kd.title AS source, COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
-      FROM knowledge_chunks kc
-      JOIN knowledge_documents kd ON kc.document_id = kd.id
-      WHERE kd.status = 'indexed'
-        AND kd.business_id = $4::uuid
-        AND kc.chunk_text NOT ILIKE 'dummy content%'
-    ) combined;
-
-    ORDER BY similarity DESC
-    LIMIT $5`;
-  const result = await query<{ knowledge: HybridKnowledgeHit[] }>(sql, [
+  // Per-branch LIMIT + outer LIMIT (previously a stray ";" before the outer
+  // ORDER BY split this into two statements -> "syntax error at or near ORDER",
+  // and even without it the outer ORDER BY/LIMIT applied to a single
+  // json_agg row, so every call returned 2x the whole tenant KB unsliced).
+  const perBranch = Math.min(Math.max(limit * 2, 10), 50);
+  const minSimilarity = 0.15;
+  const semanticSql = `
+      (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
+              1 - (kc.embedding <=> $1::vector) AS similarity
+       FROM knowledge_chunks kc
+       JOIN knowledge_documents kd ON kc.document_id = kd.id
+       WHERE kd.status = 'indexed'
+         AND kd.business_id = $3::uuid
+         AND kc.embedding IS NOT NULL
+         AND kc.chunk_text NOT ILIKE 'dummy content%'
+       ORDER BY kc.embedding <=> $1::vector
+       LIMIT $4)`;
+  const textSql = `
+      (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
+              COALESCE(similarity(kc.chunk_text, $2), 0) AS similarity
+       FROM knowledge_chunks kc
+       JOIN knowledge_documents kd ON kc.document_id = kd.id
+       WHERE kd.status = 'indexed'
+         AND kd.business_id = $3::uuid
+         AND kc.chunk_text NOT ILIKE 'dummy content%'
+       ORDER BY similarity(kc.chunk_text, $2) DESC
+       LIMIT $4)`;
+  const sql = useVector
+    ? `SELECT chunk_text, metadata, source, similarity FROM (${semanticSql} UNION ALL ${textSql}) combined WHERE similarity >= $5 ORDER BY similarity DESC LIMIT $6`
+    : `SELECT chunk_text, metadata, source, similarity FROM (${textSql}) combined WHERE similarity >= $5 ORDER BY similarity DESC LIMIT $6`;
+  const result = await query<HybridKnowledgeHit>(sql, [
     vectorStr,
     messageText,
-    hasVector,
     businessId,
+    perBranch,
+    minSimilarity,
     limit,
   ]);
-  const hits = result.rows[0]?.knowledge || [];
+  // Deduplicate: same chunk_text can come from both branches; keep max score.
+  const seen = new Map<string, HybridKnowledgeHit>();
+  for (const r of result.rows) {
+    const prev = seen.get(r.chunk_text);
+    if (!prev || r.similarity > prev.similarity) seen.set(r.chunk_text, r);
+  }
+  const hits = [...seen.values()].sort((a, b) => b.similarity - a.similarity).slice(0, limit);
   logger.info('Hybrid knowledge search', { businessId, hasVector, messageText: messageText.slice(0, 80), hits: hits.length });
-  if (hits.length > 0) return hits;
-
-  // Fallback: if semantic/trigram retrieval returns nothing, return the most recent
-  // indexed chunks for the business so the AI still has authoritative context.
-  const fallback = await query<{ chunk_text: string; metadata: Record<string, unknown>; source: string; similarity: number }>(
-    `SELECT kc.chunk_text, kc.metadata, kd.title AS source, 0::float AS similarity
-     FROM knowledge_chunks kc
-     JOIN knowledge_documents kd ON kd.id = kc.document_id
-     WHERE kd.status = 'indexed' AND kd.business_id = $1::uuid AND kc.embedding IS NOT NULL
-       AND kc.chunk_text NOT ILIKE 'dummy content%'
-     ORDER BY kc.created_at DESC
-     LIMIT $2`,
-    [businessId, limit]
-  );
-  return fallback.rows.map((r) => ({
-    chunk_text: r.chunk_text,
-    metadata: r.metadata,
-    source: r.source,
-    similarity: r.similarity,
-  }));
+  // No recent-chunks fallback: returning unrelated chunks as "authoritative"
+  // forces the AI to hallucinate. Empty array lets the agent honestly escalate.
+  return hits;
 }
 
 export interface ProcessDocumentInput {
