@@ -405,9 +405,12 @@ export async function searchKnowledgeChunksHybrid(
   const perBranch = Math.min(Math.max(limit * 2, 10), 50);
   // Thresholds differ per signal: cosine similarities for relevant chunks are
   // typically 0.4-0.7 (see live Rolinj results), while pg_trgm similarity()
-  // of a short question against long chunks is typically 0.05-0.15 — a single
-  // 0.15 cutoff empties the text-only fallback path entirely.
-  const minSimilarity = useVector ? 0.15 : 0.03;
+  // of a short question against long chunks is typically 0.03-0.15 — a 0.15
+  // cutoff empties the text-only fallback path entirely, and in vector mode
+  // it discards the trigram UNION leg (whose scores feed the score-gated
+  // prompt as weak-match context). Keep the vector leg tight, text leg loose.
+  const minVectorSimilarity = 0.15;
+  const minTextSimilarity = 0.03;
   // NOTE: each branch variant has its own param list. The text-only variant
   // must NOT include the vector param at all — leaving a $1::vector cast
   // with an empty-string value makes Postgres throw "could not determine
@@ -416,6 +419,9 @@ export async function searchKnowledgeChunksHybrid(
   let params: unknown[];
   if (useVector) {
     const vectorStr = `[${(vector as number[]).join(',')}]`;
+    // Per-leg thresholds: the trigram leg scores on a far lower scale than
+    // cosine, so a single cutoff would wipe it out. Each leg filters on its
+    // own scale; the outer ORDER BY + LIMIT then merges both ranked lists.
     sql = `SELECT chunk_text, metadata, source, similarity FROM (
         (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
                 1 - (kc.embedding <=> $1::vector) AS similarity
@@ -425,6 +431,7 @@ export async function searchKnowledgeChunksHybrid(
            AND kd.business_id = $3::uuid
            AND kc.embedding IS NOT NULL
            AND kc.chunk_text NOT ILIKE 'dummy content%'
+           AND (1 - (kc.embedding <=> $1::vector)) >= $5
          ORDER BY kc.embedding <=> $1::vector
          LIMIT $4)
         UNION ALL
@@ -435,10 +442,11 @@ export async function searchKnowledgeChunksHybrid(
          WHERE kd.status = 'indexed'
            AND kd.business_id = $3::uuid
            AND kc.chunk_text NOT ILIKE 'dummy content%'
+           AND COALESCE(similarity(kc.chunk_text, $2), 0) >= $6
          ORDER BY similarity(kc.chunk_text, $2) DESC
          LIMIT $4)
-      ) combined WHERE similarity >= $5 ORDER BY similarity DESC LIMIT $6`;
-    params = [vectorStr, messageText, businessId, perBranch, minSimilarity, limit];
+      ) combined ORDER BY similarity DESC LIMIT $7`;
+    params = [vectorStr, messageText, businessId, perBranch, minVectorSimilarity, minTextSimilarity, limit];
   } else {
     sql = `SELECT chunk_text, metadata, source, similarity FROM (
         (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
@@ -451,7 +459,7 @@ export async function searchKnowledgeChunksHybrid(
          ORDER BY similarity(kc.chunk_text, $1) DESC
          LIMIT $3)
       ) combined WHERE similarity >= $4 ORDER BY similarity DESC LIMIT $5`;
-    params = [messageText, businessId, perBranch, minSimilarity, limit];
+    params = [messageText, businessId, perBranch, minTextSimilarity, limit];
   }
   const result = await query<HybridKnowledgeHit>(sql, params);
   // Deduplicate: same chunk_text can come from both branches; keep max score.
