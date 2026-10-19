@@ -1,0 +1,179 @@
+{
+  "name": "03b - Knowledge Retriever",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "limit"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -600,
+        0
+      ],
+      "id": "rag-trigger-id",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:4000/api/knowledge/embed",
+        "sendHeaders": false,
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: String($('When Executed by Another Workflow').first().json.message || '').slice(0, 8000) } }}",
+        "options": {
+          "timeout": 30000,
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        160
+      ],
+      "id": "generate-embedding-node-id",
+      "name": "Generate Message Embedding",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const embeddingResult = $('Generate Message Embedding').first()?.json;\nconst message = $('When Executed by Another Workflow').first()?.json?.message || '';\n\n// Embeddings come from the backend (local all-mpnet-base-v2, 768-dim) via\n// POST /api/knowledge/embed -> { success, data: { embedding: [...] } }.\n// Same model for query + storage is required for cosine similarity to work.\nlet embedding = null;\nif (embeddingResult && Array.isArray(embeddingResult.data?.embedding) && embeddingResult.data.embedding.length > 0) {\n  embedding = embeddingResult.data.embedding;\n} else if (embeddingResult && Array.isArray(embeddingResult.embedding) && embeddingResult.embedding.length > 0) {\n  embedding = embeddingResult.embedding;\n} else if (embeddingResult && Array.isArray(embeddingResult) && embeddingResult.length > 0) {\n  embedding = embeddingResult[0];\n}\n\nconst hasValid = Boolean(embedding && Array.isArray(embedding) && embedding.length === 768);\n\n// n8n's Postgres node splits queryReplacement on commas, which shatters a\n// 768-dim vector (\"[0.1,0.2,...]\") into hundreds of fragments. Send it\n// base64-encoded (no commas) to POST /api/knowledge/search/hybrid instead.\nlet embeddingB64 = '';\nif (hasValid) {\n  try {\n    embeddingB64 = Buffer.from(JSON.stringify(embedding), 'utf8').toString('base64');\n  } catch (e) {\n    embeddingB64 = '';\n  }\n}\n\nreturn [{\n  json: {\n    embedding_b64: embeddingB64,\n    message_text: message,\n    has_vector: hasValid\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        100
+      ],
+      "id": "prepare-search-params-id",
+      "name": "Prepare Search Params",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:4000/api/knowledge/search/hybrid",
+        "sendHeaders": false,
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ embeddingB64: $('Prepare Search Params').first().json.embedding_b64, message: String($('Prepare Search Params').first().json.message_text || '').slice(0, 500), hasVector: Boolean($('Prepare Search Params').first().json.has_vector), businessId: String($('When Executed by Another Workflow').first().json.business_id || ''), limit: Number($('When Executed by Another Workflow').first().json.limit || 10) }) }}",
+        "options": {
+          "timeout": 30000,
+          "continueOnFail": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        608,
+        -48
+      ],
+      "id": "f3a4b5c6-d7e8-4901-9a2b-3c4d5e6f7a8b",
+      "name": "Get Knowledge Chunks (semantic)",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet knowledge = [];\nconst firstItem = items[0]?.json || {};\n\nif (firstItem.knowledge && Array.isArray(firstItem.knowledge)) {\n  knowledge = firstItem.knowledge.map(function(hit) {\n    if (!hit || !hit.chunk_text) return null;\n    if (typeof hit.similarity !== 'number' && typeof hit.score === 'number') hit.similarity = hit.score;\n    return hit;\n  }).filter(Boolean);\n} else if (firstItem.success && Array.isArray(firstItem.data)) {\n  knowledge = firstItem.data.map(hit => {\n    const chunk_text = hit.chunk_text || '';\n    const metadata = hit.metadata || {};\n    return {\n      chunk_text,\n      metadata,\n      source: typeof metadata === 'string' ? metadata : (hit.source || metadata.title || metadata.document_title || ''),\n      similarity: typeof hit.similarity === 'number' ? hit.similarity : (typeof hit.score === 'number' ? hit.score : null)\n    };\n  }).filter(k => !!k.chunk_text);\n} else if (firstItem.result && Array.isArray(firstItem.result)) {\n  knowledge = firstItem.result.map(hit => {\n    const payload = hit.payload || {};\n    const chunk_text = payload.chunk_text || payload.pageContent || '';\n    const metadata = payload.metadata || payload || {};\n    return {\n      chunk_text,\n      metadata,\n      source: typeof metadata === 'string' ? metadata : (metadata.title || metadata.document_title || ''),\n      similarity: typeof hit.similarity === 'number' ? hit.similarity : (typeof hit.score === 'number' ? hit.score : null)\n    };\n  }).filter(k => !!k.chunk_text);\n} else {\n  knowledge = items\n    .map(item => {\n      const doc = item.json.document || item.json || {};\n      const chunk_text = doc.pageContent || doc.chunk_text || item.json.chunk_text || '';\n      if (!chunk_text) return null;\n      const metadata = doc.metadata || item.json.metadata || {};\n      return {\n        chunk_text,\n        metadata,\n        source: typeof metadata === 'string' ? metadata : (metadata.title || metadata.document_title || ''),\n        similarity: item.json.similarity ?? item.json.score ?? null,\n        score: item.json.score ?? null\n      };\n    })\n    .filter(Boolean);\n}\n\nreturn [{ json: { knowledge } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        100
+      ],
+      "id": "b9a4b8d7-f661-48ad-b97e-154cc4577af0",
+      "name": "Get Knowledge Chunks"
+    },
+    {
+      "parameters": {
+        "jsCode": "const k = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const sims = k.map(function(x){return typeof x.similarity==='number'?x.similarity:null;}).filter(function(s){return s!==null;}); const max = sims.length ? Math.max.apply(null, sims) : null; const conf = max===null ? 'none' : (max>=0.3?'high':(max>=0.1?'medium':'low')); return [{ json: { knowledge: k, knowledge_count: k.length, knowledge_max_similarity: max, knowledge_confidence: conf } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "rag-format-id",
+      "name": "Format RAG Result"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Generate Message Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Message Embedding": {
+      "main": [
+        [
+          {
+            "node": "Prepare Search Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Search Params": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Chunks (semantic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Chunks (semantic)": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Chunks": {
+      "main": [
+        [
+          {
+            "node": "Format RAG Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
