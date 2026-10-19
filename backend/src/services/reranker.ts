@@ -1,5 +1,10 @@
-import { AutoTokenizer, AutoModelForSequenceClassification } from '@xenova/transformers';
 import logger from '../utils/logger';
+
+// Dynamic import keeps @xenova/transformers OFF the module graph at load time:
+// jest (ts-jest, CJS) cannot parse the package's ESM source, and tests that
+// import knowledge.service would fail before a single assertion runs. The cost
+// is one cached promise on first rerank call.
+type AnyModel = any;
 
 // Cross-encoder reranker (improvement #3 of the retrieval upgrade).
 // Bi-encoder cosine similarity (all-mpnet-base-v2) is fast but shallow: it
@@ -26,17 +31,23 @@ export function isRerankEnabled(): boolean {
   return process.env.RERANK_ENABLED !== 'false' && !rerankBroken;
 }
 
-async function getModels(): Promise<{ tokenizer: any; model: any }> {
+async function getModels(): Promise<{ tokenizer: AnyModel; model: AnyModel }> {
   if (!tokenizerPromise) {
-    tokenizerPromise = AutoTokenizer.from_pretrained(RERANK_MODEL);
+    tokenizerPromise = (async () => {
+      const { AutoTokenizer } = await import('@xenova/transformers');
+      return AutoTokenizer.from_pretrained(RERANK_MODEL);
+    })();
   }
   if (!modelPromise) {
-    modelPromise = AutoModelForSequenceClassification.from_pretrained(RERANK_MODEL, {
-      quantized: true,
-    });
+    modelPromise = (async () => {
+      const { AutoModelForSequenceClassification } = await import('@xenova/transformers');
+      return AutoModelForSequenceClassification.from_pretrained(RERANK_MODEL, {
+        quantized: true,
+      });
+    })();
   }
   const [tokenizer, model] = await Promise.all([tokenizerPromise, modelPromise]);
-  return { tokenizer, model };
+  return { tokenizer: tokenizer as AnyModel, model: model as AnyModel };
 }
 
 function sigmoid(x: number): number {
