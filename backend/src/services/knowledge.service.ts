@@ -5,6 +5,7 @@ import logger from '../utils/logger';
 import { extractTextFromBuffer, isMimeTypeSupported } from './textExtractor';
 import { chunkText, TextChunk } from './chunker';
 import { generateEmbeddingsBatch, formatEmbeddingForPgVector, EMBEDDING_MODEL } from './embedding';
+import { rerank, isRerankEnabled, RERANK_CANDIDATES } from './reranker';
 import crypto from 'crypto';
 
 function buildWhereClause(filters: KnowledgeFilters): { where: string; params: unknown[] } {
@@ -371,6 +372,13 @@ export interface HybridKnowledgeHit {
   similarity: number;
 }
 
+// Improvement #3: cosine top-K candidates are refined by a cross-encoder
+// reranker (see services/reranker.ts). Cosine is cheap but shallow; the
+// cross-encoder reads query+chunk together and reorders for accuracy.
+// We keep the COSINE value in `similarity` — downstream score gates in WF03
+// are tuned to the cosine scale, not the reranker's sigmoid scale.
+const RERANK_RETURN = 8;
+
 // Hybrid semantic + trigram search executed server-side (single DB round-trip).
 // The n8n Postgres node splits queryReplacement on commas, so the 768-dim
 // vector can never be passed as a raw query param from n8n — instead the
@@ -403,6 +411,12 @@ export async function searchKnowledgeChunksHybrid(
   }
 
   const perBranch = Math.min(Math.max(limit * 2, 10), 50);
+  // When reranking, fetch a wider candidate pool (top-20) than we return
+  // (top-8) so the cross-encoder has room to reorder; without rerank the
+  // original behaviour (fetch and return `limit`) is unchanged.
+  const rerankEnabled = isRerankEnabled();
+  const fetchLimit = rerankEnabled ? Math.max(limit, RERANK_CANDIDATES) : limit;
+  const returnLimit = rerankEnabled ? Math.min(limit, RERANK_RETURN) : limit;
   // Thresholds differ per signal: cosine similarities for relevant chunks are
   // typically 0.4-0.7 (see live Rolinj results), while pg_trgm similarity()
   // of a short question against long chunks is typically 0.03-0.15 — a 0.15
@@ -446,7 +460,7 @@ export async function searchKnowledgeChunksHybrid(
          ORDER BY similarity(kc.chunk_text, $2) DESC
          LIMIT $4)
       ) combined ORDER BY similarity DESC LIMIT $7`;
-    params = [vectorStr, messageText, businessId, perBranch, minVectorSimilarity, minTextSimilarity, limit];
+    params = [vectorStr, messageText, businessId, perBranch, minVectorSimilarity, minTextSimilarity, fetchLimit];
   } else {
     sql = `SELECT chunk_text, metadata, source, similarity FROM (
         (SELECT kc.chunk_text, kc.metadata, kd.title AS source,
@@ -459,7 +473,7 @@ export async function searchKnowledgeChunksHybrid(
          ORDER BY similarity(kc.chunk_text, $1) DESC
          LIMIT $3)
       ) combined WHERE similarity >= $4 ORDER BY similarity DESC LIMIT $5`;
-    params = [messageText, businessId, perBranch, minTextSimilarity, limit];
+    params = [messageText, businessId, perBranch, minTextSimilarity, fetchLimit];
   }
   const result = await query<HybridKnowledgeHit>(sql, params);
   // Deduplicate: same chunk_text can come from both branches; keep max score.
@@ -468,11 +482,32 @@ export async function searchKnowledgeChunksHybrid(
     const prev = seen.get(r.chunk_text);
     if (!prev || r.similarity > prev.similarity) seen.set(r.chunk_text, r);
   }
-  const hits = [...seen.values()].sort((a, b) => b.similarity - a.similarity).slice(0, limit);
-  logger.info('Hybrid knowledge search', { businessId, hasVector, messageText: messageText.slice(0, 80), hits: hits.length });
+  const hits = [...seen.values()].sort((a, b) => b.similarity - a.similarity);
+
+  // Cross-encoder rerank: reorder the cosine pool, keep the cosine score for
+  // downstream gates. Falls back to cosine ordering automatically if the
+  // reranker model is unavailable (reranker.rerank returns null).
+  let finalHits = hits;
+  if (rerankEnabled && hits.length > 1) {
+    const ranked = await rerank(messageText, hits.map((h) => h.chunk_text));
+    if (ranked) {
+      finalHits = ranked
+        .map((r) => hits[r.index])
+        .filter((h): h is HybridKnowledgeHit => Boolean(h));
+      logger.info('Reranked knowledge candidates', {
+        candidates: hits.length,
+        returned: Math.min(finalHits.length, returnLimit),
+      });
+    } else {
+      finalHits = hits;
+    }
+  }
+
+  const trimmedHits = finalHits.slice(0, returnLimit);
+  logger.info('Hybrid knowledge search', { businessId, hasVector, messageText: messageText.slice(0, 80), hits: trimmedHits.length });
   // No recent-chunks fallback: returning unrelated chunks as "authoritative"
   // forces the AI to hallucinate. Empty array lets the agent honestly escalate.
-  return hits;
+  return trimmedHits;
 }
 
 export interface ProcessDocumentInput {
@@ -555,7 +590,7 @@ export async function processAndIndexDocument(input: ProcessDocumentInput): Prom
       await query(
         `INSERT INTO knowledge_chunks (document_id, business_id, chunk_number, chunk_text, token_count, embedding, embedding_model, metadata)
          VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8)`,
-        [doc.id, businessId, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, metadata]
+        [doc.id, businessId, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, { ...metadata, section: chunk.section }]
       );
     }
 
@@ -672,7 +707,7 @@ export async function createTextKnowledgeDocument(input: CreateTextDocumentInput
       await query(
         `INSERT INTO knowledge_chunks (document_id, business_id, chunk_number, chunk_text, token_count, embedding, embedding_model, metadata)
          VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8)`,
-        [doc.id, businessId, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, metadata]
+        [doc.id, businessId, chunk.chunkIndex, chunk.text, chunk.tokenCount, vectorStr, EMBEDDING_MODEL, { ...metadata, section: chunk.section }]
       );
     }
 

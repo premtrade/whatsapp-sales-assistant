@@ -76,11 +76,36 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+  // transformers.js accepts an array input and encodes it in ONE forward pass
+  // per batch — up to ~5x faster than one-by-one for document uploads. Batches
+  // are kept small (8) so peak memory stays friendly on the 4GB Droplet.
+  const BATCH_SIZE = 8;
   const embeddings: number[][] = [];
 
-  for (const text of texts) {
-    const embedding = await generateEmbedding(text);
-    embeddings.push(embedding);
+  if (texts.length === 0) return embeddings;
+
+  const extractor = await getExtractor();
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE).map((t) =>
+      typeof t === 'string' && t.trim().length > 0 ? t.slice(0, MAX_INPUT_CHARS) : 'empty'
+    );
+    // transformers.js RUNTIME accepts string[] (one tensor batch per forward
+    // pass); its published type only declares the single-string overload.
+    const batched = extractor as unknown as (input: string[], opts: object) => Promise<unknown[]>;
+    const outputs = await batched(batch, { pooling: 'mean', normalize: true });
+    // Batched feature-extraction returns an array of tensors.
+    const tensors = Array.isArray(outputs) ? outputs : [outputs];
+    for (const output of tensors) {
+      const data = (output as { data: ArrayLike<number> }).data;
+      const embedding = Array.prototype.slice.call(data) as number[];
+      if (embedding.length !== EMBEDDING_DIMENSION) {
+        throw new Error(
+          `Unexpected embedding dimension: ${embedding.length} (expected ${EMBEDDING_DIMENSION})`
+        );
+      }
+      embeddings.push(embedding);
+    }
   }
 
   return embeddings;
