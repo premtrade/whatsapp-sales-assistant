@@ -403,7 +403,11 @@ export async function searchKnowledgeChunksHybrid(
   }
 
   const perBranch = Math.min(Math.max(limit * 2, 10), 50);
-  const minSimilarity = 0.15;
+  // Thresholds differ per signal: cosine similarities for relevant chunks are
+  // typically 0.4-0.7 (see live Rolinj results), while pg_trgm similarity()
+  // of a short question against long chunks is typically 0.05-0.15 — a single
+  // 0.15 cutoff empties the text-only fallback path entirely.
+  const minSimilarity = useVector ? 0.15 : 0.03;
   // NOTE: each branch variant has its own param list. The text-only variant
   // must NOT include the vector param at all — leaving a $1::vector cast
   // with an empty-string value makes Postgres throw "could not determine
