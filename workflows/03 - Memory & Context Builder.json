@@ -309,7 +309,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const products = $('Get Products').first()?.json?.products || []; const quotes = $('Get Quotes').first()?.json?.quotes || []; const appointments = $('Get Appointments').first()?.json?.appointments || []; const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const _tz = business.timezone || 'America/Jamaica'; const _localTime = new Intl.DateTimeFormat('en-US', {timeZone:_tz,dateStyle:'full',timeStyle:'short'}).format(new Date()); const _h = new Date().toLocaleString('en-US', {timeZone:_tz,hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : ((_hr >= 17 && _hr < 24) || (_hr >= 0 && _hr < 4)) ? 'evening' : 'morning'; const settings = $('Get Business Settings').first()?.json || {}; const _sims = knowledge.map(function(k){return typeof k.similarity==='number'?k.similarity:null;}).filter(function(s){return s!==null;}); const _maxSim = _sims.length ? Math.max.apply(null,_sims) : null; const _conf = _maxSim===null ? 'none' : (_maxSim>=0.3 ? 'high' : (_maxSim>=0.1 ? 'medium' : 'low')); return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, knowledge_count: knowledge.length, knowledge_max_similarity: _maxSim, knowledge_confidence: _conf, knowledge_preview: knowledge.map(function(k){return k.chunk_text||\"\";}).join(\" | \").slice(0,300), products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || business.slug || settings.setting_value || 'ROLINJ.IO', time_greeting: _greet, business_id: business.id || null, business_timezone: _tz, current_business_time: _localTime, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const _safe = function(n,k){ try { const d = $(n).first(); return (d && d.json && Array.isArray(d.json[k])) ? d.json[k] : []; } catch (e) { return []; } }; const products = _safe('Get Products','products'); const quotes = _safe('Get Quotes','quotes'); const appointments = _safe('Get Appointments','appointments'); const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const _tz = business.timezone || 'America/Jamaica'; const _localTime = new Intl.DateTimeFormat('en-US', {timeZone:_tz,dateStyle:'full',timeStyle:'short'}).format(new Date()); const _h = new Date().toLocaleString('en-US', {timeZone:_tz,hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : ((_hr >= 17 && _hr < 24) || (_hr >= 0 && _hr < 4)) ? 'evening' : 'morning'; const settings = $('Get Business Settings').first()?.json || {}; const _sims = knowledge.map(function(k){return typeof k.similarity==='number'?k.similarity:null;}).filter(function(s){return s!==null;}); const _maxSim = _sims.length ? Math.max.apply(null,_sims) : null; const _conf = _maxSim===null ? 'none' : (_maxSim>=0.3 ? 'high' : (_maxSim>=0.1 ? 'medium' : 'low')); return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, knowledge_count: knowledge.length, knowledge_max_similarity: _maxSim, knowledge_confidence: _conf, knowledge_preview: knowledge.map(function(k){return k.chunk_text||\"\";}).join(\" | \").slice(0,300), products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || business.slug || settings.setting_value || 'ROLINJ.IO', time_greeting: _greet, business_id: business.id || null, business_timezone: _tz, current_business_time: _localTime, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -371,6 +371,123 @@
       "name": "Get Knowledge Chunks",
       "alwaysOutputData": true,
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = String($('When Executed by Another Workflow').first().json.message || '').toLowerCase().trim();\nlet historyText = '';\ntry {\n  const recent = $('Get Recent Messages').first().json.messages || [];\n  historyText = recent.map(function(m){ return String(m.text_body || ''); }).join(' ').toLowerCase();\n} catch (e) {\n  historyText = '';\n}\nconst context = (message + ' ' + historyText).slice(0, 4000);\nconst norm = ' ' + context.replace(/[^a-z0-9]+/g, ' ') + ' ';\nconst hasAny = function(list){ return list.some(function(w){ return norm.indexOf(' ' + w + ' ') !== -1; }); };\nconst filler = /^(hi|hello|hey|yo|sup|good morning|good afternoon|good evening|good night|thanks|thank you|ty|ok|okay|k|yes|yep|yeah|no|nope|nah|bye|goodbye|test|ping)[^.?!]*$/.test(message);\nconst commercial = hasAny(['price','pricing','prices','cost','costs','how much','product','products','service','services','plan','plans','feature','features','demo','trial','buy','purchase','order','orders','package','offer','offers','quote','quotes','invoice','billing']);\nconst needs_products = !filler || commercial;\nconst needs_quotes = hasAny(['quote','quotes','quotation','estimate','invoice','bill','billing','proposal','pricing','price','cost','costs','how much','discount','order','orders']);\nconst needs_appointments = hasAny(['appointment','appointments','book','booking','schedule','scheduling','reschedule','meeting','demo','visit','calendar','slot','slots','available','availability','tomorrow','today','next week','this week']);\nreturn [{ json: { needs_products: needs_products, needs_quotes: needs_quotes, needs_appointments: needs_appointments, message_preview: message.slice(0, 80) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        30
+      ],
+      "id": "detect-fetch-intent",
+      "name": "Detect Fetch Intent",
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "needs-products-check",
+              "leftValue": "={{ Boolean($('Detect Fetch Intent').first().json.needs_products) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        768,
+        96
+      ],
+      "id": "if-needs-products",
+      "name": "Needs Products?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "needs-quotes-check",
+              "leftValue": "={{ Boolean($('Detect Fetch Intent').first().json.needs_quotes) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        928,
+        96
+      ],
+      "id": "if-needs-quotes",
+      "name": "Needs Quotes?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "needs-appointments-check",
+              "leftValue": "={{ Boolean($('Detect Fetch Intent').first().json.needs_appointments) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1088,
+        96
+      ],
+      "id": "if-needs-appointments",
+      "name": "Needs Appointments?"
     }
   ],
   "connections": {
@@ -400,7 +517,7 @@
       "main": [
         [
           {
-            "node": "Get Appointments",
+            "node": "Needs Appointments?",
             "type": "main",
             "index": 0
           }
@@ -411,7 +528,7 @@
       "main": [
         [
           {
-            "node": "Get Quotes",
+            "node": "Needs Quotes?",
             "type": "main",
             "index": 0
           }
@@ -488,7 +605,72 @@
       "main": [
         [
           {
+            "node": "Detect Fetch Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Fetch Intent": {
+      "main": [
+        [
+          {
+            "node": "Needs Products?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Products?": {
+      "main": [
+        [
+          {
             "node": "Get Products",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs Quotes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Quotes?": {
+      "main": [
+        [
+          {
+            "node": "Get Quotes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs Appointments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Appointments?": {
+      "main": [
+        [
+          {
+            "node": "Get Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Handoff",
             "type": "main",
             "index": 0
           }
