@@ -18,7 +18,14 @@ type AnyModel = any;
 // the text-classification pipeline because pipeline post-processing assumes
 // multi-label softmax and would mangle a single-logit score.
 const RERANK_MODEL = process.env.RERANK_MODEL_NAME || 'Xenova/bge-reranker-base';
-const MAX_LENGTH = 512;
+// 256 tokens is plenty for our retrieval chunks (short FAQ/section text) and
+// halves activation memory + CPU vs. the model's 512 default — important on
+// the small droplet where this shares RAM with postgres/n8n/waha.
+const MAX_LENGTH = 256;
+// Score pairs in small sub-batches: one forward pass over all 20 pairs at
+// once spikes peak activation memory (20 × seq_len × hidden) and can lock
+// the event loop long enough to starve health checks.
+const RERANK_SUB_BATCH = 5;
 // Nothing beyond the cosine top-20 is worth scoring (reranker cost is linear).
 export const RERANK_CANDIDATES = 20;
 
@@ -27,8 +34,16 @@ let modelPromise: Promise<unknown> | null = null;
 // Set to true after a failed load so we don't retry (and re-warn) on every query.
 let rerankBroken = false;
 
+// OPT-IN only (RERANK_ENABLED=true). Production incident 2026-10-19: with the
+// default-on flag, the first hybrid search after each backend restart loaded
+// the cross-encoder on the droplet and took the whole backend down (nginx 502
+// on /health included) — an OOM/native crash is NOT catchable, so the
+// `rerankBroken` latch below never got the chance to trip. Until the droplet
+// has confirmed memory headroom (check `free -h`, consider swap), reranking
+// must be explicitly enabled per environment. Cosine ordering is the safe
+// default and keeps retrieval fully functional.
 export function isRerankEnabled(): boolean {
-  return process.env.RERANK_ENABLED !== 'false' && !rerankBroken;
+  return process.env.RERANK_ENABLED === 'true' && !rerankBroken;
 }
 
 async function getModels(): Promise<{ tokenizer: AnyModel; model: AnyModel }> {
@@ -68,34 +83,45 @@ export async function rerank(
   try {
     const { tokenizer, model } = await getModels();
 
-    // Batch ALL pairs in one forward pass: [query, cand_0] ... [query, cand_n].
-    const pairs = candidates.map((text) => [query, text]);
-    const encoded = tokenizer(pairs, {
-      padding: true,
-      truncation: true,
-      max_length: MAX_LENGTH,
-    });
-
-    const output = await model({
-      input_ids: encoded.input_ids,
-      attention_mask: encoded.attention_mask,
-    });
-
-    const logits = output.logits as { data: ArrayLike<number>; dims: number[] };
-    const values = Array.prototype.slice.call(logits.data) as number[];
-
-    // Single-logit model: logits.data = [logit_0, ..., logit_n] (batch dim 1
-    // squeezed by ONNX export). Handle an unsqueezed [batch, 1] shape too.
-    const stride = values.length / candidates.length;
+    // Score pairs in sub-batches: [query, cand_i] pairs chunked to
+    // RERANK_SUB_BATCH so peak activation memory and event-loop block time
+    // stay bounded on the small production droplet.
     const scores: number[] = [];
-    if (stride >= 1 && Number.isInteger(stride)) {
-      for (let i = 0; i < candidates.length; i++) {
-        const logit = values[i * stride];
-        if (logit === undefined) throw new Error(`Missing reranker logit at index ${i}`);
-        scores.push(sigmoid(logit));
+    for (let start = 0; start < candidates.length; start += RERANK_SUB_BATCH) {
+      const chunk = candidates.slice(start, start + RERANK_SUB_BATCH);
+      // transformers.js v2 tokenizes pairs via PARALLEL arrays: text + options.text_pair.
+      // Passing array-of-[query, cand] pairs directly throws "text.split is not a function".
+      const encoded = tokenizer(chunk.map(() => query), {
+        text_pair: chunk,
+        padding: true,
+        truncation: true,
+        max_length: MAX_LENGTH,
+      });
+
+      const output = await model({
+        input_ids: encoded.input_ids,
+        attention_mask: encoded.attention_mask,
+      });
+
+      const logits = output.logits as { data: ArrayLike<number>; dims: number[] };
+      const values = Array.prototype.slice.call(logits.data) as number[];
+
+      // Single-logit model: logits.data = [logit_0, ..., logit_n] (batch dim 1
+      // squeezed by ONNX export). Handle an unsqueezed [batch, 1] shape too.
+      const stride = values.length / chunk.length;
+      if (stride >= 1 && Number.isInteger(stride)) {
+        for (let i = 0; i < chunk.length; i++) {
+          const logit = values[i * stride];
+          if (logit === undefined) throw new Error(`Missing reranker logit at index ${start + i}`);
+          scores.push(sigmoid(logit));
+        }
+      } else {
+        throw new Error(`Unexpected reranker logits shape: length ${values.length} for ${chunk.length} candidates`);
       }
-    } else {
-      throw new Error(`Unexpected reranker logits shape: length ${values.length} for ${candidates.length} candidates`);
+    }
+
+    if (scores.length !== candidates.length) {
+      throw new Error(`Reranker produced ${scores.length} scores for ${candidates.length} candidates`);
     }
 
     return scores
