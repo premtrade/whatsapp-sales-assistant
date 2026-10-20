@@ -219,14 +219,9 @@ export default function DemoPage() {
                         Status: {demo.conversation.leadStatus}
                       </span>
                     )}
-                    {demo.quote && (
-                      <span className="rounded-lg bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700">
-                        Quote Sent ✓
-                      </span>
-                    )}
                     {demo.appointment && (
                       <span className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-                        Site Visit Booked ✓
+                        Consultation Booked ✓
                       </span>
                     )}
                   </div>

@@ -219,7 +219,6 @@ type DemoSummary = {
   contactName: string | null
   leadScore: number | null
   leadStatus: string | null
-  quoteSent: boolean
   appointmentBooked: boolean
 }
 
@@ -250,7 +249,6 @@ export default function LandingPage() {
           contactName: data.conversation?.contactName ?? null,
           leadScore: data.conversation?.leadScore ?? null,
           leadStatus: data.conversation?.leadStatus ?? null,
-          quoteSent: Boolean(data.quote),
           appointmentBooked: Boolean(data.appointment),
         })
       })
@@ -414,14 +412,9 @@ export default function LandingPage() {
                     {demo.leadStatus}
                   </span>
                 )}
-                {demo?.quoteSent && (
-                  <span className="rounded-lg bg-purple-50 px-2.5 py-1.5 text-xs font-semibold text-purple-700">
-                    Quote sent
-                  </span>
-                )}
                 {demo?.appointmentBooked && (
                   <span className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
-                    Site visit booked
+                    Consultation booked
                   </span>
                 )}
               </div>
@@ -547,9 +540,9 @@ export default function LandingPage() {
                         Lead score {demo.leadScore}/100
                       </span>
                     )}
-                    {demo.quoteSent && (
+                    {demo.appointmentBooked && (
                       <span className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white">
-                        Quote sent from their own scope
+                        Consultation booked from their own calendar
                       </span>
                     )}
                   </div>
