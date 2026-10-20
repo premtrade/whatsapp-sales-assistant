@@ -16,12 +16,29 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MIGRATIONS_DIR="$PROJECT_ROOT/database/migrations"
 SCHEMA_DIR="$PROJECT_ROOT/database/schema"
 
-# Load .env file if present in project root
+# Load the database settings from .env if present.
+#
+# The file is read, not sourced. Sourcing it would execute it as shell, so any
+# value containing a space, a '#' or a '$' would be parsed as shell syntax
+# rather than as a value. BILLING_ACCOUNT_NUMBER=50575 010850444 is a real
+# example: sourcing it made bash try to run "010850444" as a command, and
+# under `set -e` that aborted the deploy.
 if [ -f "$PROJECT_ROOT/.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "$PROJECT_ROOT/.env"
-    set +a
+    while IFS='=' read -r env_key env_value || [ -n "$env_key" ]; do
+        case "$env_key" in
+            ''|'#'*) continue ;;
+        esac
+        env_value="${env_value%$'\r'}"
+        case "$env_value" in
+            \"*\") env_value="${env_value#\"}"; env_value="${env_value%\"}" ;;
+            \'*\') env_value="${env_value#\'}"; env_value="${env_value%\'}" ;;
+        esac
+        case "$env_key" in
+            POSTGRES_HOST|POSTGRES_PORT|POSTGRES_USER|POSTGRES_DB|POSTGRES_PASSWORD)
+                export "$env_key=$env_value"
+                ;;
+        esac
+    done < "$PROJECT_ROOT/.env"
 fi
 
 # Database connection settings (can be overridden via environment variables)

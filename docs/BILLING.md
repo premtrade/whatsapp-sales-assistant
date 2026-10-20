@@ -75,12 +75,19 @@ Offline billing also needs the account details shown to the customer:
 
 ```bash
 BILLING_ACCOUNT_NAME=ROLINJ.IO
-BILLING_ACCOUNT_NUMBER=...
-BILLING_BANK_NAME=...
+BILLING_ACCOUNT_NUMBER="50575 010850444"
+BILLING_BANK_NAME="Bank of Nova Scotia Jamaica"
 BILLING_PAYMENT_EMAIL=premtrade_ja@outlook.com
-BILLING_PAYMENT_PHONE=+18767998637
+BILLING_PAYMENT_PHONE=+1-876-799-8637
 BILLING_RENEWAL_WINDOW_DAYS=7
 ```
+
+**Quote any value that contains a space.** Bank details are the obvious case,
+and an unquoted value broke the deploy: the migration runner used to source the
+env file as shell, so `BILLING_ACCOUNT_NUMBER=50575 010850444` made bash try
+to run `010850444` as a command and abort under `set -e`. The runner now reads
+the file instead of executing it, and quoting is still the right habit.
+
 
 Only `BILLING_PAYMENT_EMAIL` is required for the provider to be considered
 configured. If the account number is missing, the Billing page tells the
