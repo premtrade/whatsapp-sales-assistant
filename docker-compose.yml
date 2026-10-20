@@ -303,13 +303,23 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
-      # Billing: hosts allowed to receive Stripe checkout/portal return URLs,
-      # plus Stripe keys (empty until configured — the billing page then shows
-      # a "payments not configured" notice instead of failing silently).
+      # Billing: hosts allowed to receive payment-provider checkout/portal
+      # return URLs, plus the Stripe keys (empty until configured).
+      # Stripe does not support Jamaica as a merchant country, so the active
+      # provider is selected with BILLING_PROVIDER; when it is unset the
+      # platform falls back to offline (bank transfer) billing, and the
+      # BILLING_* values below are what the customer sees on the Billing page.
       ALLOWED_RETURN_HOSTS: ${ALLOWED_RETURN_HOSTS:-}
       FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      BILLING_PROVIDER: ${BILLING_PROVIDER:-}
+      BILLING_ACCOUNT_NAME: ${BILLING_ACCOUNT_NAME:-}
+      BILLING_ACCOUNT_NUMBER: ${BILLING_ACCOUNT_NUMBER:-}
+      BILLING_BANK_NAME: ${BILLING_BANK_NAME:-}
+      BILLING_PAYMENT_EMAIL: ${BILLING_PAYMENT_EMAIL:-}
+      BILLING_PAYMENT_PHONE: ${BILLING_PAYMENT_PHONE:-}
+      BILLING_RENEWAL_WINDOW_DAYS: ${BILLING_RENEWAL_WINDOW_DAYS:-7}
       CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
