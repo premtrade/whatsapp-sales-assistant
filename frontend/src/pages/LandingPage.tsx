@@ -185,6 +185,25 @@ export default function LandingPage() {
   const [plans, setPlans] = useState<Plan[] | null>(getStaticPlans())
   const [plansLoading, setPlansLoading] = useState(getStaticPlans() === null)
   const [plansError, setPlansError] = useState<string | null>(null)
+  const [demoAgentNumber, setDemoAgentNumber] = useState<string | null>(null)
+
+  // The live demo agent's number, when one has been paired to the demo
+  // tenant. The API only returns it once a real number is connected, so a
+  // visitor is never sent to a placeholder.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/demo')
+      .then((r) => r.json())
+      .then((body) => {
+        if (!cancelled && body?.success && body?.data?.business?.whatsappPhone) {
+          setDemoAgentNumber(body.data.business.whatsappPhone)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Fetch pricing plans from backend API so the public page always agrees with enforcement.
   // When plans were captured at build time (prerender) they are already in state and the
@@ -267,10 +286,23 @@ export default function LandingPage() {
                 <Link to="/signup" className="btn-primary text-center py-3 px-8 text-base">
                   Start Free Trial
                 </Link>
-                <a href="#how-it-works" className="btn-secondary text-center py-3 px-8 text-base">
-                  See How It Works
-                </a>
+                <Link to="/demo" className="btn-secondary text-center py-3 px-8 text-base">
+                  See a real session
+                </Link>
               </div>
+              {demoAgentNumber && (
+                <a
+                  href={`https://wa.me/${demoAgentNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent("Hi! I'd like to know more about roofing services.")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-green-700 hover:text-green-600"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.174.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 016.988 2.896 9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.359.101 11.945c0 2.096.549 4.142 1.595 5.945L0 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.585 0 11.946-5.359 11.949-11.945a11.87 11.87 0 00-3.421-8.4" />
+                  </svg>
+                  Or message our demo agent on WhatsApp
+                </a>
+              )}
               <div className="mt-6 flex items-center gap-6 text-sm text-surface-500">
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -298,45 +330,26 @@ export default function LandingPage() {
             </div>
             <div className="relative">
               <div className="relative bg-white rounded-2xl shadow-2xl border border-surface-200 overflow-hidden">
-                <div className="bg-surface-50 border-b border-surface-200 px-4 py-3 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
-                  <span className="ml-2 text-xs font-medium text-surface-500">WAFLO Dashboard</span>
+                <div className="bg-surface-50 border-b border-surface-200 px-4 py-2.5 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
+                  <span className="text-xs font-medium text-surface-600">WhatsApp</span>
+                  <span className="ml-auto text-xs text-surface-500">Harbour Point Roofing</span>
                 </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-xs shrink-0">AI</div>
-                    <div className="bg-primary-50 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-surface-800 max-w-sm">
-                      Hi! I’m interested in a new roof for my 2,000 sq ft house. Budget is around JMD 250,000. Can you send me a quote?
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 justify-end">
-                    <div className="bg-surface-900 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm max-w-sm">
-                      <p className="mb-2">Thanks for reaching out! A 2,000 sq ft roof is a great fit for our standard shingle package.</p>
-                      <p className="mb-2">📄 I’ve generated a quote for JMD 245,000 — sending it now.</p>
-                      <p>📅 Would you like to schedule a site visit this week?</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 pt-4 border-t border-surface-200">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      Lead Score: 87/100
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold">
-                      Status: Qualified
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-semibold">
-                      Quote Sent ✓
-                    </div>
-                  </div>
-                </div>
+                <img
+                  src="/images/demo-conversation.jpg"
+                  alt="A real WAFLO session: a customer asks for a quote for a 2,000 square foot roof in St. Andrew. The assistant prices it from the business price list, sends a quote and books a site visit for Thursday morning."
+                  width={760}
+                  height={900}
+                  className="w-full h-auto block"
+                  loading="eager"
+                  decoding="async"
+                />
               </div>
               <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-primary-200 rounded-full blur-3xl opacity-40 -z-10" />
               <div className="absolute -top-4 -left-4 w-32 h-32 bg-accent-200 rounded-full blur-3xl opacity-40 -z-10" />
             </div>
             <p className="mt-6 text-center text-xs text-surface-500">
-              Illustrative example — a real WAFLO session looks like this.
+              A real WAFLO session, recorded from a working tenant.
             </p>
           </div>
         </div>
@@ -429,65 +442,30 @@ export default function LandingPage() {
               Real-time dashboard with live conversations, lead scores, quotes, appointments, and handoffs. No refreshing. No CSV exports.
             </p>
           </div>
-          <div className="bg-surface-900 rounded-2xl p-2 shadow-2xl">
-            <div className="bg-surface-800 rounded-xl overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-700">
-                <div className="w-3 h-3 rounded-full bg-red-400" />
-                <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400" />
-                 <span className="ml-2 text-xs font-medium text-surface-400">WAFLO Dashboard</span>
-                 <span className="ml-auto text-xs text-surface-500">Illustrative sample data</span>
-              </div>
-              <div className="p-6 grid grid-cols-12 gap-4">
-                <div className="col-span-12 md:col-span-3 space-y-4">
-                  <div className="bg-surface-700/50 rounded-xl p-4">
-                    <div className="text-xs text-surface-400 mb-1">Today’s Conversations</div>
-                    <div className="text-2xl font-bold text-white">24</div>
-                    <div className="text-xs text-green-400 mt-1">↑ 18% vs yesterday</div>
-                  </div>
-                  <div className="bg-surface-700/50 rounded-xl p-4">
-                    <div className="text-xs text-surface-400 mb-1">AI Responses</div>
-                    <div className="text-2xl font-bold text-white">18</div>
-                    <div className="text-xs text-surface-400 mt-1">6 handed to humans</div>
-                  </div>
-                  <div className="bg-surface-700/50 rounded-xl p-4">
-                    <div className="text-xs text-surface-400 mb-1">Quotes Sent</div>
-                    <div className="text-2xl font-bold text-white">5</div>
-                    <div className="text-xs text-green-400 mt-1">JMD 1.2M total value</div>
-                  </div>
+          <div className="relative">
+            <div className="bg-surface-900 rounded-2xl p-2 shadow-2xl">
+              <div className="bg-surface-800 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-700">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                  <span className="ml-2 text-xs font-medium text-surface-400">WAFLO Dashboard</span>
+                  <span className="ml-auto text-xs text-surface-500">Harbour Point Roofing — a working tenant</span>
                 </div>
-                <div className="col-span-12 md:col-span-9 bg-surface-700/30 rounded-xl p-4">
-                  <div className="text-xs text-surface-400 mb-3">Live Conversation Feed</div>
-                  <div className="space-y-3">
-                    {[
-                      { name: 'Maria G.', phone: '+1-876-555-0101', score: 92, status: 'Qualified', time: '2 min ago' },
-                      { name: 'Desmond R.', phone: '+1-876-555-0102', score: 45, status: 'New', time: '8 min ago' },
-                      { name: 'Patricia L.', phone: '+1-876-555-0103', score: 78, status: 'Quoted', time: '15 min ago' },
-                    ].map((c) => (
-                      <div key={c.phone} className="flex items-center justify-between bg-surface-700/50 rounded-lg px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-xs font-bold">
-                            {c.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-white">{c.name}</div>
-                            <div className="text-xs text-surface-400">{c.phone} · {c.time}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${c.status === 'Qualified' ? 'bg-green-900/30 text-green-400' : c.status === 'Quoted' ? 'bg-blue-900/30 text-blue-400' : 'bg-surface-600 text-surface-300'}`}>
-                            {c.status}
-                          </span>
-                          <span className={`px-2 py-1 rounded text-xs font-bold ${c.score >= 80 ? 'bg-green-900/30 text-green-400' : c.score >= 50 ? 'bg-yellow-900/30 text-yellow-400' : 'bg-red-900/30 text-red-400'}`}>
-                            {c.score}/100
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <img
+                  src="/images/demo-dashboard.jpg"
+                  alt="The WAFLO dashboard for a roofing business: live conversations with lead scores, quotes sent, site visits booked and pipeline value, all in one screen."
+                  width={1440}
+                  height={1000}
+                  className="w-full h-auto block"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </div>
+            <p className="mt-6 text-center text-xs text-surface-500">
+              The real dashboard, running on a live business.
+            </p>
           </div>
         </div>
       </section>

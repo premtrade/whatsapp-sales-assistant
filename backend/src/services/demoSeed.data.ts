@@ -136,6 +136,22 @@ export const CONTACTS = [
     tags: ['inspection', 'evaluating'],
     notes: 'Comparing quotes. Asked for an inspection first, no commitment.',
   },
+  {
+    key: 'rohan',
+    phone: '+18765550205',
+    display_name: 'Rohan Clarke',
+    company: null,
+    tags: ['repair', 'residential'],
+    notes: 'Small repair job, a few damaged shingles after the storm.',
+  },
+  {
+    key: 'alison',
+    phone: '+18765550206',
+    display_name: 'Alison Beckford',
+    company: null,
+    tags: ['gutters', 'homeowner'],
+    notes: 'Gutters overflowing at the front of the house.',
+  },
 ];
 
 /** The conversation the marketing site shows. Enquiry to booked site visit. */
@@ -178,19 +194,19 @@ export const OTHER_THREADS = {
     {
       direction: 'incoming',
       sender_type: 'customer',
-      minutes_ago: 190,
+      minutes_ago: 60 * 24 * 9,
       text: 'Morning. The gutters on the warehouse are overflowing again. Can you replace them?',
     },
     {
       direction: 'outgoing',
       sender_type: 'ai',
-      minutes_ago: 189,
+      minutes_ago: 60 * 24 * 9 - 1,
       text: "Good morning — you're messaging Harbour Point Roofing's AI assistant.\n\nReplacing 5 inch seamless gutters with new downpipes comes to JMD 68,000 for a building this size. I can send a quote over now, or book a site visit first if you'd like us to measure it. Which would you prefer?",
     },
     {
       direction: 'incoming',
       sender_type: 'customer',
-      minutes_ago: 180,
+      minutes_ago: 60 * 24 * 9 - 6,
       text: 'Book the visit please, we can measure on site.',
     },
   ],
@@ -198,13 +214,13 @@ export const OTHER_THREADS = {
     {
       direction: 'incoming',
       sender_type: 'customer',
-      minutes_ago: 55,
+      minutes_ago: 60 * 24 * 5,
       text: 'Water is coming in over the master bedroom roof since Saturday. How soon can someone come?',
     },
     {
       direction: 'outgoing',
       sender_type: 'ai',
-      minutes_ago: 54,
+      minutes_ago: 60 * 24 * 5 - 1,
       text: "Sorry to hear that — you're messaging Harbour Point Roofing's AI assistant.\n\nWe have a 24 hour emergency call-out for active leaks at JMD 35,000, which covers a same-day assessment and a permanent repair quote. I can get someone out to you today. Does that work?",
     },
   ],
@@ -212,14 +228,42 @@ export const OTHER_THREADS = {
     {
       direction: 'incoming',
       sender_type: 'customer',
-      minutes_ago: 320,
+      minutes_ago: 60 * 24 * 3,
       text: 'Do you charge for an inspection? I am not ready to commit to a full roof yet.',
     },
     {
       direction: 'outgoing',
       sender_type: 'ai',
-      minutes_ago: 319,
+      minutes_ago: 60 * 24 * 3 - 1,
       text: "No pressure at all — you're messaging Harbour Point Roofing's AI assistant.\n\nA roof inspection and written report is JMD 12,000, and that is credited in full against a replacement if you go ahead within 60 days. I can book one for you this week if you would like.",
+    },
+  ],
+  rohan: [
+    {
+      direction: 'incoming',
+      sender_type: 'customer',
+      minutes_ago: 60 * 24 * 7,
+      text: 'A few shingles came off in the storm. Is that a repair or a replacement?',
+    },
+    {
+      direction: 'outgoing',
+      sender_type: 'ai',
+      minutes_ago: 60 * 24 * 7 - 1,
+      text: "You're messaging Harbour Point Roofing's AI assistant.\n\nIf it is only a few shingles, that is a repair at JMD 1,850 per square foot, with a one square minimum. If the deck underneath is soft, we will tell you on the site visit and quote the full replacement then. Either way a JMD 12,000 inspection tells us which it is before you commit.",
+    },
+  ],
+  alison: [
+    {
+      direction: 'incoming',
+      sender_type: 'customer',
+      minutes_ago: 60 * 24 * 1,
+      text: 'The gutters at the front of the house keep overflowing when it rains hard.',
+    },
+    {
+      direction: 'outgoing',
+      sender_type: 'ai',
+      minutes_ago: 60 * 24 * 1 - 1,
+      text: "You're messaging Harbour Point Roofing's AI assistant.\n\nReplacing 5 inch seamless gutters with new downpipes and brackets is JMD 68,000, fitted to the existing fascia. I can send the quote over, or book a site visit first so we can measure. Which would you prefer?",
     },
   ],
 };

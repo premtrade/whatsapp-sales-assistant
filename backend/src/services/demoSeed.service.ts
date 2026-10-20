@@ -47,6 +47,20 @@ const LEAD_STAGE: Record<string, string> = {
   trevor: 'new',
 };
 
+/**
+ * How many days ago each conversation started. The dashboard charts
+ * conversation activity over 30 days, so a demo where every conversation
+ * started today renders as a single flat point.
+ */
+const STARTED_DAYS_AGO: Record<string, number> = {
+  karen: 0,
+  devon: 9,
+  rohan: 7,
+  marcia: 5,
+  trevor: 3,
+  alison: 1,
+};
+
 /** Removes a previous demo tenant and everything that cascades from it. */
 export async function removeDemoTenant(): Promise<void> {
   const existing = await query<{ id: string }>(
@@ -79,7 +93,7 @@ export async function seedDemoTenant(options?: {
   regenerate?: boolean;
 }): Promise<DemoSeedResult> {
   const adminEmail = options?.adminEmail || 'demo@harbourpointroofing.demo';
-  const adminPassword = options?.adminPassword || 'Demo1234!';
+  const adminPassword = options?.adminPassword || process.env.DEMO_ADMIN_PASSWORD || 'Demo1234!';
 
   await removeDemoTenant();
 
@@ -217,11 +231,15 @@ export async function seedDemoTenant(options?: {
     );
     contactIds[contact.key] = inserted.rows[0]!.id;
 
+    const startedAt = new Date(Date.now() - (STARTED_DAYS_AGO[contact.key] ?? 0) * 24 * 60 * 60 * 1000);
+    // created_at is set explicitly because the dashboard charts conversation
+    // activity by DATE(created_at). Left to default it would be NOW() for
+    // every conversation, and the 30 day chart would render as a single point.
     const conversation = await query<{ id: string }>(
-      `INSERT INTO conversations (contact_id, channel, status, started_at, last_message_at, business_id, lead_stage)
-       VALUES ($1,'whatsapp','active',NOW(),NOW(),$2,$3)
+      `INSERT INTO conversations (contact_id, channel, status, started_at, last_message_at, business_id, lead_stage, created_at, updated_at)
+       VALUES ($1,'whatsapp','active',$2,$2,$3,$4,$2,$2)
        RETURNING id`,
-      [contactIds[contact.key], businessId, LEAD_STAGE[contact.key] || 'new']
+      [contactIds[contact.key], startedAt, businessId, LEAD_STAGE[contact.key] || 'new']
     );
     conversationIds[contact.key] = conversation.rows[0]!.id;
   }
@@ -250,6 +268,10 @@ export async function seedDemoTenant(options?: {
         businessId,
         createdAt,
       ]
+    );
+    await query(
+      `UPDATE conversations SET last_message_at = GREATEST(last_message_at, $2) WHERE id = $1`,
+      [conversationId, createdAt]
     );
     messageCount += 1;
   };
@@ -347,6 +369,36 @@ export async function seedDemoTenant(options?: {
     ]
   );
 
+  // A second, won job. Without it the pipeline shows a 0% conversion rate and
+  // the dashboard looks like nothing has ever closed.
+  const wonQuote = await query<{ id: string }>(
+    `INSERT INTO quotes
+       (quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total,
+        currency, notes, valid_until, created_by, business_id, sent_at, sent_via, metadata)
+     VALUES ('HQ-2026-0119',$1,$2,'accepted',68000,0,0,68000,'JMD',
+             '5 inch seamless gutters with new downpipes and brackets for the warehouse.',
+             (CURRENT_DATE + 30),$3,$4,NOW(),'whatsapp',$5::jsonb)
+     RETURNING id`,
+    [
+      contactIds.devon,
+      conversationIds.devon,
+      ownerId,
+      businessId,
+      JSON.stringify({ document: true, file_name: 'Harbour-Point-Quote-HQ-2026-0119.pdf' }),
+    ]
+  );
+
+  await query(
+    `INSERT INTO quote_items (quote_id, product_id, line_number, description, quantity, unit, unit_price, tax_rate, discount, line_total, metadata, business_id)
+     VALUES ($1,$2,1,$3,1,'project',68000,0,0,68000,'{}'::jsonb,$4)`,
+    [
+      wonQuote.rows[0]!.id,
+      productIds['HPR-GUTTER-REPLACE'],
+      'Gutter Replacement — 5 inch seamless',
+      businessId,
+    ]
+  );
+
   // --- appointment ----------------------------------------------------
   // Next Thursday at 09:00 in the demo business's timezone.
   const siteVisit = nextWeekdayAt(9, BUSINESS.timezone);
@@ -360,6 +412,23 @@ export async function seedDemoTenant(options?: {
              'Measure the roof and confirm the deck before the replacement is scheduled.',
              'St. Andrew, Kingston',$4,$5,$6,FALSE,'{}'::jsonb,$7)`,
     [contactIds.karen, conversationIds.karen, quote.rows[0]!.id, siteVisit, siteVisitEnd, ownerId, businessId]
+  );
+
+  await query(
+    `INSERT INTO appointments
+       (contact_id, conversation_id, appointment_type, status, title, description,
+        location, starts_at, ends_at, assigned_to, reminder_sent, metadata, business_id)
+     VALUES ($1,$2,'site_visit','completed','Site visit — gutter measurement',
+             'Measured the warehouse gutters and confirmed the downpipe runs.',
+             'Bailey Hardware, Portmore',$3,$4,$5,TRUE,'{}'::jsonb,$6)`,
+    [
+      contactIds.devon,
+      conversationIds.devon,
+      new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+      new Date(Date.now() - 6 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
+      ownerId,
+      businessId,
+    ]
   );
 
   await query(
