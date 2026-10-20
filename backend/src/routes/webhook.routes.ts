@@ -4,7 +4,7 @@ import { validateWebhookSource, WebhookRequest } from '../middleware/webhookAuth
 import { webhookRateLimiter, createWebhookSourceRateLimiter } from '../middleware/rateLimiter';
 import { BadRequestError } from '../utils/errors';
 import logger from '../utils/logger';
-import { handleStripeWebhook } from '../services/stripe.service';
+import { stripeProvider } from '../services/billing';
 import { requireFeatureLimit, incrementUsage, requirePlanFeature } from '../services/subscription.service';
 import { PaymentRequiredError } from '../utils/errors';
 import { acceptQuoteFromWebhook, sendQuotePdfToCustomer } from '../services/quote.service';
@@ -435,10 +435,9 @@ router.post(
   '/stripe',
   webhookRateLimiter,
   async (req: WebhookRequest, res: Response): Promise<void> => {
-    const signature = (req.headers['stripe-signature'] as string) || '';
     const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
     try {
-      await handleStripeWebhook(rawBody, signature);
+      await stripeProvider.handleWebhook!(rawBody, req.headers as Record<string, string | string[] | undefined>);
     } catch (error: any) {
       if (error instanceof BadRequestError) {
         res.status(400).json({ success: false, message: error.message });

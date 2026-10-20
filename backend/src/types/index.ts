@@ -205,6 +205,7 @@ export interface Subscription {
   trial_ends_at?: Date | null;
   canceled_at?: Date | null;
   grace_period_ends_at?: Date | null;
+  cancel_at_period_end?: Date | null;
   external_customer_id?: string | null;
   external_subscription_id?: string | null;
   metadata: Record<string, unknown>;

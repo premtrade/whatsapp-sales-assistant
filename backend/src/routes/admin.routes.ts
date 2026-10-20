@@ -5,7 +5,7 @@ import { AuthenticatedRequest } from '../types';
 import { query } from '../utils/database';
 import logger from '../utils/logger';
 import { getActiveSubscription, clearSubCache } from '../services/subscription.service';
-import { cancelStripeSubscription, resumeStripeSubscription } from '../services/stripe.service';
+import { getPaymentProvider } from '../services/billing';
 import { validateSettingValue } from '../services/settings.service';
 import { listContactInquiries } from '../services/contact-inquiry.service';
 import { hashPassword } from '../services/auth.service';
@@ -256,9 +256,9 @@ router.post('/subscriptions/:id/cancel', authenticate, requireOwnerAccess, async
     await query(`UPDATE subscriptions SET status = 'canceled', canceled_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`, [req.params.id]);
     if (sub.external_subscription_id) {
       try {
-        await cancelStripeSubscription(sub.external_subscription_id);
+        await getPaymentProvider().cancelSubscription(sub.external_subscription_id);
       } catch (stripeError: any) {
-        logger.warn('Failed to cancel Stripe subscription', { subscriptionId: sub.external_subscription_id, error: stripeError?.message });
+        logger.warn('Failed to cancel provider subscription', { subscriptionId: sub.external_subscription_id, error: stripeError?.message });
       }
     }
     clearSubCache(sub.business_id);
@@ -285,9 +285,9 @@ router.post('/subscriptions/:id/activate', authenticate, requireOwnerAccess, asy
       WHERE id = $1 RETURNING *`, [req.params.id]);
     if (sub.external_subscription_id) {
       try {
-        await resumeStripeSubscription(sub.external_subscription_id);
+        await getPaymentProvider().resumeSubscription(sub.external_subscription_id);
       } catch (stripeError: any) {
-        logger.warn('Failed to resume Stripe subscription', { subscriptionId: sub.external_subscription_id, error: stripeError?.message });
+        logger.warn('Failed to resume provider subscription', { subscriptionId: sub.external_subscription_id, error: stripeError?.message });
       }
     }
     clearSubCache(sub.business_id);

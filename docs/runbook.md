@@ -198,6 +198,38 @@ RETURNING *;
 
 ## 7. Common Operational Tasks
 
+### Confirm an Offline Payment
+
+WAFLO currently collects subscriptions by bank transfer, because Stripe does not
+support Jamaica as a merchant country.
+
+1. The customer sees a reference (`WAF-XXXXXXXX`) on their Billing page and
+   sends the transfer.
+2. Check the transfer has arrived (bank statement or account).
+3. Open **Owner → Subscription Management** in the dashboard.
+4. The request appears under "Payment requests awaiting confirmation".
+5. Click **Confirm**. The subscription activates immediately and the customer
+   sees it as paid on their Billing page.
+
+Reject a request with **Reject** if the money never arrived — that leaves the
+subscription untouched and the customer can request a new reference.
+
+To see the same list from the database:
+
+```sql
+SELECT pr.reference, b.name AS business, p.name AS plan,
+       pr.amount, pr.currency, pr.status, pr.created_at
+FROM payment_requests pr
+JOIN businesses b ON b.id = pr.business_id
+LEFT JOIN plans p ON p.id = pr.plan_id
+WHERE pr.status = 'pending'
+ORDER BY pr.created_at ASC;
+```
+
+Billing runs on the `BILLING_PROVIDER` setting. To switch to a card processor
+later, set the new provider and its credentials — no code change is needed.
+See [BILLING.md](BILLING.md).
+
 ### Check Active Conversations
 ```sql
 SELECT c.id, co.display_name, c.status, c.last_message_at

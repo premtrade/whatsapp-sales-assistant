@@ -37,8 +37,18 @@ export interface Config {
    };
 
    ai: {
-    defaultModel: string;
-    embeddingModel: string;
+     defaultModel: string;
+     embeddingModel: string;
+   };
+
+  billing: {
+    provider: string;
+    accountName: string;
+    accountNumber: string;
+    bankName: string;
+    paymentEmail: string;
+    paymentPhone: string;
+    renewalWindowDays: number;
   };
 }
 
@@ -125,7 +135,20 @@ export const config: Config = {
     // Must stay in sync with the model configured on the n8n 'Workflow 2 - AI Brain' Groq node.
     defaultModel: getEnv('AI_DEFAULT_MODEL', 'qwen/qwen3.8-27b'),
     // Must stay in sync with backend/src/services/embedding.ts and the pgvector column dimension.
-    embeddingModel: getEnv('EMBEDDING_MODEL', 'gemini-embedding-001'),
+    embeddingModel: getEnv('EMBEDMENT_MODEL', 'gemini-embedding-001'),
+  },
+
+  // Which provider collects subscription payments. Stripe does not support
+  // Jamaica as a merchant country, so a deployment without a Stripe account
+  // falls back to offline (bank transfer) billing automatically.
+  billing: {
+    provider: getEnv('BILLING_PROVIDER', ''),
+    accountName: getEnv('BILLING_ACCOUNT_NAME', ''),
+    accountNumber: getEnv('BILLING_ACCOUNT_NUMBER', ''),
+    bankName: getEnv('BILLING_BANK_NAME', ''),
+    paymentEmail: getEnv('BILLING_PAYMENT_EMAIL', ''),
+    paymentPhone: getEnv('BILLING_PAYMENT_PHONE', ''),
+    renewalWindowDays: getEnvNumber('BILLING_RENEWAL_WINDOW_DAYS', 7),
   },
 };
 

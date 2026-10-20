@@ -14,9 +14,20 @@ import {
   getPlanById,
   KNOWN_LIMIT_METRICS,
 } from '../services/subscription.service';
-import { createCheckoutSession, createCustomerPortalSession } from '../services/stripe.service';
+import { getPaymentProvider, getPaymentProviderInfo, paymentsConfigured } from '../services/billing';
+import {
+  scheduleCancellation,
+  clearScheduledCancellation,
+} from '../services/billing/cancellation.service';
+import {
+  listPaymentRequests,
+  confirmPaymentRequest,
+  rejectPaymentRequest,
+  getPaymentRequest,
+} from '../services/billing/paymentRequests.service';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/auth';
+import { query } from '../utils/database';
 import logger from '../utils/logger';
 import { AuthenticatedRequest, Plan } from '../types';
 
@@ -66,9 +77,18 @@ function isAllowedReturnUrl(url: string): boolean {
   }
 }
 
-/** Whether Stripe is configured on this environment (drives the billing UI notice). */
-function paymentsConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY);
+/**
+ * Whether this environment can collect money, and which provider is doing it.
+ * The billing UI uses this to decide between a hosted checkout and payment
+ * instructions.
+ */
+function paymentProviderState() {
+  try {
+    return { paymentsConfigured: paymentsConfigured(), paymentProvider: getPaymentProviderInfo() };
+  } catch (error: any) {
+    logger.warn('Payment provider unavailable', { error: error?.message });
+    return { paymentsConfigured: false, paymentProvider: null };
+  }
 }
 
 const router = Router();
@@ -114,8 +134,9 @@ router.delete('/admin/plans/:id', requireRole('super_admin'), async (req, res: R
 // applied on an env) must not break every page via TrialBanner.
 router.get('/subscription', async (req, res: Response): Promise<void> => {
   const businessId = tid(req as AuthenticatedRequest);
+  const providerState = paymentProviderState();
   if (!businessId) {
-    res.json({ success: true, data: { subscription: null, trialDaysLeft: null, paymentsConfigured: paymentsConfigured() } });
+    res.json({ success: true, data: { subscription: null, trialDaysLeft: null, ...providerState } });
     return;
   }
   try {
@@ -128,7 +149,7 @@ router.get('/subscription', async (req, res: Response): Promise<void> => {
         trialDaysLeft: isGrace ? null : trialDaysLeft(sub),
         gracePeriodDaysLeft: isGrace ? gracePeriodDaysLeft(sub) : null,
         isInGracePeriod: isGrace,
-        paymentsConfigured: paymentsConfigured(),
+        ...providerState,
       },
     });
   } catch (error) {
@@ -136,7 +157,7 @@ router.get('/subscription', async (req, res: Response): Promise<void> => {
       businessId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.json({ success: true, data: { subscription: null, trialDaysLeft: null, paymentsConfigured: paymentsConfigured() } });
+    res.json({ success: true, data: { subscription: null, trialDaysLeft: null, ...providerState } });
   }
 });
 
@@ -148,6 +169,101 @@ router.get('/subscription/history', async (req, res: Response): Promise<void> =>
   }
   const h = await getSubscriptionHistory(businessId);
   res.json({ success: true, data: h });
+});
+
+/**
+ * Self-service cancellation. The customer keeps access until the period they
+ * have already paid for ends.
+ */
+router.post('/subscription/cancel', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const businessId = tid(req as AuthenticatedRequest);
+  if (!businessId) {
+    res.status(400).json({ success: false, message: 'Tenant context required' });
+    return;
+  }
+  try {
+    const subscription = await scheduleCancellation(businessId);
+    res.json({
+      success: true,
+      data: { cancelAtPeriodEnd: subscription?.cancel_at_period_end ?? null },
+      message: 'Your subscription will end at the close of the current billing period.',
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error?.message || 'Failed to cancel the subscription' });
+  }
+});
+
+/** Undoes a scheduled cancellation. */
+router.post('/subscription/resume', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const businessId = tid(req as AuthenticatedRequest);
+  if (!businessId) {
+    res.status(400).json({ success: false, message: 'Tenant context required' });
+    return;
+  }
+  try {
+    await clearScheduledCancellation(businessId);
+    res.json({ success: true, message: 'Your subscription will continue as normal.' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error?.message || 'Failed to resume the subscription' });
+  }
+});
+
+/** The tenant's own billing history: what was charged and what is still
+ * outstanding. Used by the Billing page so an offline customer can reconcile
+ * their own payments.
+ */
+router.get('/subscription/payments', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const businessId = tid(req as AuthenticatedRequest);
+  if (!businessId) {
+    res.status(400).json({ success: false, message: 'Tenant context required' });
+    return;
+  }
+  try {
+    const payments = await query(
+      `SELECT id, amount, currency, status, provider, provider_payment_id, method, paid_at, created_at
+         FROM payments
+        WHERE business_id = $1
+        ORDER BY created_at DESC
+        LIMIT 100`,
+      [businessId]
+    );
+    const requests = await query(
+      `SELECT id, reference, amount, currency, status, method, created_at, confirmed_at
+         FROM payment_requests
+        WHERE business_id = $1
+        ORDER BY created_at DESC
+        LIMIT 100`,
+      [businessId]
+    );
+    res.json({
+      success: true,
+      data: { payments: payments.rows, paymentRequests: requests.rows },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error?.message || 'Failed to load payment history' });
+  }
+});
+
+/** The tenant's outstanding offline payment request, if any. */
+router.get('/subscription/payment-request', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const businessId = tid(req as AuthenticatedRequest);
+  if (!businessId) {
+    res.status(400).json({ success: false, message: 'Tenant context required' });
+    return;
+  }
+  try {
+    const result = await query(
+      `SELECT id, reference, amount, currency, status, method, created_at
+         FROM payment_requests
+        WHERE business_id = $1 AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [businessId]
+    );
+    res.json({ success: true, data: result.rows[0] ?? null });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error?.message || 'Failed to load payment request' });
+  }
 });
 
 /** Current-month usage against plan limits for every metered metric. */
@@ -185,7 +301,12 @@ router.post('/checkout-session', async (req: AuthenticatedRequest, res: Response
     return;
   }
   try {
-    const result = await createCheckoutSession(businessId, planSlug, successUrl, cancelUrl);
+    const result = await getPaymentProvider().createCheckoutSession({
+      businessId,
+      planSlug,
+      successUrl,
+      cancelUrl,
+    });
     res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to create checkout session' });
@@ -208,10 +329,60 @@ router.post('/customer-portal', async (req: AuthenticatedRequest, res: Response)
     return;
   }
   try {
-    const result = await createCustomerPortalSession(businessId, returnUrl);
+    const result = await getPaymentProvider().createCustomerPortalSession(businessId, returnUrl);
     res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to create customer portal session' });
+  }
+});
+
+// --- Offline payment requests (bank transfer / invoice) ---------------------
+// Used when no card processor is available for the platform's country of
+// incorporation. A platform owner confirms receipt, which activates the
+// subscription through the shared billing-event pipeline.
+
+router.get('/admin/payment-requests', requireRole('super_admin'), async (req, res: Response): Promise<void> => {
+  try {
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const requests = await listPaymentRequests(status ? { status } : {});
+    res.json({ success: true, data: requests });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error?.message || 'Failed to load payment requests' });
+  }
+});
+
+router.get('/admin/payment-requests/:id', requireRole('super_admin'), async (req, res: Response): Promise<void> => {
+  try {
+    const request = await getPaymentRequest(req.params.id!);
+    res.json({ success: true, data: request });
+  } catch (error: any) {
+    res.status(404).json({ success: false, message: error?.message || 'Payment request not found' });
+  }
+});
+
+router.post('/admin/payment-requests/:id/confirm', requireRole('super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const request = await confirmPaymentRequest(
+      req.params.id!,
+      req.user?.id ?? null,
+      typeof req.body?.notes === 'string' ? req.body.notes : undefined
+    );
+    res.json({ success: true, data: request, message: 'Payment confirmed and subscription activated' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error?.message || 'Failed to confirm payment' });
+  }
+});
+
+router.post('/admin/payment-requests/:id/reject', requireRole('super_admin'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const request = await rejectPaymentRequest(
+      req.params.id!,
+      req.user?.id ?? null,
+      typeof req.body?.notes === 'string' ? req.body.notes : undefined
+    );
+    res.json({ success: true, data: request, message: 'Payment request rejected' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error?.message || 'Failed to reject payment' });
   }
 });
 

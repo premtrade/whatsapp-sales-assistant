@@ -63,6 +63,18 @@ export async function sendSupportNotification(input: {
 export interface EmailService {
   sendTrialReminder(email: string, name: string, source: string, daysRemaining: number): Promise<void>;
   sendWelcomeEmail(email: string, name: string): Promise<void>;
+  sendPaymentRequest(
+    email: string,
+    name: string,
+    details: {
+      reference: string;
+      amount: number;
+      currency: string;
+      planName: string;
+      periodEnd: Date | string;
+      isRenewal: boolean;
+    }
+  ): Promise<void>;
 }
 
 export const emailService: EmailService = {
@@ -80,5 +92,52 @@ export const emailService: EmailService = {
       subject: 'Welcome to WAFLO',
       text: `Hi ${name},\n\nWelcome to WAFLO. Start by connecting your business WhatsApp number, adding your business knowledge, and sending a test reply.\n\nWAFLO Team`,
     });
+  },
+
+  async sendPaymentRequest(email, name, details): Promise<void> {
+    const {
+      reference,
+      amount,
+      currency,
+      planName,
+      periodEnd,
+      isRenewal,
+    } = details;
+    const { accountName, accountNumber, bankName, paymentEmail, paymentPhone } = config.billing;
+
+    const period = new Date(periodEnd);
+    const periodLabel = Number.isNaN(period.getTime())
+      ? 'your next billing period'
+      : period.toISOString().slice(0, 10);
+
+    const subject = isRenewal
+      ? `Your WAFLO ${planName} plan renews on ${periodLabel}`
+      : `Complete your WAFLO ${planName} subscription`;
+
+    const text = [
+      `Hi ${name},`,
+      '',
+      isRenewal
+        ? `Your ${planName} plan is due for renewal on ${periodLabel}. To keep your WhatsApp workflows running, please transfer ${amount} ${currency} using the details below.`
+        : `Please transfer ${amount} ${currency} to activate your ${planName} plan.`,
+      '',
+      'Payment details',
+      `  Reference:  ${reference}`,
+      `  Amount:     ${amount} ${currency}`,
+      `  Account:    ${accountName || 'ROLINJ.IO'}`,
+      `  Number:     ${accountNumber || '(contact us for our account details)'}`,
+      `  Bank:       ${bankName || ''}`,
+      '',
+      `Send the transfer using the reference above, then email proof of payment to ${paymentEmail || 'our support address'}${paymentPhone ? ` or call ${paymentPhone}` : ''}.`,
+      '',
+      'Your plan is activated as soon as we confirm the payment. You can see the reference and full payment details on the Billing page in your dashboard at any time.',
+      '',
+      'WAFLO Team',
+    ]
+      .filter((line) => line !== '')
+      .join('\n');
+
+    await sendEmail(email, { subject, text });
+    logger.info('Payment request email processed', { reference, isRenewal });
   },
 };

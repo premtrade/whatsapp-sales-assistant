@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getSubscription, getUsage, getPlans, createCheckoutSession, createCustomerPortalSession, getBetaStatus } from '@/services/api'
+import { getSubscription, getUsage, getPlans, createCheckoutSession, createCustomerPortalSession, getBetaStatus, getPaymentRequest, getPaymentHistory, cancelSubscriptionSelf, resumeSubscriptionSelf } from '@/services/api'
+import type { PaymentProviderInfo, PaymentRequest } from '@/services/api'
 
 type SubscriptionData = {
   subscription: {
@@ -9,6 +10,7 @@ type SubscriptionData = {
     trial_ends_at?: string | null
     current_period_end?: string | null
     grace_period_ends_at?: string | null
+    cancel_at_period_end?: string | null
     plan?: {
       name: string
       slug: string
@@ -23,6 +25,7 @@ type SubscriptionData = {
   gracePeriodDaysLeft: number | null
   isInGracePeriod: boolean
   paymentsConfigured?: boolean
+  paymentProvider?: PaymentProviderInfo | null
 }
 
 type UsageData = Record<string, { used: number; limit: number | null }>
@@ -49,6 +52,8 @@ export default function BillingPage() {
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [plans, setPlans] = useState<PlanOption[]>([])
   const [betaStatus, setBetaStatus] = useState<BetaStatus | null>(null)
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null)
+  const [history, setHistory] = useState<{ payments: any[]; paymentRequests: any[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
@@ -71,6 +76,10 @@ export default function BillingPage() {
       if (plansData.length > 0 && !plansData.some(p => p.slug === selectedPlanSlug)) {
         setSelectedPlanSlug(plansData[0].slug)
       }
+      if (subData?.paymentProvider?.requiresManualApproval) {
+        setPaymentRequest(await getPaymentRequest().catch(() => null))
+        setHistory(await getPaymentHistory().catch(() => null))
+      }
     } catch (error: any) {
       setLoadError(error?.message || 'Failed to load billing info')
     } finally {
@@ -80,6 +89,10 @@ export default function BillingPage() {
 
   useEffect(() => {
     load()
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('status') === 'requested') {
+      toast.success('Payment details ready — send the transfer and we will activate your plan.')
+    }
   }, [])
 
   const handleUpgrade = async (planSlug: string) => {
@@ -105,6 +118,27 @@ export default function BillingPage() {
       window.location.href = result.url
     } catch (error: any) {
       toast.error(error?.message || 'Failed to open billing portal')
+    }
+  }
+
+  const handleCancel = async () => {
+    if (!window.confirm('Cancel your subscription? You keep access until the end of the period you have already paid for.')) return
+    try {
+      await cancelSubscriptionSelf()
+      toast.success('Your subscription will end at the close of the current billing period.')
+      load()
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to cancel the subscription')
+    }
+  }
+
+  const handleResume = async () => {
+    try {
+      await resumeSubscriptionSelf()
+      toast.success('Your subscription will continue as normal.')
+      load()
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to resume the subscription')
     }
   }
 
@@ -146,7 +180,10 @@ export default function BillingPage() {
   const graceDaysLeft = sub?.gracePeriodDaysLeft ?? null
   const usageMetrics = usage || {}
   const paymentsConfigured = sub?.paymentsConfigured !== false
+  const provider = sub?.paymentProvider ?? null
+  const isManualProvider = provider?.requiresManualApproval === true
   const currentPlanSlug = plan?.slug
+  const cancelAtPeriodEnd = sub?.subscription?.cancel_at_period_end ?? null
 
   const nearLimitMetrics = Object.entries(usageMetrics).filter(([, data]) => {
     const limit = data.limit
@@ -164,7 +201,7 @@ export default function BillingPage() {
         <p className="text-sm text-surface-400">Manage your subscription and view usage.</p>
       </div>
 
-      {/* Beta notice when Stripe is not configured */}
+      {/* Notice when billing is not enabled on this environment */}
       {!paymentsConfigured && (
         <div className="bg-warning-50 border border-warning-100 rounded-xl p-4">
           <p className="text-sm font-medium text-warning-900">You&apos;re on the free beta</p>
@@ -172,6 +209,62 @@ export default function BillingPage() {
             Online billing is not enabled on this environment yet. Subscription and usage limits still apply;
             contact platform support if you need help changing your plan.
           </p>
+        </div>
+      )}
+
+      {/* Offline payment instructions (bank transfer / invoice) */}
+      {isManualProvider && (
+        <div className="bg-primary-50 border border-primary-100 rounded-xl p-5">
+          <h2 className="text-sm font-medium text-primary-900">Pay by bank transfer</h2>
+          {paymentRequest ? (
+            <>
+              <p className="text-xs text-primary-800 mt-1">
+                Send <strong>{paymentRequest.amount} {paymentRequest.currency}</strong> using the details below
+                and quote this reference. Your plan is activated as soon as we confirm the payment.
+              </p>
+              <dl className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                <div>
+                  <dt className="text-primary-700">Reference</dt>
+                  <dd className="font-mono text-sm font-semibold text-primary-900">{paymentRequest.reference}</dd>
+                </div>
+                <div>
+                  <dt className="text-primary-700">Amount</dt>
+                  <dd className="text-sm font-semibold text-primary-900">
+                    {paymentRequest.amount} {paymentRequest.currency}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-primary-700">Account name</dt>
+                  <dd className="text-primary-900">{provider?.instructions?.accountName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-primary-700">Account number</dt>
+                  <dd className="font-mono text-primary-900">
+                    {provider?.instructions?.accountNumber || (
+                      <span className="font-sans">
+                        We&apos;ll send you our account details — email {provider?.instructions?.contactEmail}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-primary-700">Bank</dt>
+                  <dd className="text-primary-900">{provider?.instructions?.bankName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-primary-700">Send proof to</dt>
+                  <dd className="text-primary-900">
+                    {provider?.instructions?.contactEmail || '—'}
+                    {provider?.instructions?.contactPhone ? ` · ${provider.instructions.contactPhone}` : ''}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <p className="text-xs text-primary-800 mt-1">
+              Choose a plan below and we will generate a payment reference and bank details for you.
+            </p>
+          )}
         </div>
       )}
 
@@ -263,14 +356,40 @@ export default function BillingPage() {
                 >
                   Change plan
                 </button>
+                {!isManualProvider && (
+                  <button
+                    onClick={handleManageBilling}
+                    disabled={upgrading}
+                    className="px-4 py-2 bg-surface-800 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Manage billing
+                  </button>
+                )}
+              </div>
+            )}
+            {cancelAtPeriodEnd ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-100 bg-warning-50 px-4 py-3">
+                <p className="text-xs text-warning-900">
+                  Your subscription is scheduled to end on{' '}
+                  <strong>{new Date(cancelAtPeriodEnd).toLocaleDateString()}</strong>. You keep full access until
+                  then.
+                </p>
                 <button
-                  onClick={handleManageBilling}
-                  disabled={upgrading}
-                  className="px-4 py-2 bg-surface-800 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 text-sm font-medium rounded-lg transition-colors"
+                  onClick={handleResume}
+                  className="px-3 py-1.5 bg-warning-600 hover:bg-warning-700 text-white text-xs font-medium rounded-lg transition-colors"
                 >
-                  Manage billing
+                  Keep my subscription
                 </button>
               </div>
+            ) : (
+              paymentsConfigured && (
+                <button
+                  onClick={handleCancel}
+                  className="text-xs text-surface-400 hover:text-surface-200 underline underline-offset-2"
+                >
+                  Cancel plan
+                </button>
+              )
             )}
           </div>
         ) : (
@@ -335,6 +454,81 @@ export default function BillingPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Payment history */}
+      {isManualProvider && history && (history.payments.length > 0 || history.paymentRequests.length > 0) && (
+        <div className="bg-surface-900 border border-surface-800 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-surface-100 mb-4">Payment history</h2>
+
+          {history.paymentRequests.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-surface-500 mb-2">Payment requests</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-950 text-surface-400">
+                    <tr>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Reference</th>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Amount</th>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Status</th>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Requested</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-800">
+                    {history.paymentRequests.map((req: any) => (
+                      <tr key={req.id}>
+                        <td className="px-3 py-2 text-surface-200 text-xs font-mono">{req.reference}</td>
+                        <td className="px-3 py-2 text-surface-300">{req.amount} {req.currency}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            req.status === 'confirmed' ? 'bg-success-500/10 text-success-400'
+                              : req.status === 'rejected' ? 'bg-error-500/10 text-error-400'
+                              : 'bg-warning-500/10 text-warning-400'
+                          }`}>
+                            {req.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-surface-400 text-xs">
+                          {req.created_at ? new Date(req.created_at).toLocaleDateString() : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {history.payments.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-surface-500 mb-2">Payments received</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-950 text-surface-400">
+                    <tr>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Reference</th>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Amount</th>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Method</th>
+                      <th scope="col" className="text-left px-3 py-2 font-medium">Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-800">
+                    {history.payments.map((p: any) => (
+                      <tr key={p.id}>
+                        <td className="px-3 py-2 text-surface-200 text-xs font-mono">{p.provider_payment_id || '-'}</td>
+                        <td className="px-3 py-2 text-surface-300">{p.amount} {p.currency}</td>
+                        <td className="px-3 py-2 text-surface-300 text-xs">{p.method || p.provider}</td>
+                        <td className="px-3 py-2 text-surface-400 text-xs">
+                          {p.paid_at ? new Date(p.paid_at).toLocaleDateString() : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

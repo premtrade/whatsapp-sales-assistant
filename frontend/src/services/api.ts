@@ -664,7 +664,7 @@ export async function getPlans(): Promise<Plan[]> {
   return response.data.data
 }
 
-export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null; gracePeriodDaysLeft: number | null; isInGracePeriod: boolean; paymentsConfigured?: boolean } | null> {
+export async function getSubscription(): Promise<{ subscription: any; trialDaysLeft: number | null; gracePeriodDaysLeft: number | null; isInGracePeriod: boolean; paymentsConfigured?: boolean; paymentProvider?: PaymentProviderInfo | null } | null> {
   const response = await api.get<{ success: boolean; data: any }>('/billing/subscription')
   return response.data.data
 }
@@ -712,6 +712,105 @@ export async function createCheckoutSession(data: { planSlug: string; successUrl
 
 export async function createCustomerPortalSession(data: { returnUrl: string }): Promise<{ url: string }> {
   const response = await api.post<{ success: boolean; data: { url: string } }>('/billing/customer-portal', data)
+  return response.data.data
+}
+
+export type PaymentProviderInfo = {
+  id: string
+  displayName: string
+  configured: boolean
+  requiresManualApproval: boolean
+  instructions?: {
+    accountName: string
+    accountNumber: string
+    bankName: string
+    contactEmail: string
+    contactPhone?: string
+  }
+}
+
+export type PaymentRequest = {
+  id: string
+  business_id: string
+  reference: string
+  amount: number
+  currency: string
+  status: 'pending' | 'confirmed' | 'rejected' | 'expired'
+  plan_name?: string
+  created_at: string
+}
+
+export async function getPaymentRequest(): Promise<PaymentRequest | null> {
+  const response = await api.get<{ success: boolean; data: PaymentRequest | null }>('/billing/subscription/payment-request')
+  return response.data.data
+}
+
+export type PaymentLedgerEntry = {
+  id: string
+  amount: number
+  currency: string
+  status: string
+  provider: string
+  provider_payment_id?: string | null
+  method?: string | null
+  paid_at?: string | null
+  created_at: string
+}
+
+export type PaymentRequestEntry = {
+  id: string
+  reference: string
+  amount: number
+  currency: string
+  status: string
+  method?: string | null
+  created_at: string
+  confirmed_at?: string | null
+}
+
+export async function getPaymentHistory(): Promise<{ payments: PaymentLedgerEntry[]; paymentRequests: PaymentRequestEntry[] }> {
+  const response = await api.get<{ success: boolean; data: { payments: PaymentLedgerEntry[]; paymentRequests: PaymentRequestEntry[] } }>(
+    '/billing/subscription/payments'
+  )
+  return response.data.data
+}
+
+export async function cancelSubscriptionSelf(): Promise<{ cancelAtPeriodEnd: string | null }> {
+  const response = await api.post<{ success: boolean; data: { cancelAtPeriodEnd: string | null } }>(
+    '/billing/subscription/cancel'
+  )
+  return response.data.data
+}
+
+export async function resumeSubscriptionSelf(): Promise<void> {
+  await api.post<{ success: boolean }>('/billing/subscription/resume')
+}
+
+export type AdminPaymentRequest = PaymentRequest & {
+  business_name?: string
+  plan_name?: string
+  notes?: string | null
+}
+
+export async function getAdminPaymentRequests(status?: string): Promise<AdminPaymentRequest[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const response = await api.get<{ success: boolean; data: AdminPaymentRequest[] }>(`/billing/admin/payment-requests${query}`)
+  return response.data.data
+}
+
+export async function confirmPaymentRequest(id: string, notes?: string): Promise<AdminPaymentRequest> {
+  const response = await api.post<{ success: boolean; data: AdminPaymentRequest }>(
+    `/billing/admin/payment-requests/${encodeURIComponent(id)}/confirm`,
+    { notes }
+  )
+  return response.data.data
+}
+
+export async function rejectPaymentRequest(id: string, notes?: string): Promise<AdminPaymentRequest> {
+  const response = await api.post<{ success: boolean; data: AdminPaymentRequest }>(
+    `/billing/admin/payment-requests/${encodeURIComponent(id)}/reject`,
+    { notes }
+  )
   return response.data.data
 }
 

@@ -53,6 +53,15 @@ jest.mock('../config', () => ({
       defaultModel: 'test-ai-model',
       embeddingModel: 'test-embedding-model',
     },
+    billing: {
+      // keep this mock in sync with the Config interface in src/config/index.ts.
+      provider: '',
+      accountName: 'ROLINJ.IO',
+      accountNumber: '0123456789',
+      bankName: 'Test Bank',
+      paymentEmail: 'billing@example.com',
+      paymentPhone: '+18760000000',
+    },
   },
 }));
 

@@ -146,7 +146,7 @@ export async function deletePlan(id: string): Promise<void> {
   const result = await query(`UPDATE plans SET is_active = FALSE, is_public = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`, [id])
   if (result.rows.length === 0) throw new NotFoundError('Plan not found')
 }
-const SUB_COLS = `s.id, s.business_id, s.plan_id, s.status, s.current_period_start, s.current_period_end, s.trial_ends_at, s.canceled_at, s.grace_period_ends_at, s.external_customer_id, s.external_subscription_id, s.metadata, s.created_at, s.updated_at, json_build_object('id', p.id, 'name', p.name, 'slug', p.slug, 'price_monthly', p.price_monthly, 'price_yearly', p.price_yearly, 'currency', p.currency, 'features', p.features, 'limits', p.limits, 'sort_order', p.sort_order, 'is_active', p.is_active, 'is_public', p.is_public, 'metadata', p.metadata, 'created_at', p.created_at, 'updated_at', p.updated_at) AS plan`;
+const SUB_COLS = `s.id, s.business_id, s.plan_id, s.status, s.current_period_start, s.current_period_end, s.trial_ends_at, s.canceled_at, s.grace_period_ends_at, s.cancel_at_period_end, s.external_customer_id, s.external_subscription_id, s.metadata, s.created_at, s.updated_at, json_build_object('id', p.id, 'name', p.name, 'slug', p.slug, 'price_monthly', p.price_monthly, 'price_yearly', p.price_yearly, 'currency', p.currency, 'features', p.features, 'limits', p.limits, 'sort_order', p.sort_order, 'is_active', p.is_active, 'is_public', p.is_public, 'metadata', p.metadata, 'created_at', p.created_at, 'updated_at', p.updated_at) AS plan`;
 
 export async function getActiveSubscription(businessId: string): Promise<SubscriptionWithPlan | null> {
   return getCached(`subscription:active:${businessId}`, async () => {

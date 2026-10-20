@@ -7,6 +7,7 @@ import { closePool } from './utils/database';
 import { initializeWebSocket } from './websocketServer';
 import { expireDueTrials } from './services/subscription.service';
 import { sendDueTrialReminders } from './services/trial-reminder.service';
+import { runOfflineBillingLifecycle } from './services/billing/offlineBilling.service';
 
 const server = createServer(app);
 const port = config.port;
@@ -38,10 +39,30 @@ server.listen(port, () => {
     }
   };
 
+  const runOfflineBilling = async (): Promise<void> => {
+    try {
+      const result = await runOfflineBillingLifecycle();
+      if (result.renewalsCreated || result.markedPastDue || result.expired) {
+        logger.info('Offline billing lifecycle job completed', result);
+      }
+    } catch (error) {
+      logger.error('Offline billing lifecycle job failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  };
+
   runTrialExpiry();
   setInterval(runTrialExpiry, 60 * 60 * 1000);
   runTrialReminders();
   setInterval(runTrialReminders, 60 * 60 * 1000);
+  runOfflineBilling();
+  setInterval(runOfflineBilling, 60 * 60 * 1000);
+
+  if (config.billing.provider === 'manual' && !config.billing.accountNumber) {
+    logger.warn(
+      'Offline billing is active but BILLING_ACCOUNT_NUMBER is empty. Customers will be asked to email ' +
+        'for account details. Set BILLING_ACCOUNT_NUMBER and BILLING_BANK_NAME to show them on the Billing page.'
+    );
+  }
 });
 
 server.on('error', (err) => {
