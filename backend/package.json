@@ -8,6 +8,7 @@
     "start:dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "start:prod": "node dist/server.js",
     "owner:recover": "node -r dotenv/config dist/scripts/seed-super-admin.js",
+    "seed:demo": "ts-node --transpile-only scripts/seed-demo.ts",
     "build": "tsc",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

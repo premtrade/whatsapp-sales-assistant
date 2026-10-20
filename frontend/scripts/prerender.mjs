@@ -13,6 +13,7 @@ const ROUTES = [
   { path: '/', file: 'index.html' },
   { path: '/blog', file: 'blog/index.html' },
   { path: '/faq', file: 'faq/index.html' },
+  { path: '/demo', file: 'demo/index.html' },
   { path: '/privacy', file: 'privacy/index.html' },
   { path: '/terms', file: 'terms/index.html' },
 ]

@@ -6,6 +6,7 @@ import LandingPage from './pages/LandingPage'
 import BlogPage from './pages/Blog'
 import BlogPostPage from './pages/BlogPost'
 import FAQPage from './pages/FAQ'
+import DemoPage from './pages/Demo'
 import PrivacyPage from './pages/Privacy'
 import TermsPage from './pages/Terms'
 
@@ -13,6 +14,7 @@ import { posts } from './content/blog'
 import { buildMetaTags, type MetaTag, type SeoConfig } from './seo/meta'
 import {
   BLOG_INDEX_SEO,
+  DEMO_SEO,
   FAQ_SEO,
   LANDING_SEO,
   PRIVACY_SEO,
@@ -34,6 +36,7 @@ export function getRoutes(): PrerenderRoute[] {
     { path: '/', outFile: 'index.html', seo: LANDING_SEO, element: <LandingPage /> },
     { path: '/blog', outFile: 'blog/index.html', seo: BLOG_INDEX_SEO, element: <BlogPage /> },
     { path: '/faq', outFile: 'faq/index.html', seo: FAQ_SEO, element: <FAQPage /> },
+    { path: '/demo', outFile: 'demo/index.html', seo: DEMO_SEO, element: <DemoPage /> },
     { path: '/privacy', outFile: 'privacy/index.html', seo: PRIVACY_SEO, element: <PrivacyPage /> },
     { path: '/terms', outFile: 'terms/index.html', seo: TERMS_SEO, element: <TermsPage /> },
   ]

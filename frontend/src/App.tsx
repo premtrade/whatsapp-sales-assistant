@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage'
 import BlogPage from './pages/Blog'
 import BlogPostPage from './pages/BlogPost'
 import FAQPage from './pages/FAQ'
+import DemoPage from './pages/Demo'
 import PrivacyPage from './pages/Privacy'
 import TermsPage from './pages/Terms'
 import { LoginPage } from './pages/Login'
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:slug" element={<BlogPostPage />} />
         <Route path="/faq" element={<FAQPage />} />
+        <Route path="/demo" element={<DemoPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/login" element={<LoginPage />} />

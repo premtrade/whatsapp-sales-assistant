@@ -155,8 +155,14 @@ export const FAQ_SEO: SeoConfig = {
   ],
 }
 
-export const PRIVACY_SEO: SeoConfig = {
-  title: 'Privacy Policy',
+export const DEMO_SEO: SeoConfig = {
+  title: 'Live demo',
+  description:
+    'See WAFLO handle a real WhatsApp roofing enquiry: qualify the lead, price from the business price list, send a quote and book a site visit.',
+  path: '/demo',
+}
+
+export const PRIVACY_SEO: SeoConfig = {  title: 'Privacy Policy',
   description:
     'How WAFLO collects, processes, and stores business and customer data, which third-party processors are involved, and how to request deletion.',
   path: '/privacy',
