@@ -182,10 +182,28 @@ more than enough — SMTP2GO's never-expiring 1,000/month plan and Resend's
 3,000/month are both comfortably above what trial reminders and renewals will
 use for a long time.
 
-One thing that applies to all of them: the sender must be a domain you control
-(`waflo.com`) with **SPF and DKIM** set up, or the mail will land in junk.
-That is a DNS change, not a code change, and it is worth doing before you pick
-a provider.
+One thing that applies to all of them: the sender should be a domain you control
+with **SPF and DKIM** set up, or the mail will land in junk.
+
+**If you do not own a domain yet** — WAFLO is served from a `*.vercel.app`
+subdomain, and you cannot add SPF or DKIM records for one: `vercel.app` is
+Vercel's DNS, not yours. So the domain-based path is closed until you buy a
+name. Your options without one:
+
+| Option | Domain needed | Cost | Notes |
+|---|---|---|---|
+| **SMTP2GO** | No | Free, 1,000/month forever | HTTP API, already implemented — set `EMAIL_PROVIDER=smtp2go` and `SMTP2GO_API_KEY`. You can send as `premtrade_ja@outlook.com` without verifying a domain. |
+| **Brevo** | No (verify a mailbox) | Free, 300/day | Adds a "Sent with Brevo" sticker and rate-limits unverified senders hard until you verify. |
+| **Your own Outlook mailbox over SMTP** | No | Free | Sends as a real person's address, which is arguably better trust for a solo founder's product. Needs an SMTP client library. |
+| **Amazon SES** | No (verify a mailbox) | ~$0.10 per 1,000 | Cheapest at volume, but needs an AWS account and either an SDK or an SMTP client. |
+| **Resend, Postmark, SES with a domain** | Yes | Varies | The good path — but needs a name you own. |
+
+**A domain is worth buying.** Around $12 a year for a `.com` (or a `.com.jm` /
+`.co.jm`, which suits the market), and it fixes several things at once: SPF
+and DKIM for real email, a brand that is not `waflo.vercel.app` on a product
+that asks a business to hand over their WhatsApp number, and correct
+`FRONTEND_URL` / canonical URLs without depending on a Vercel subdomain. Treat
+it as marketing spend, not just mail infrastructure.
 
 ## Processor options
 

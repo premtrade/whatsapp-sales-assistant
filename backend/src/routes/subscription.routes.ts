@@ -28,54 +28,9 @@ import {
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/auth';
 import { query } from '../utils/database';
+import { isAllowedReturnUrl } from '../utils/returnUrl';
 import logger from '../utils/logger';
 import { AuthenticatedRequest, Plan } from '../types';
-
-// Environments that provide billing return URLs. Sources are combined (not
-// first-match) so a deployment works with any of them: explicit
-// ALLOWED_RETURN_HOSTS, the frontend's public URL, or the CORS origin list
-// (CORS_ORIGINS) which production already sets.
-const RETURN_URL_ENV_SOURCES = [
-  'ALLOWED_RETURN_HOSTS',
-  'FRONTEND_PUBLIC_URL',
-  'VITE_FRONTEND_URL',
-  'FRONTEND_URL',
-  'CORS_ORIGINS',
-];
-
-/** Accepts both bare hosts (`waflo.vercel.app`) and origins (`https://waflo.vercel.app`). */
-function normalizeHost(value: string): string | null {
-  const v = value.trim().toLowerCase();
-  if (!v) return null;
-  if (v.includes('://')) {
-    try {
-      return new URL(v).host.toLowerCase();
-    } catch {
-      return null;
-    }
-  }
-  return v;
-}
-
-function isAllowedReturnUrl(url: string): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim();
-  if (trimmed.startsWith('/')) return true;
-  try {
-    const host = new URL(trimmed).host.toLowerCase();
-    const allowedHosts = RETURN_URL_ENV_SOURCES
-      .flatMap((name) => (process.env[name] || '').split(','))
-      .map(normalizeHost)
-      .filter((h): h is string => Boolean(h))
-      .filter((h, i, arr) => arr.indexOf(h) === i);
-    if (allowedHosts.length === 0) {
-      return host === 'localhost' || host === '127.0.0.1';
-    }
-    return allowedHosts.includes(host);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Whether this environment can collect money, and which provider is doing it.
