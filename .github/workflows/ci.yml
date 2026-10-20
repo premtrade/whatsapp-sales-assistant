@@ -367,8 +367,19 @@ jobs:
             compose pull backend frontend
             compose up -d --remove-orphans
 
-            echo "==> Reclaiming unused Docker build cache..."
+            echo "==> Reclaiming disk space..."
+            # Every deploy pulls a fresh backend image (about 2 GB, it has the
+            # embedding model baked in) and leaves the previous one behind.
+            # Without this the disk filled up and the next deploy failed
+            # halfway through, which is what happened on 2026-10-20.
             docker builder prune -af --filter "until=168h" || true
+            # Keep the images from the last six hours so a recent release can
+            # still be rolled back, and drop everything older.
+            docker image prune -af --filter "until=6h" || true
+            # Keep the last few release directories; each is a full source tree.
+            RELEASES_TO_KEEP=5
+            ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n "+$((RELEASES_TO_KEEP + 1))" | xargs -r rm -rf || true
+            echo "    disk: $(df -h / | tail -1 | awk '{print $4" free of "$2}')"
 
             echo "==> Waiting for backend health..."
             HEALTHY=0

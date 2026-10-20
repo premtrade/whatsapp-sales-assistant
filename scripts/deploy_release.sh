@@ -110,8 +110,15 @@ echo "    frontend image: $FRONTEND_IMAGE"
 compose pull backend frontend
 compose up -d --remove-orphans
 
-echo "==> Reclaiming unused Docker build cache..."
+echo "==> Reclaiming disk space..."
+# Every deploy pulls a fresh backend image (about 2 GB, it has the embedding
+# model baked in) and leaves the previous one behind. Without this the disk
+# fills up and the next deploy fails halfway through.
 docker builder prune -af --filter "until=168h" || true
+docker image prune -af --filter "until=6h" || true
+RELEASES_TO_KEEP=5
+ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n "+$((RELEASES_TO_KEEP + 1))" | xargs -r rm -rf || true
+echo "    disk: $(df -h / | tail -1 | awk '{print $4" free of "$2}')"
 
 echo "==> Waiting for backend health..."
 HEALTHY=0
