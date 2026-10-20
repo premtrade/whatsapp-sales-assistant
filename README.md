@@ -161,6 +161,7 @@ does not fit `vector(768)`); see `scripts/requirements.txt` for the Python setup
 | [docs/ONBOARDING.md](docs/ONBOARDING.md) | Technical setup and architecture walkthrough |
 | [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | End-user guide for the dashboard |
 | [docs/BILLING.md](docs/BILLING.md) | Payment collection, processor options, provider architecture |
+| [docs/DEMO.md](docs/DEMO.md) | The demo tenant, the public demo and the marketing screenshots |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment, Vercel + Droplet wiring |
 | [docs/runbook.md](docs/runbook.md) | Day-2 operations, migrations, troubleshooting |
 | [docs/monitoring.md](docs/monitoring.md), [docs/health-check.md](docs/health-check.md) | Health checks and monitoring |
