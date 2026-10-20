@@ -97,8 +97,21 @@ for stale in $(docker ps -a --format '{{.Names}}' | grep -E '^[0-9a-f]{12}_' || 
   docker rm -f "$stale" >/dev/null || true
 done
 
-echo "==> Building and updating the application containers..."
-compose up -d --build --remove-orphans
+echo "==> Pulling the CI-built images and updating the application containers..."
+# Use the images CI already built, tested and pushed to GHCR instead of
+# rebuilding on the host. Rebuilding here meant npm ci, tsc, a HuggingFace
+# model download and two Vite builds on every deploy, which overran the SSH
+# command timeout and left 15 GB of build cache on a 48 GB disk.
+SHORT_SHA="$(printf '%s' "$EXPECTED_SHA" | cut -c1-7)"
+export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/premtrade/whatsapp-sales-assistant-backend:sha-${SHORT_SHA}}"
+export FRONTEND_IMAGE="${FRONTEND_IMAGE:-ghcr.io/premtrade/whatsapp-sales-assistant-frontend:sha-${SHORT_SHA}}"
+echo "    backend image:  $BACKEND_IMAGE"
+echo "    frontend image: $FRONTEND_IMAGE"
+compose pull backend frontend
+compose up -d --remove-orphans
+
+echo "==> Reclaiming unused Docker build cache..."
+docker builder prune -af --filter "until=168h" || true
 
 echo "==> Waiting for backend health..."
 HEALTHY=0

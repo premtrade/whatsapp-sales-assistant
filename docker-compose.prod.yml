@@ -18,10 +18,23 @@ services:
   backend:
     ports: !override
       - "127.0.0.1:4000:4000"
+    # Production runs the images that CI already built, tested and pushed to
+    # GHCR. Building them again on the host doubled the deploy time (npm ci,
+    # tsc, the HuggingFace model download and two Vite builds), which pushed
+    # the deploy past the SSH command timeout, and it filled the disk with build
+    # cache. `pull_policy: always` makes Compose use the pulled image and ignore
+    # the `build:` section inherited from docker-compose.yml.
+    #
+    # BACKEND_IMAGE / FRONTEND_IMAGE are exported by the deploy job with the
+    # commit-pinned `sha-<short-sha>` tag; the defaults are for convenience.
+    image: ${BACKEND_IMAGE:-ghcr.io/premtrade/whatsapp-sales-assistant-backend:latest}
+    pull_policy: always
 
   frontend:
     ports: !override
       - "127.0.0.1:3000:3000"
+    image: ${FRONTEND_IMAGE:-ghcr.io/premtrade/whatsapp-sales-assistant-frontend:latest}
+    pull_policy: always
 
   pgadmin:
     ports: !override
