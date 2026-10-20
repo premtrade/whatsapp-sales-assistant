@@ -177,7 +177,7 @@ async function shoot(cdp, { clip, quality = 88, format = 'jpeg' }) {
  * document, which cuts the top off when the element is taller than the
  * viewport, so resizing is more reliable.
  */
-async function shootElement(cdp, selector, { quality = 90 } = {}) {
+async function shootElement(cdp, selector, { quality = 90, maxHeight = null, width = null } = {}) {
   // The marketing header is sticky, so it overlays whatever is scrolled to the
   // top of the viewport. Hide it for the capture.
   await cdp.evaluate(`
@@ -211,16 +211,21 @@ async function shootElement(cdp, selector, { quality = 90 } = {}) {
     `);
     if (!size) throw new Error(`element not found: ${selector}`);
 
-    const width = Math.min(size.width, 1400);
-    const height = Math.min(size.height + 30, 3400);
+  console.log(
+    `    ${selector}: ${size.width}x${size.height} css` +
+      (maxHeight ? ` -> cropping to ${Math.min(maxHeight, size.height)}` : '')
+  );
+
+    const targetWidth = width ?? Math.min(size.width, 1400);
+    const targetHeight = Math.min(size.height + 30, 3400);
     const current = await cdp.evaluate(
       'JSON.stringify({w: window.innerWidth, h: window.innerHeight})'
     );
     const { w, h } = JSON.parse(current);
-    if (w === width && h === height) break;
+    if (w === targetWidth && h === targetHeight) break;
     await cdp.send('Emulation.setDeviceMetricsOverride', {
-      width,
-      height,
+      width: targetWidth,
+      height: targetHeight,
       deviceScaleFactor: 2,
       mobile: false,
     });
@@ -229,6 +234,22 @@ async function shootElement(cdp, selector, { quality = 90 } = {}) {
 
   await cdp.evaluate(`window.scrollTo(${size.x}, ${size.y}); true`);
   await sleep(900);
+
+  // The conversation runs long. The landing page hero shows the top of it, so
+  // the viewport is trimmed to that height and the element is scrolled to the
+  // top of the screen. Capturing the viewport avoids the clip coordinate
+  // ambiguity entirely.
+  if (maxHeight) {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: Math.max(360, size.width),
+      height: Math.min(maxHeight, size.height),
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await sleep(900);
+    await cdp.evaluate(`window.scrollTo(${size.x}, ${size.y}); true`);
+    await sleep(700);
+  }
 
   const result = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality });
   return Buffer.from(result.data, 'base64');
@@ -289,7 +310,18 @@ async function main() {
     console.log('[screenshot] capturing the demo conversation');
     await goTo(cdp, `${SITE}/demo`, { delay: 5000 });
 
-    await write('demo-conversation.jpg', await shootElement(cdp, '[data-shot="conversation"]'));
+    // The conversation is captured at the demo page's natural width and cropped
+    // to the part that tells the story: the enquiry, the priced reply, and the
+    // quote going out. The quote card below it is rendered as live HTML on the
+    // landing page instead.
+    await write(
+      'demo-conversation.jpg',
+      await shootElement(cdp, '[data-shot="conversation"]', {
+        maxHeight: 660,
+        quality: 76,
+        width: 1400,
+      })
+    );
 
     try {
       await write('demo-stats.jpg', await shootElement(cdp, '[data-shot="stats"]'));
