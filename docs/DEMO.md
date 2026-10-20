@@ -1,29 +1,74 @@
 # The demo tenant
 
 WAFLO's marketing site shows screenshots of the running product rather than
-drawings of it. Those screenshots come from a seeded demo tenant, and the same
-tenant backs the public demo page at `/demo`.
+drawings of it, and a visitor can message the real assistant. Both come from
+one place: a demo tenant that is a showcase instance of **ROLINJ.IO**.
 
-Everything in it is fictional: a Jamaican roofing business called Harbour Point
-Roofing, with Jamaican phone numbers, JMD prices and Jamaica time.
+## Why ROLINJ.IO
 
-## What is in it
+The demo is the same business, the same services and the same knowledge base
+that the live agent answers from — on a tenant of its own, so nothing a real
+customer has written can ever be published.
+
+It is ROLINJ.IO because:
+
+- **It is already wired.** The live tenant has a connected WhatsApp number, a
+  live WhatsApp session, an indexed knowledge base and a working agent. Using
+  it means no second number to buy, no second session to pair and no second
+  knowledge base to maintain.
+- **The demo and the live agent cannot drift.** The knowledge base is copied
+  from the live ROLINJ.IO tenant on every seed, embeddings and all, so the
+  answers on the demo page are the answers a visitor gets when they message
+  the number.
+- **It is a real business with a real audience.** ROLINJ.IO sells automation
+  to small and medium businesses in Jamaica and the Caribbean, which is the
+  same buyer the product is for.
+
+### What stays fictional, and why
+
+The **showcase conversation** is written, not real. ROLINJ.IO's tenant holds
+482 messages from real people — enquiries from customers whose names and
+numbers are in the database. Publishing any of them on an unauthenticated
+endpoint would put a real person's words on the internet. The demo tenant
+exists so that the public page can show the product without touching anyone's
+data.
+
+The **lead names** are invented for the same reason.
+
+### The pricing, which is the interesting part
+
+ROLINJ.IO publishes no prices, and its knowledge profile is explicit: no
+starting prices were ever verified, and the assistant must never make a figure
+up. So the demo does not show one.
+
+The assistant in the demo conversation declines to quote, explains that pricing
+depends on the workflow, the tools and the integrations, and offers a free
+consultation instead. The quotes in the database are real documents with a real
+scope and a zero amount.
+
+That is a stronger demonstration than a confident number. A visitor who is
+sceptical of AI agents wants to see one refuse to invent a price, not one
+invent one.
+
+## What is in the tenant
 
 | | |
 |---|---|
-| Business | Harbour Point Roofing, Kingston. `businesses.metadata` carries `is_demo: true`, `public_demo: true` and `demo_agent_live: false`. |
-| Services | Seven roofing services priced in JMD, from a JMD 1,850/sq ft repair to a JMD 342,000 replacement. |
-| Enquiries | Six conversations spread over the last ten days, so the dashboard charts a real 30 day activity curve rather than a single flat point. |
-| Quotes | One sent (JMD 245,000 roof replacement) and one accepted (JMD 68,000 gutters), so the pipeline shows a 50% conversion rate rather than 0%. |
-| Appointments | One confirmed site visit and one completed. |
-| Knowledge base | Three documents with real 768 dimension embeddings, so the assistant can answer questions about the business instead of only describing itself. |
+| Business | ROLINJ.IO - Automation & AI Solutions. `businesses.metadata` carries `is_demo: true` and `public_demo: true`. |
+| Services | ROLINJ.IO's real plans — Starter, Pro and the Digital Transformation Suite. No prices; `metadata.pricedAfterDiscovery` is set on each. |
+| Enquiries | Four conversations spread over the last ten days, so the dashboard charts a real 30 day activity curve rather than a single flat point. |
+| Quotes | One sent and one accepted, both with a scope and a zero figure, so the pipeline shows a 50% conversion rate without claiming a price. |
+| Appointments | One completed consultation, one confirmed, one scheduled. |
+| Knowledge base | ROLINJ.IO's two real documents, 32 chunks, copied from the live tenant with their embeddings. |
+| Staff | Two demo accounts (`demo.admin@waflo.demo`, `demo.manager@waflo.demo`). The `.demo` domain is reserved for exactly this. |
 
 ## Running it
 
 The seed is idempotent: it removes the previous demo tenant and recreates the
-set. Everything except `staff_users` cascades from the business, and those rows
-are removed explicitly because `staff_users.business_id` is `ON DELETE SET NULL`
-and their unique email would otherwise block the next insert.
+set. Everything except `staff_users` cascades from the business, and those
+rows are removed explicitly because `staff_users.business_id` is
+`ON DELETE SET NULL` and their unique email would otherwise block the next
+insert.
 
 ```bash
 # On the server, inside the backend container
@@ -36,8 +81,8 @@ cd backend && npm run seed:demo
 npm run seed:demo -- --password='...' --email='...'
 ```
 
-The password can also be supplied as `DEMO_ADMIN_PASSWORD`. It is stored in
-`DEMO_ADMIN_PASSWORD` in the local `.env` so the screenshot script can sign in.
+The password can also come from `DEMO_ADMIN_PASSWORD`, which is what the
+server uses.
 
 ## The public demo surface
 
@@ -45,7 +90,7 @@ The password can also be supplied as `DEMO_ADMIN_PASSWORD`. It is stored in
 it is deliberately narrow:
 
 - The tenant is resolved from a fixed slug. Nothing the caller sends can
-  influence which tenant is read - there is no business id, tenant id or
+  influence which tenant is read — there is no business id, tenant id or
   header in the request.
 - The business must also be marked `is_demo`, so a slug collision with a real
   business cannot expose it.
@@ -55,30 +100,26 @@ The demo page at `/demo` renders the showcase conversation with the same
 `MessageBubble` component the dashboard uses, so a visitor sees the product's
 own markup rather than a picture of it.
 
-## Enabling the live WhatsApp demo
+## The number a visitor can message
 
-The seeded WhatsApp number is a placeholder and is **never published**. A
-visitor must not be sent a message to a stranger's phone.
+`DEMO_AGENT_WHATSAPP_NUMBER` is **configuration**, not tenant data. A tenant's
+`whatsapp_phone` can be a placeholder, and publishing one would send a
+visitor to a stranger's phone. The number comes from the environment:
 
-To turn on the live demo:
-
-1. Get a second number dedicated to the demo, and pair it to the demo tenant
-   through **Settings → WhatsApp** in the dashboard, exactly as a customer
-   would.
-2. Set the flag:
-
-```sql
-UPDATE businesses
-   SET metadata = metadata || '{"demo_agent_live": true}'::jsonb
- WHERE slug = 'waflo-demo';
+```bash
+DEMO_AGENT_WHATSAPP_NUMBER=18767998637
+DEMO_AGENT_WHATSAPP_NAME=ROLINJ.IO
 ```
 
-3. `GET /api/demo` then returns the number, and the landing page shows
-   "Or message our demo agent on WhatsApp" with a `wa.me` link.
+If it is empty the "message our agent" button is not rendered at all.
 
-The assistant on that number is the real agent with the seeded knowledge base,
-so it answers pricing, service area and inspection questions from the same
-documents the screenshots show.
+It is ROLINJ.IO's real, connected number, so there is no second SIM to buy
+and no second line to pay for. A visitor who messages it reaches the real
+assistant, on the real knowledge base, and gets a real answer.
+
+**One consequence worth knowing:** because it is the real number, a visitor's
+message arrives in ROLINJ.IO's actual inbox alongside real enquiries. That is
+the point — it is a working lead channel, not a sandbox.
 
 ## Screenshots
 
@@ -88,8 +129,8 @@ The marketing images are taken from the running product, not mocked up:
 node scripts/screenshot-demo.mjs
 ```
 
-It drives headless Chrome over the DevTools Protocol - no Puppeteer, no image
-libraries - signs into the demo tenant, and captures:
+It drives headless Chrome over the DevTools Protocol — no Puppeteer, no
+image libraries — signs into the demo tenant, and captures:
 
 | File | What it shows |
 |---|---|
@@ -102,4 +143,5 @@ Set `DEMO_SITE_URL`, `DEMO_API_URL`, `DEMO_ADMIN_EMAIL` and
 `DEMO_ADMIN_PASSWORD` to point it somewhere other than production.
 
 The images are committed, so the site does not depend on a screenshot run to
-build. Re-take them after changing the seed data.
+build. Re-take them after changing the seed data, and note that the
+conversation crop is tuned to the current thread length.

@@ -317,7 +317,7 @@ async function main() {
     await write(
       'demo-conversation.jpg',
       await shootElement(cdp, '[data-shot="conversation"]', {
-        maxHeight: 660,
+        maxHeight: 770,
         quality: 76,
         width: 1400,
       })
