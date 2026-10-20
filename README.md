@@ -15,7 +15,7 @@ WhatsApp ──> WAHA ──webhook──> n8n (Workflow 01: sanitize/persist)
                                           ├──> WAHA  (reply to the customer)
                                           └──> PostgreSQL (messages, memory, audit)
 
-Dashboard (React on Vercel) ──HTTP──> Backend API (Fastify) ──> PostgreSQL / Redis
+Dashboard (React on Vercel) ──HTTP──> Backend API (Express) ──> PostgreSQL / Redis
 Knowledge uploads ──> Backend API ──> Gemini embeddings ──> pgvector
 ```
 
@@ -33,7 +33,7 @@ not in the backend. The backend owns authentication, tenancy, CRUD, ingestion an
 | Vector search      | **pgvector** inside PostgreSQL (Qdrant was removed; see migration `032_pgvector_embeddings.sql`) |
 | Database           | PostgreSQL 15 with the `vector` extension                       |
 | Cache              | Redis                                                           |
-| Backend API        | Node 20 / TypeScript / Fastify                                  |
+| Backend API        | Node 20 / TypeScript / Express                                  |
 | Frontend           | React 18 + Vite (deployed to Vercel)                            |
 | Containers         | Docker Compose (`docker-compose.yml`, `docker-compose.prod.yml`) |
 
@@ -44,7 +44,7 @@ the Droplet (see `scripts/setup-vps-for-vercel.sh`), and pgAdmin is exposed dire
 
 ```
 whatsapp-sales-assistant/
-├── backend/           # Fastify REST API + WebSocket (TypeScript)
+├── backend/           # Express REST API + WebSocket (TypeScript)
 ├── frontend/          # React + Vite dashboard (Vercel: vercel.json)
 ├── workflows/         # n8n workflow JSON — source of truth for the AI pipeline
 │   └── live/          # Snapshot exported from the running n8n instance
@@ -97,6 +97,30 @@ cd backend  && npm run build            # tsc type-check
 cd tests    && npm ci && npm test       # jest API / security / contract tests
 ```
 
+### Frontend build pipeline
+
+`cd frontend && npm run build` does four things in order:
+
+1. `tsc` type-check
+2. `scripts/generate-og-image.mjs` — writes `public/og.png` (1200x630) used for link previews
+3. `vite build` — the client bundle, then `vite build --ssr` — a server-render bundle
+4. `scripts/prerender.mjs` — renders the marketing routes to static HTML and writes
+   `dist/index.html` (landing), `dist/app.html` (empty shell for authenticated routes),
+   `dist/blog/<slug>/index.html`, `dist/faq`, `dist/privacy`, `dist/terms`, plus
+   `dist/sitemap.xml` and `dist/robots.txt`
+
+Page metadata has a single source of truth in `frontend/src/seo/meta.ts`. The runtime `<Seo />`
+component and the prerender step both call `buildMetaTags`, so the tags a crawler sees and the tags
+a client-side navigation applies cannot drift.
+
+`vercel.json` rewrites every non-API path to `/app.html`, which Vercel serves only when no matching
+static file exists — so the prerendered marketing routes are served as static files, and authenticated
+routes boot from an empty shell.
+
+> The prerender step fetches the live plan list to render pricing statically. If the API is
+> unreachable the build still succeeds and pricing renders as a loading state. Set
+> `PRERENDER_API_URL` to point it at a different host.
+
 
 ## Model configuration (single source of truth)
 
@@ -136,6 +160,7 @@ does not fit `vector(768)`); see `scripts/requirements.txt` for the Python setup
 | -------- | ------- |
 | [docs/ONBOARDING.md](docs/ONBOARDING.md) | Technical setup and architecture walkthrough |
 | [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | End-user guide for the dashboard |
+| [docs/BILLING.md](docs/BILLING.md) | Payment collection, processor options, provider architecture |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment, Vercel + Droplet wiring |
 | [docs/runbook.md](docs/runbook.md) | Day-2 operations, migrations, troubleshooting |
 | [docs/monitoring.md](docs/monitoring.md), [docs/health-check.md](docs/health-check.md) | Health checks and monitoring |
