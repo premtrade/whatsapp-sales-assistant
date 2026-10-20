@@ -6,6 +6,7 @@ import { getBusinessIdentity } from '../services/aiContext.service';
 import { query } from '../utils/database';
 import { BadRequestError, ForbiddenError } from '../utils/errors';
 import { UserPayload } from '../types';
+import { resolveRequestTenant } from '../utils/tenant';
 
 /**
  * Knowledge diagnostics.
@@ -24,8 +25,10 @@ const testQuerySchema = z.object({
 
 function resolveScope(req: Request): { tenantId: string | undefined; role: string } {
   const user = (req as Request & { user?: UserPayload }).user;
-  const tenantId = user?.businessId || user?.tenantId;
-  return { tenantId, role: user?.role || '' };
+  return {
+    tenantId: resolveRequestTenant(req),
+    role: user?.role || '',
+  };
 }
 
 export const getKnowledgeDiagnostics = async (req: Request, res: Response): Promise<void> => {

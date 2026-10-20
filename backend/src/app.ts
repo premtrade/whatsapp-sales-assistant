@@ -56,7 +56,7 @@ app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret', 'X-Signature-256', 'X-Timestamp', 'X-API-Key', 'X-N8N-Webhook-Secret'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret', 'X-Signature-256', 'X-Timestamp', 'X-API-Key', 'X-N8N-Webhook-Secret', 'X-Tenant-Id'],
 }));
 
 app.use(requestIdMiddleware);

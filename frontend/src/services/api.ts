@@ -63,10 +63,45 @@ const api = axios.create({
   },
 })
 
+const TENANT_STORAGE_KEY = 'waflo_selected_tenant_id'
+
+/**
+ * Tenant selected by a platform owner (super_admin).
+ *
+ * A tenant user is always scoped to the tenant in their token. The platform
+ * owner has no tenant of their own, so the dashboard lets them pick one and
+ * every request then carries it in X-Tenant-Id. That keeps knowledge uploads,
+ * listings and diagnostics on the tenant that was actually selected instead
+ * of falling back to the first business.
+ */
+export function getSelectedTenantId(): string | null {
+  try {
+    return window.localStorage.getItem(TENANT_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setSelectedTenantId(tenantId: string | null): void {
+  try {
+    if (tenantId) {
+      window.localStorage.setItem(TENANT_STORAGE_KEY, tenantId)
+    } else {
+      window.localStorage.removeItem(TENANT_STORAGE_KEY)
+    }
+  } catch {
+    // storage unavailable - the selection just does not persist
+  }
+}
+
 api.interceptors.request.use((config) => {
   const token = getToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  const tenantId = getSelectedTenantId()
+  if (tenantId) {
+    config.headers['X-Tenant-Id'] = tenantId
   }
   return config
 })

@@ -10,7 +10,11 @@ import {
   reindexKnowledgeDocument,
   getKnowledgeDiagnostics,
   testKnowledgeQuery,
+  getAdminBusinesses,
+  getSelectedTenantId,
+  setSelectedTenantId,
 } from '@/services/api'
+import { useAuth } from '@/context/AuthContext'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { ErrorState, LoadingState, PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
@@ -51,11 +55,46 @@ export function KnowledgePage() {
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [testQuestion, setTestQuestion] = useState('')
   const queryClient = useQueryClient()
+  const { staff } = useAuth()
+  const isPlatformOwner = staff?.role === 'super_admin'
+
+  // Tenant selection for the platform owner. A tenant user is always scoped
+  // to the tenant in their token; the owner picks the tenant whose knowledge
+  // is being managed, and every request carries it in X-Tenant-Id so nothing
+  // is ever written to the wrong tenant.
+  const [tenants, setTenants] = useState<Array<{ id: string; name: string; slug: string; status: string }>>([])
+  const [selectedTenantId, setSelectedTenantIdState] = useState<string>('')
+
+  useEffect(() => {
+    if (!isPlatformOwner) return
+    let cancelled = false
+    getAdminBusinesses()
+      .then((data) => {
+        if (cancelled) return
+        setTenants(data)
+        setSelectedTenantIdState((current) => current || getSelectedTenantId() || data[0]?.id || '')
+      })
+      .catch(() => {
+        // the tenant list is optional - the page still works without it
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isPlatformOwner])
+
+  useEffect(() => {
+    if (!isPlatformOwner) return
+    if (!selectedTenantId) return
+    setSelectedTenantId(selectedTenantId)
+    queryClient.invalidateQueries({ queryKey: ['knowledge'] })
+  }, [isPlatformOwner, selectedTenantId, queryClient])
+
+  const selectedTenant = tenants.find((tenant) => tenant.id === selectedTenantId)
 
   // Knowledge health: which business the assistant answers for, whether the
   // stored chunks are actually searchable, and what a question retrieves.
   const { data: diagnostics } = useQuery({
-    queryKey: ['knowledge', 'diagnostics'],
+    queryKey: ['knowledge', 'diagnostics', selectedTenantId],
     queryFn: getKnowledgeDiagnostics,
     enabled: showDiagnostics,
   })
@@ -89,7 +128,7 @@ export function KnowledgePage() {
   }, [])
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['knowledge', 'documents', { search, status }],
+    queryKey: ['knowledge', 'documents', { search, status }, selectedTenantId],
     queryFn: () => getKnowledgeDocuments({ page: 1, limit: 50, status, search }),
   })
 
@@ -422,6 +461,31 @@ export function KnowledgePage() {
         </div>
       )}
 
+      {isPlatformOwner && (
+        <div className="card p-4">
+          <label htmlFor="knowledge-tenant" className="block text-sm font-semibold text-surface-800">
+            Tenant
+          </label>
+          <p className="text-xs text-surface-500 mb-2">
+            You are managing documents for a tenant. Everything below (uploads, listings, diagnostics) applies to
+            the selected tenant only.
+          </p>
+          <select
+            id="knowledge-tenant"
+            value={selectedTenantId}
+            onChange={(event) => setSelectedTenantIdState(event.target.value)}
+            className="input w-full sm:w-80"
+          >
+            {tenants.length === 0 && <option value="">Loading tenants…</option>}
+            {tenants.map((tenant) => (
+              <option key={tenant.id} value={tenant.id}>
+                {tenant.name} ({tenant.slug}) - {tenant.status}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="card p-4">
         <button
           onClick={() => setShowDiagnostics((value) => !value)}
@@ -449,6 +513,9 @@ export function KnowledgePage() {
                     <p className="font-semibold text-surface-800 mt-1">
                       {diagnostics.business.name || 'Unknown business'}
                     </p>
+                    {isPlatformOwner && selectedTenant && (
+                      <p className="text-xs text-surface-500 mt-1">Tenant: {selectedTenant.name}</p>
+                    )}
                     {diagnostics.business.greetingReply && (
                       <p className="text-xs text-surface-500 mt-1">
                         Greeting: “{diagnostics.business.greetingReply}”

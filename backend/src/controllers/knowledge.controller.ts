@@ -9,6 +9,7 @@ import { getPagination, getOptionalString } from '../utils/helpers';
 import { createAuditLog } from '../services/audit.service';
 import { UserPayload } from '../types';
 import { query } from '../utils/database';
+import { headerTenantId, resolveRequestTenant } from '../utils/tenant';
 import { normalizeMimeType, inferDocumentType } from '../services/textExtractor';
 
 const upload = multer({ 
@@ -38,13 +39,6 @@ const upload = multer({
     }
   },
 });
-
-function headerTenantId(req: Request): string | undefined {
-  const raw = req.headers['x-tenant-id'];
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  const trimmed = String(value || '').trim();
-  return trimmed ? trimmed : undefined;
-}
 
 async function resolveTenantId(currentUser: UserPayload, fallbackId?: string): Promise<string> {
   if (fallbackId) {
@@ -141,7 +135,7 @@ export const listKnowledgeDocuments = async (req: Request, res: Response): Promi
   const { page, limit, sortBy, sortOrder } = getPagination(req.query as Record<string, unknown>);
   const query = req.query as Record<string, unknown>;
   const user = (req as Request & { user?: UserPayload }).user;
-  const tenantId = user?.businessId || user?.tenantId;
+  const tenantId = resolveRequestTenant(req);
 
   // Fail closed: listKnowledgeDocuments is authenticated, so a non-super-admin
   // without a tenant must never fall through to an unscoped list of every
@@ -171,7 +165,7 @@ export const listKnowledgeDocuments = async (req: Request, res: Response): Promi
 };
 
 export const getKnowledgeDocument = async (req: Request, res: Response): Promise<void> => {
-  const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+  const tenantId = resolveRequestTenant(req);
   const doc = await getKnowledgeDocumentById(req.params.id!, tenantId);
 
   res.json({
@@ -271,7 +265,7 @@ export const updateKnowledgeStatusController = async (req: Request, res: Respons
 
   // Tenant-scoped: without the caller's businessId any staff user could flip
   // the status of another tenant's document (cross-tenant write). Super admins have global scope.
-  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
+  const tenantId = resolveRequestTenant(req);
 
   const doc = await updateKnowledgeDocumentStatus(req.params.id!, status, tenantId);
 
@@ -304,7 +298,7 @@ export const updateKnowledgeDocumentController = async (req: Request, res: Respo
   }
 
   const validated = updateSchema.parse(req.body);
-  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
+  const tenantId = resolveRequestTenant(req);
 
   const doc = await updateKnowledgeDocument(req.params.id!, validated, tenantId);
 
@@ -336,7 +330,7 @@ export const deleteKnowledgeDocumentController = async (req: Request, res: Respo
     throw new BadRequestError('Unauthorized');
   }
 
-  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
+  const tenantId = resolveRequestTenant(req);
   await deleteKnowledgeDocument(req.params.id!, tenantId);
 
   await createAuditLog(
@@ -368,7 +362,7 @@ export const reindexKnowledgeDocumentController = async (req: Request, res: Resp
     throw new BadRequestError('Unauthorized');
   }
 
-  const tenantId = currentUser.role === 'super_admin' ? undefined : (currentUser.businessId || currentUser.tenantId);
+  const tenantId = resolveRequestTenant(req);
   const result = await reindexDocument(req.params.id!, tenantId);
 
   await createAuditLog(
@@ -397,7 +391,7 @@ export const reindexKnowledgeDocumentController = async (req: Request, res: Resp
 // chunks and callers resort to unscoped guesses.
 export const getKnowledgeDocumentChunks = async (req: Request, res: Response): Promise<void> => {
   const user = (req as Request & { user?: UserPayload }).user;
-  const tenantId = user?.businessId || user?.tenantId;
+  const tenantId = resolveRequestTenant(req);
   // Fail closed for non-super-admins without tenant
   if (!tenantId && user?.role !== 'super_admin') {
     res.json({ success: true, data: [] });
@@ -410,7 +404,7 @@ export const getKnowledgeDocumentChunks = async (req: Request, res: Response): P
 export const searchKnowledgeChunks = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = vectorSearchSchema.parse(req.body);
-    const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+    const tenantId = resolveRequestTenant(req);
     // Strict tenant isolation: never search across tenants. This endpoint is
     // optionalAuth (callable by n8n/internal), so an unauthenticated caller has
     // no tenant context -> fail closed with empty results instead of leaking
@@ -451,7 +445,7 @@ export const searchKnowledgeChunks = async (req: Request, res: Response): Promis
 export const searchKnowledgeChunksText = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = textSearchSchema.parse(req.body);
-    const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+    const tenantId = resolveRequestTenant(req);
     // Strict tenant isolation: fail closed when there is no tenant context.
     if (!tenantId) {
       res.json({ success: true, data: [] });
@@ -512,7 +506,7 @@ export const embedText = async (req: Request, res: Response): Promise<void> => {
 export const hybridSearchKnowledge = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = hybridSearchSchema.parse(req.body);
-    const tenantId = (req as Request & { user?: UserPayload }).user?.businessId || (req as Request & { user?: UserPayload }).user?.tenantId;
+    const tenantId = resolveRequestTenant(req);
 
     // Decode the base64 vector -> 768 floats -> pgvector literal.
     // Empty string = no usable embedding (model cold-start/failure upstream):
