@@ -492,23 +492,25 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "05 - Appointment Tool",
-          "mode": "name"
+          "mode": "list",
+          "value": "JxWZezDlXCktUGjO",
+          "cachedResultUrl": "/workflow/JxWZezDlXCktUGjO",
+          "cachedResultName": "05 - Appointment Tool"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
-            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
-            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
-            "appointment_type": "={{ $('Parse AI Output').first().json.appointment_type || 'consultation' }}",
             "title": "={{ $('Parse AI Output').first().json.appointment_title || 'Appointment' }}",
             "location": "={{ $('Parse AI Output').first().json.appointment_location || '' }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
             "preferred_date": "={{ $('Parse AI Output').first().json.appointment_date || '' }}",
             "preferred_time": "={{ $('Parse AI Output').first().json.appointment_time || '' }}",
-            "duration_minutes": "={{ $('Parse AI Output').first().json.appointment_duration || 60 }}",
-            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
-          }
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "appointment_type": "={{ $('Parse AI Output').first().json.appointment_type || 'consultation' }}",
+            "duration_minutes": "={{ String($('Parse AI Output').first().json.appointment_duration || 60) }}"
+          },
+          "mappingMode": "defineBelow"
         },
         "options": {}
       },

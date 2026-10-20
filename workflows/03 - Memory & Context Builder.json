@@ -349,17 +349,51 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "03b - Knowledge Retriever",
-          "mode": "name"
+          "mode": "list",
+          "value": "RBSQbrBUrr2Svfwg",
+          "cachedResultName": "03b - Knowledge Retriever"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "business_id": "={{ String($('When Executed by Another Workflow').first().json.business_id || '') }}",
+            "limit": "={{ String(50) }}",
             "message": "={{ String($('When Executed by Another Workflow').first().json.message || '') }}",
-            "limit": "={{ 50 }}"
-          }
-        }
+            "business_id": "={{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          },
+          "schema": [
+            {
+              "id": "business_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "business_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "message",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "limit",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "limit",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
       },
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
