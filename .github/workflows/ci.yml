@@ -253,13 +253,16 @@ jobs:
 
             # Only one deploy may run at a time. Two overlapping deploys
             # recreate the same containers and collide on the compose helper
-            # container names.
+            # container names. A deploy that arrives while another is running
+            # waits for the lock rather than failing: a burst of pushes should
+            # deploy in order, not drop the newer commits.
             LOCK_FILE="$(dirname "$DEPLOY_PATH")/.waflo-deploy.lock"
             exec 9>"$LOCK_FILE"
-            if ! flock -n 9; then
-              echo "Another deploy is already running (lock: $LOCK_FILE)" >&2
+            if ! flock -w 900 9; then
+              echo "Timed out waiting for the deploy lock (lock: $LOCK_FILE)" >&2
               exit 1
             fi
+            echo "==> Holding the deploy lock."
 
             case "$DEPLOY_PATH" in
               /*) ;;
