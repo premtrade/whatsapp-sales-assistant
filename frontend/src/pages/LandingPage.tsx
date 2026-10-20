@@ -3,8 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { submitContactInquiry, getPlans } from '@/services/api'
 import Seo from '@/components/Seo'
 import SectionHeading from '@/components/SectionHeading'
-import { MarketingFooter } from '@/components/MarketingLayout'
-import SiteHeader from '@/components/SiteHeader'
+import MarketingLayout from '@/components/MarketingLayout'
 import { getStaticPlans } from '@/seo/staticPlans'
 import { LANDING_SEO } from '@/seo/routes'
 import type { Plan } from '@/types'
@@ -304,10 +303,8 @@ export default function LandingPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-white">
+    <MarketingLayout>
       <Seo config={LANDING_SEO} />
-
-      <SiteHeader />
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -946,7 +943,6 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <MarketingFooter />
-    </div>
+    </MarketingLayout>
   )
 }
