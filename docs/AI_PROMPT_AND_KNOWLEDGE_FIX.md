@@ -124,6 +124,44 @@ The knowledge page has a **Knowledge health** panel: the business name the
 assistant uses, how many documents are actually retrievable, and a box to test
 a question and see the retrieved chunks with their scores.
 
+### 3.6 Workflow-to-workflow inputs must be strings
+
+n8n validates the values an `executeWorkflow` node passes against the **child**
+workflow's declared input fields. Those fields carry no explicit type, so n8n
+treats them as strings and rejects a number:
+
+```
+Invalid input for 'limit' [item 0]   ('limit' expects a string but we got '50')
+```
+
+`03 - Memory & Context Builder` -> `Get Knowledge Chunks` passed
+`limit: {{ 50 }}` (a number). The node has `continueOnFail`, so the whole
+`03b - Knowledge Retriever` call was swallowed and the assistant received an
+**empty knowledge block** - it answered "I don't have the details on our
+services" while the retrieval itself worked perfectly.
+
+Fix: pass those inputs as strings (`{{ String(50) }}`,
+`{{ String(... || 60) }}`) and declare the child input types explicitly.
+
+### 3.7 The repo exports are a backup - the live n8n is the source of truth
+
+The repo copies of the n8n workflows had drifted (45 nodes). Syncing a stale
+repo node into the live instance is dangerous: the stale copy of
+`Get Knowledge Chunks` referenced the child workflow **by name** instead of by
+ID and had no input schema, which broke the call with
+"Workflow is not active and cannot be executed."
+
+Rules:
+
+1. After any manual edit in the n8n editor, run
+   `python3 scripts/reconcile_workflows_with_live.py workflows workflows/live`
+   **on the server** and commit the result.
+2. Check the drift with
+   `python3 scripts/verify_live_matches_repo.py workflows/live`
+   (must report `0 difference(s)`).
+3. Never sync a node to the live instance without looking at the live
+   parameters first.
+
 ## 4. How to re-apply to a live n8n instance
 
 ```bash
@@ -148,8 +186,8 @@ docker compose restart n8n && sleep 45
 python3 scripts/verify_live_matches_repo.py workflows/live
 ```
 
-`executeWorkflow` nodes keep their portable "name" references in the repo, so
-`verify_live_matches_repo.py` reports them as different - that is expected.
+The repo exports are a faithful copy of the live instance
+(`verify_live_matches_repo.py` -> `0 difference(s)`).
 
 ## 5. Verification (live instance, 2026-10-19)
 
@@ -158,6 +196,9 @@ python3 scripts/verify_live_matches_repo.py workflows/live
 | "Hi" | "Good evening! You're speaking with **ROLINJ.IO - Automation & AI Solutions**. How can I help you today?" |
 | "What are your services?" | answers with the six service categories from the KB, `escalate: false` |
 | "Hello, what are your services?" (message with a comma, `@c.us` number) | processed end to end, reply delivered to the conversation |
+| "Where are you located and what is your website?" | "We don't have a public office address; we serve businesses throughout Jamaica and the Caribbean. You can visit our website at https://rolin-io.vercel.app/" |
+| "Can I get an appointment for tomorrow at 3pm?" | "Sure, I've scheduled a free consultation for tomorrow, 2026-10-20 at 3 pm." (Appointment Tool executed) |
+| Knowledge in the context (after the input-type fix) | 26 chunks, best score 0.315, confidence high |
 | Business identity in the context | `ROLINJ.IO - Automation & AI Solutions`, `business_name_known: true` |
 | Knowledge in the context | 29 chunks, best score 0.520 (high) |
 
@@ -169,3 +210,7 @@ python3 scripts/verify_live_matches_repo.py workflows/live
   assistant must not name a company.
 * **An empty n8n Postgres parameter is dropped** - always pass the parameters
   as one array and guard the SQL casts.
+* **Workflow inputs are strings** - a number passed to a child workflow is
+  rejected and (with `continueOnFail`) fails silently.
+* **The live n8n instance is the source of truth** - reconcile the repo
+  exports after every manual edit.
