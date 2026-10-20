@@ -134,7 +134,10 @@ export default function DemoPage() {
           <div className="mt-10 grid gap-8 lg:grid-cols-5">
             {/* The conversation */}
             <div className="lg:col-span-3">
-              <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm">
+              <div
+                data-shot="conversation"
+                className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm"
+              >
                 <div className="flex items-center gap-3 border-b border-surface-200 bg-surface-50 px-4 py-3">
                   <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-xs shrink-0">
                     {demo.business.name
@@ -213,7 +216,10 @@ export default function DemoPage() {
 
             {/* The business context */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="rounded-2xl border border-surface-200 bg-white p-6 shadow-sm">
+              <div
+                data-shot="stats"
+                className="rounded-2xl border border-surface-200 bg-white p-6 shadow-sm"
+              >
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-surface-500">
                   This month
                 </h2>

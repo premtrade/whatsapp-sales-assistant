@@ -9,8 +9,8 @@
  * requires before it will serve anything.
  */
 import 'dotenv/config';
-import { seedDemoTenant } from '../src/services/demoSeed.service';
-import { closePool } from '../src/utils/database';
+import { seedDemoTenant } from '../services/demoSeed.service';
+import { closePool } from '../utils/database';
 
 async function main() {
   const result = await seedDemoTenant();
