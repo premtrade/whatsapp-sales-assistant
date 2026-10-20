@@ -1,0 +1,85 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { useAuth } from './context/AuthContext'
+import { AppLayout } from './components/Layout/AppLayout'
+import { DashboardPage } from './pages/Dashboard'
+import { InboxPage } from './pages/Inbox'
+import { ConversationDetailPage } from './pages/ConversationDetail'
+import { CustomersPage } from './pages/Customers'
+import { CustomerDetailPage } from './pages/CustomerDetail'
+import { Customer360Page } from './pages/Customer360'
+import { LeadsPage } from './pages/Leads'
+import { QuotesPage } from './pages/Quotes'
+import { AppointmentsPage } from './pages/Appointments'
+import { KnowledgePage } from './pages/Knowledge'
+import { HandoffsPage } from './pages/Handoffs'
+import { AIActivityPage } from './pages/AIActivity'
+import { AnalyticsPage } from './pages/Analytics'
+import { ConversionFunnelPage } from './pages/ConversionFunnel'
+import { SettingsPage } from './pages/Settings'
+import { LeadPipelinePage } from './pages/LeadPipeline'
+import PlansPage from './pages/Plans'
+import OwnerDashboardPage from './pages/OwnerDashboard'
+import UserManagementPage from './pages/UserManagement'
+import SubscriptionManagementPage from './pages/SubscriptionManagement'
+import ContactInquiriesPage from './pages/ContactInquiries'
+import ApiConfigurationPage from './pages/ApiConfiguration'
+import GlobalSettingsPage from './pages/GlobalSettings'
+import BillingPage from './pages/Billing'
+import { AuditLogsPage } from './pages/AuditLogs'
+import { RequireOwnerAccess } from './components/Auth/RequireOwnerAccess'
+import { RequireBusinessAdmin } from './components/Auth/RequireBusinessAdmin'
+
+function RequireAuth({ children }: { children: JSX.Element }) {
+  const { isAuthenticated, loading } = useAuth()
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-50">
+        <div className="w-8 h-8 border-3 border-surface-200 border-t-primary-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  return children
+}
+
+/**
+ * The operator console. Kept in its own module so it can be code-split: a
+ * prospect reading the marketing site never downloads the 30 dashboard screens.
+ */
+export default function AuthenticatedApp() {
+  return (
+    <RequireAuth>
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/inbox/:id" element={<ConversationDetailPage />} />
+          <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/customers/:id" element={<CustomerDetailPage />} />
+          <Route path="/customers/:id/360" element={<Customer360Page />} />
+          <Route path="/leads" element={<LeadsPage />} />
+          <Route path="/lead-pipeline" element={<LeadPipelinePage />} />
+          <Route path="/quotes" element={<QuotesPage />} />
+          <Route path="/appointments" element={<AppointmentsPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/handoffs" element={<HandoffsPage />} />
+          <Route path="/ai-activity" element={<AIActivityPage />} />
+          <Route path="/analytics/funnel" element={<ConversionFunnelPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/plans" element={<RequireOwnerAccess><PlansPage /></RequireOwnerAccess>} />
+          <Route path="/owner" element={<RequireOwnerAccess><OwnerDashboardPage /></RequireOwnerAccess>} />
+          <Route path="/owner/users" element={<RequireOwnerAccess><UserManagementPage /></RequireOwnerAccess>} />
+          <Route path="/owner/subscriptions" element={<RequireOwnerAccess><SubscriptionManagementPage /></RequireOwnerAccess>} />
+          <Route path="/owner/contact-inquiries" element={<RequireOwnerAccess><ContactInquiriesPage /></RequireOwnerAccess>} />
+          <Route path="/owner/api-config" element={<RequireOwnerAccess><ApiConfigurationPage /></RequireOwnerAccess>} />
+          <Route path="/owner/settings" element={<RequireOwnerAccess><GlobalSettingsPage /></RequireOwnerAccess>} />
+          <Route path="/billing" element={<RequireBusinessAdmin><BillingPage /></RequireBusinessAdmin>} />
+          <Route path="/audit-logs" element={<RequireOwnerAccess><AuditLogsPage /></RequireOwnerAccess>} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AppLayout>
+    </RequireAuth>
+  )
+}

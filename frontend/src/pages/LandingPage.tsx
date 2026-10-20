@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { submitContactInquiry, getPlans } from '@/services/api'
+import Seo from '@/components/Seo'
+import { MarketingFooter } from '@/components/MarketingLayout'
+import { getStaticPlans } from '@/seo/staticPlans'
+import { LANDING_SEO } from '@/seo/routes'
 import type { Plan } from '@/types'
 
 const whatsappGreen = '#25D366'
@@ -104,28 +108,44 @@ const steps = [
   },
 ]
 
-const testimonials = [
+const guarantees = [
   {
-    quote: 'We used to miss 30% of our WhatsApp leads because we were on job sites. Now the AI qualifies them and sends quotes while we work. We’ve closed 15% more jobs in the first month.',
-    name: 'Carlos M.',
-    role: 'Roofing Contractor',
+    title: 'It will not invent a price',
+    copy: 'Quotes are priced from your own product list, not from the model. If it cannot find a price it tells the customer and offers a person.',
   },
   {
-    quote: 'The lead scoring alone is worth it. I know exactly who’s ready to buy before I even pick up the phone.',
-    name: 'Sarah K.',
-    role: 'Plumbing Services',
+    title: 'It will not promise a slot it cannot keep',
+    copy: 'Appointments are checked against your existing schedule before a time is confirmed back to the customer.',
   },
   {
-    quote: 'Appointment bookings went up 40%. The AI handles the back-and-forth scheduling automatically.',
-    name: 'James T.',
-    role: 'Real Estate Agency',
+    title: 'It will not pretend to be human',
+    copy: 'Replies make clear that the customer is talking to an AI assistant, so nobody is misled about what they are getting.',
+  },
+  {
+    title: 'It will not work past you',
+    copy: 'When a request needs judgement — a complaint, an approval, an unusual job — it hands off with a summary of what the customer asked for.',
+  },
+]
+
+const fitPoints = [
+  {
+    title: 'Your own knowledge base',
+    copy: 'Load your services, price list and FAQs. The assistant answers from those documents and from the conversation history — not from a generic script.',
+  },
+  {
+    title: 'Your team stays in control',
+    copy: 'Every AI reply is visible in the inbox with the lead score beside it. Take over a conversation in one tap, and keep the thread in WhatsApp where the customer expects it.',
+  },
+  {
+    title: 'The number your customers already have',
+    copy: 'Connect the business number you already publish. Your customers keep messaging the same number they message today.',
   },
 ]
 
 const faqs = [
   {
     q: 'Do I need technical skills to set this up?',
-    a: 'No. Most businesses are live in 20 minutes. If you can use WhatsApp, you can use WAFLO.',
+    a: 'No. Creating the account and pairing your WhatsApp number are a few minutes of work. The part that determines how good the answers are is your knowledge base — your services, price list and FAQs — and we can build that with you as part of a managed setup.',
   },
   {
     q: 'Will the AI sound like a robot?',
@@ -141,11 +161,19 @@ const faqs = [
   },
   {
     q: 'Is my data secure?',
-    a: 'The platform uses encrypted databases and role-based access. Your data is never used to train AI models.',
+    a: 'Your data is stored on our servers and scoped to your business, so other tenants never see it. Replies and document retrieval are processed by the AI and embedding providers listed in our Privacy Policy.',
   },
   {
-    q: 'What if I want to self-host?',
-    a: 'The open-source version is available. You can run it on your own servers with full control.',
+    q: 'Do customers know they are talking to an AI?',
+    a: 'Yes. WAFLO is configured to say so in the first reply. An owner whose customers think they are talking to a person when they are not is exposed when the limitation shows.',
+  },
+  {
+    q: 'What does a subscription cost on top of WhatsApp fees?',
+    a: 'Each plan includes a set number of AI replies per month, shown on the pricing table. WhatsApp conversation charges from Meta are separate and passed through, so your total depends on your message volume. Ask us and we will model it for you before you commit.',
+  },
+  {
+    q: 'What if I want to run this on my own servers?',
+    a: 'WAFLO is a managed service. We run the application, the WhatsApp connection, the AI pipeline and the updates, and you use it from your browser.',
   },
 ]
 
@@ -154,11 +182,13 @@ export default function LandingPage() {
   const [contactSubmitted, setContactSubmitted] = useState(false)
   const [contactLoading, setContactLoading] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
-  const [plans, setPlans] = useState<Plan[] | null>(null)
-  const [plansLoading, setPlansLoading] = useState(true)
+  const [plans, setPlans] = useState<Plan[] | null>(getStaticPlans())
+  const [plansLoading, setPlansLoading] = useState(getStaticPlans() === null)
   const [plansError, setPlansError] = useState<string | null>(null)
 
   // Fetch pricing plans from backend API so the public page always agrees with enforcement.
+  // When plans were captured at build time (prerender) they are already in state and the
+  // live fetch still runs afterwards to pick up any change.
   useEffect(() => {
     let cancelled = false
     async function loadPlans() {
@@ -181,6 +211,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      <Seo config={LANDING_SEO} />
       {/* Navbar */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-md border-b border-surface-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -257,9 +288,13 @@ export default function LandingPage() {
                   <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                   Setup in 20 minutes
+                  Cancel any time
                 </span>
               </div>
+              <p className="mt-4 text-xs text-surface-500 max-w-xl">
+                Your customers are told they are talking to an AI assistant. You decide what it knows, and
+                a person is always one tap away.
+              </p>
             </div>
             <div className="relative">
               <div className="relative bg-white rounded-2xl shadow-2xl border border-surface-200 overflow-hidden">
@@ -300,6 +335,9 @@ export default function LandingPage() {
               <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-primary-200 rounded-full blur-3xl opacity-40 -z-10" />
               <div className="absolute -top-4 -left-4 w-32 h-32 bg-accent-200 rounded-full blur-3xl opacity-40 -z-10" />
             </div>
+            <p className="mt-6 text-center text-xs text-surface-500">
+              Illustrative example — a real WAFLO session looks like this.
+            </p>
           </div>
         </div>
       </section>
@@ -398,6 +436,7 @@ export default function LandingPage() {
                 <div className="w-3 h-3 rounded-full bg-yellow-400" />
                 <div className="w-3 h-3 rounded-full bg-green-400" />
                  <span className="ml-2 text-xs font-medium text-surface-400">WAFLO Dashboard</span>
+                 <span className="ml-auto text-xs text-surface-500">Illustrative sample data</span>
               </div>
               <div className="p-6 grid grid-cols-12 gap-4">
                 <div className="col-span-12 md:col-span-3 space-y-4">
@@ -458,14 +497,15 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-surface-950 tracking-tight">
-              Built on Open Source. Trusted by Businesses.
+              Built on Proven Technology. Run for You.
             </h2>
             <p className="mt-4 text-lg text-surface-600">
-              WAFLO is built with battle-tested open-source tools. No proprietary lock-in. Host it yourself or let us run it.
+              WAFLO is a managed service. We run the application, the WhatsApp connection, the AI pipeline
+              and the updates — you use it from your browser and keep your customer conversations in WhatsApp.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-6">
-            {['Express', 'React', 'PostgreSQL', 'pgvector', 'Qdrant', 'Groq', 'Gemini', 'n8n', 'WAHA', 'Redis', 'Docker', 'TypeScript'].map((tool) => (
+            {['Express', 'React', 'PostgreSQL', 'pgvector', 'Groq', 'Gemini', 'n8n', 'WAHA', 'Redis', 'Docker', 'TypeScript'].map((tool) => (
               <span key={tool} className="px-4 py-2 bg-white rounded-xl border border-surface-200 text-sm font-medium text-surface-700 shadow-sm">
                 {tool}
               </span>
@@ -476,7 +516,7 @@ export default function LandingPage() {
               <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Self-hostable
+              Managed by ROLINJ.IO
             </span>
             <a
               href="https://rolin-io.vercel.app/"
@@ -493,37 +533,75 @@ export default function LandingPage() {
               <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Open source core
+              Cancel any time
             </span>
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
+      {/* Guarantees — verifiable behaviour instead of customer testimonials */}
       <section className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-surface-950 tracking-tight">
+              What the Assistant Will Never Do
+            </h2>
+            <p className="mt-4 text-lg text-surface-600">
+              You are handing a customer-facing agent your business name. These boundaries are built into the
+              product — they are not just a promise on this page.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-6">
+            {guarantees.map((g) => (
+              <div key={g.title} className="bg-white rounded-2xl p-6 shadow-card border border-surface-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-surface-900 mb-2">{g.title}</h3>
+                    <p className="text-sm text-surface-600 leading-relaxed">{g.copy}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Fit */}
+      <section className="py-20 bg-surface-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-surface-950 tracking-tight">
               Built for Service Businesses Like Yours
             </h2>
+            <p className="mt-4 text-lg text-surface-600">
+              WAFLO is built around one assumption: your customers message you, and you are busy doing the
+              actual work.
+            </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <div key={t.name} className="bg-white rounded-2xl p-6 shadow-card border border-surface-200">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg key={i} className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <p className="text-sm text-surface-700 leading-relaxed mb-4">“{t.quote}”</p>
-                <div>
-                  <div className="text-sm font-semibold text-surface-900">{t.name}</div>
-                  <div className="text-xs text-surface-500">{t.role}</div>
-                </div>
+            {fitPoints.map((f) => (
+              <div key={f.title} className="bg-white rounded-2xl p-6 shadow-card border border-surface-200">
+                <h3 className="text-base font-semibold text-surface-900 mb-2">{f.title}</h3>
+                <p className="text-sm text-surface-600 leading-relaxed">{f.copy}</p>
               </div>
             ))}
+          </div>
+          <div className="mt-12 text-center">
+            <Link to="/signup" className="btn-primary inline-flex py-3 px-8 text-base">
+              Start Free Trial
+            </Link>
+            <p className="mt-3 text-sm text-surface-500">
+              Or read the setup guide first:{' '}
+              <Link to="/blog/setup-whatsapp" className="text-primary-700 hover:underline">
+                connect WhatsApp without SSH
+              </Link>
+            </p>
           </div>
         </div>
       </section>
@@ -693,24 +771,31 @@ export default function LandingPage() {
                          </span>
                        </li>
                      </ul>
-                     <a
-                       href="#"
-                       className={`mt-6 block text-center py-2.5 px-4 rounded-xl text-sm font-semibold ${
-                         isMostPopular
-                           ? 'bg-primary-600 text-white hover:bg-primary-500'
-                           : 'bg-surface-900 text-white hover:bg-surface-800'
-                       }`}
-                     >
-                       Start Free Trial
-                     </a>
+                      <Link
+                        to="/signup"
+                        className={`mt-6 block text-center py-2.5 px-4 rounded-xl text-sm font-semibold ${
+                          isMostPopular
+                            ? 'bg-primary-600 text-white hover:bg-primary-500'
+                            : 'bg-surface-900 text-white hover:bg-surface-800'
+                        }`}
+                      >
+                        Start Free Trial
+                      </Link>
                    </div>
                  );
                })}
              </div>
            )}
-           <p className="text-center text-sm text-surface-500 mt-8">
-             30-day money-back guarantee. No questions asked.
-           </p>
+            <div className="max-w-3xl mx-auto text-sm text-surface-600 space-y-2 mt-8">
+              <p>
+                One AI response is one reply the assistant sends to a customer. WhatsApp conversation charges
+                from Meta are separate from our subscription and are passed through at cost — your total
+                depends on your message volume. Ask us and we will model it for you before you commit.
+              </p>
+              <p className="text-surface-500">
+                Prices in USD. Change or cancel your plan from the Billing page at any time.
+              </p>
+            </div>
          </div>
        </section>
 
@@ -802,7 +887,7 @@ export default function LandingPage() {
           >
             <div>
               <h3 className="text-xl font-semibold text-surface-900">Talk to our team</h3>
-              <p className="mt-1 text-sm text-surface-600">Share a few details and your inquiry will be recorded for the WAFLO team. We’ll send an email confirmation when email delivery is configured.</p>
+              <p className="mt-1 text-sm text-surface-600">Share a few details and your inquiry will be recorded for the WAFLO team. We reply by email, usually the same working day.</p>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <label className="block text-sm font-medium text-surface-700">
@@ -846,50 +931,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-surface-950 text-surface-400 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-3.46-.36L3 20l1.36-4.54A9 9 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
-                <span className="text-lg font-bold text-white">WAFLO</span>
-              </div>
-              <p className="text-sm leading-relaxed">
-                Your AI sales assistant for WhatsApp. Built for service businesses that want to close more jobs with less admin.
-              </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#features" className="hover:text-white">Features</a></li>
-                <li><a href="#pricing" className="hover:text-white">Pricing</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Resources</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/blog" className="hover:text-white">Blog</Link></li>
-                <li><Link to="/faq" className="hover:text-white">FAQ</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Support</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="mailto:premtrade_ja@outlook.com" className="hover:text-white">premtrade_ja@outlook.com</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-12 pt-8 border-t border-surface-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-surface-500">
-              © 2026 WAFLO. Open source under MIT License. Built with ❤️ for service businesses.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }

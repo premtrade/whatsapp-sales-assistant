@@ -1,0 +1,22 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /inbox
+Disallow: /customers
+Disallow: /leads
+Disallow: /lead-pipeline
+Disallow: /quotes
+Disallow: /appointments
+Disallow: /knowledge
+Disallow: /handoffs
+Disallow: /ai-activity
+Disallow: /analytics
+Disallow: /settings
+Disallow: /plans
+Disallow: /owner
+Disallow: /billing
+Disallow: /audit-logs
+Disallow: /setup
+Disallow: /accept-invite
+
+Sitemap: https://waflo.vercel.app/sitemap.xml

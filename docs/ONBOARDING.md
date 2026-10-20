@@ -29,7 +29,7 @@ Estimated time: 30–45 minutes
 1. Open your dashboard URL in a browser
 2. Enter the admin email and temporary password provided by your system administrator
 3. You will be prompted to create a new password — choose a strong password and save it securely
-4. Complete any multi-factor authentication setup if required
+4. Continue to the dashboard
 
 ### 1.2 Business Profile
 
@@ -215,63 +215,63 @@ The AI uses your knowledge base to answer customer questions. A well-maintained 
 - Update documents regularly as offerings change
 - Name files descriptively: `2024-product-catalog.pdf` not `catalog.pdf`
 
-### 4.2 AI Behavior
+### 4.2 Business Settings
 
-1. Go to **Settings → General** (Admin only)
-2. Configure:
+**Settings → General** shows the settings rows that belong to your business, grouped into Company, AI,
+Notifications and Other. Every row can be edited and saved in place, and the search box filters by key or
+description.
 
-| Setting | Description |
+| Setting | What it does |
 |---|---|
-| AI Greeting | First message the AI sends to new customers |
-| AI Personality | Tone: Professional, Friendly, Casual |
-| Handoff Triggers | Keywords/phrases that trigger human handoff |
-| Business Hours | When the AI should operate vs. hand off |
-| Auto-Reply Delay | Seconds to wait before AI responds |
-| Lead Qualification | Criteria for lead scoring |
+| `currency` | Currency used for quotes and pipeline values |
+| `timezone` | Timezone used for appointments and message timestamps |
+| `whatsapp_api_version` | WhatsApp API version used by the connection |
+| `message_limit` | Maximum WhatsApp messages per 24 hours |
+| `ai_model` | Default chat model for the assistant |
+| `ai_prompt` | Custom instructions appended to the agent's system prompt |
+| `webhook_url` | n8n webhook URL used by the workflow |
+| `crm_provider` | CRM provider to sync with (`odoo` or `none`) |
+| `crm_sync_enabled` | Whether CRM sync runs automatically |
+| `odoo_url`, `odoo_db`, `odoo_api_key` | Odoo connection details |
 
-**Handoff triggers examples:**
-- "I want to speak to a person"
-- "Can I get a human?"
-- "I have a complaint"
-- "This is urgent"
+The conversational rules that govern the assistant — when it hands off, how it phrases a quote, when it
+asks a clarifying question — live in the workflow configuration rather than in a dashboard form. If you
+need those changed for your business, ask your administrator, or let us configure the agent for you as
+part of a managed setup.
 
-### 4.3 Message Templates
+### 4.3 WhatsApp Message Templates
 
-1. Go to **Settings → General** → **Message Templates**
-2. Common templates to create:
-
-| Template | When Used |
-|---|---|
-| Welcome Message | Sent when a customer first messages |
-| Away Message | Sent outside business hours |
-| Quote Follow-up | Sent after sending a quote |
-| Appointment Reminder | Sent 24 hours before appointment |
-| Thank You | Sent after a completed purchase |
+Approved WhatsApp templates are managed in **Settings → WhatsApp**, alongside the connection status and
+the device-pairing QR code. WhatsApp requires templates to be approved by Meta before they can be sent to
+customers who have not started a conversation with your number.
 
 ### 4.4 Integration Settings
 
-1. Go to **Settings → Integrations**
-2. Configure:
+**Settings → Integrations** connects a CRM. Odoo is the supported provider.
 
-| Integration | Description |
+| Integration | Status |
 |---|---|
-| Calendar Sync | Sync appointments with Google Calendar or Outlook |
-| CRM Export | Auto-export leads to external CRM |
-| Email Notifications | Which events trigger email alerts |
-| Webhook URL | Custom endpoint for event notifications |
+| Odoo CRM | Supported. Contacts become `res.partner`, qualified leads become `crm.lead`, and accepted quotes become `sale.order`. Sync is idempotent and never blocks a sale. |
+| CRM sync toggle | Enable or disable automatic sync per business |
+| Webhook URL | Set under Settings → General; used by the workflow to call back into the platform |
 
-### 4.5 Security Settings
+There is no external calendar sync. Appointments are managed inside WAFLO and notifications are sent over
+WhatsApp.
 
-1. Go to **Settings → Security** (Admin only)
-2. Configure:
+### 4.5 Access Control and Audit Trail
 
-| Setting | Description |
+Access in WAFLO is role-based, and every administrative action is written to an audit log.
+
+| Control | How it works |
 |---|---|
-| Password Policy | Minimum length, complexity requirements |
-| Session Timeout | Minutes of inactivity before auto-logout |
-| Two-Factor Auth | Require 2FA for all staff |
-| IP Whitelist | Restrict dashboard access to specific IPs |
-| Audit Log Retention | Days to keep audit logs |
+| Roles | Admin, Manager and Agent — see the permissions table in Phase 3 |
+| Password | Minimum 8 characters with at least one uppercase letter and one digit, enforced at signup and password change |
+| Session | A signed JWT carries your identity, role and tenant. It expires after the configured interval and re-login is required |
+| Tenant isolation | Every query is scoped to your business, so no other tenant can read your data |
+| Audit log | Settings → System records administrative actions with the actor and the affected record |
+| Platform access | A platform owner role exists for operational support. Any tenant impersonation is written to the audit log |
+
+Two-factor authentication, IP allow-listing and configurable session timeouts are **not** available today.
 
 ---
 
@@ -295,8 +295,7 @@ After completing onboarding, run this test:
 - [ ] WhatsApp number is connected and receiving messages
 - [ ] All staff accounts are created and staff can log in
 - [ ] Knowledge base has at least 3-5 relevant documents
-- [ ] AI greeting message is configured
-- [ ] Handoff triggers are set
+- [ ] Currency and timezone are set in Settings → General
 - [ ] Dashboard shows live data
 - [ ] Test message received AI response within 30 seconds
 - [ ] Test handoff appeared in Handoffs page

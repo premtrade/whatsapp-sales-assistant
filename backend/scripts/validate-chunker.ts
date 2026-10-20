@@ -4,7 +4,7 @@ const sample = `
 === Our Services ===
 5.1 AI Customer Assistant - WhatsApp chatbot that answers customer questions 24/7. Pricing starts at $199/month. Includes 1,000 conversations per month.
 5.2 CRM Integration - We integrate with HubSpot, Salesforce, Pipedrive and 40+ other tools. Migration takes 2-3 business days.
-5.3 Appointment Scheduling - Customers book directly in WhatsApp. Syncs with Google Calendar and Outlook. No-show reminders included.
+5.3 Appointment Scheduling - Customers book directly in WhatsApp. Reminders sent over WhatsApp. No-show reminders included.
 
 === Pricing ===
 All plans billed monthly. Enterprise plan includes dedicated support. Contact sales for custom pricing.
