@@ -45,9 +45,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, sku, name, description, price, currency FROM products WHERE active = true AND business_id = $2::uuid AND (name ILIKE '%' || $1 || '%' OR sku ILIKE $1) LIMIT 1;",
+        "query": "SELECT id, sku, name, description, price, currency FROM products WHERE active = true AND business_id = NULLIF($2, '')::uuid AND (name ILIKE '%' || $1 || '%' OR sku ILIKE $1) LIMIT 1;",
         "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.product_name_or_sku || '' }}, {{ $('When Executed by Another Workflow').first().json.business_id }}"
+          "queryReplacement": "={{ [String(($('When Executed by Another Workflow').first().json.product_name_or_sku || '') ?? ''), String(($('When Executed by Another Workflow').first().json.business_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -116,9 +116,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO quotes (business_id, contact_id, conversation_id, quote_number, status, subtotal, tax, discount, total, currency, notes, valid_until, metadata) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $9, $5, 0, 0, $6, $7, $8, NOW() + INTERVAL '14 days', $10) ON CONFLICT (quote_number) DO NOTHING RETURNING id, quote_number, total, currency, valid_until;",
+        "query": "INSERT INTO quotes (business_id, contact_id, conversation_id, quote_number, status, subtotal, tax, discount, total, currency, notes, valid_until, metadata) VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, $4, $9, $5, 0, 0, $6, $7, $8, NOW() + INTERVAL '14 days', $10) ON CONFLICT (quote_number) DO NOTHING RETURNING id, quote_number, total, currency, valid_until;",
         "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.business_id }}\n{{ $json.contact_id }}\n{{ $json.conversation_id }}\n{{ $json.quote_number }}\n{{ $json.subtotal }}\n{{ $json.total }}\n{{ $json.currency }}\n{{ $json.notes }}\n{{ $json.status }}\n{{ JSON.stringify($json.metadata || {}) }}"
+          "queryReplacement": "={{ [String(($('When Executed by Another Workflow').first().json.business_id) ?? ''), String(($json.contact_id) ?? ''), String(($json.conversation_id) ?? ''), String(($json.quote_number) ?? ''), String(($json.subtotal) ?? ''), String(($json.total) ?? ''), String(($json.currency) ?? ''), String(($json.notes) ?? ''), String(($json.status) ?? ''), String((JSON.stringify($json.metadata || {})) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -139,9 +139,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO quote_items (business_id, quote_id, product_id, line_number, quantity, unit_price, line_total) VALUES ($1::uuid, $2::uuid, $3::uuid, 1, $4, $5, $6) RETURNING id;",
+        "query": "INSERT INTO quote_items (business_id, quote_id, product_id, line_number, quantity, unit_price, line_total) VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, 1, $4, $5, $6) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.business_id }}\n{{ $('Create Quote Record').first().json.id }}\n{{ $('Calculate Quote Details').first().json.product_id }}\n{{ $('Calculate Quote Details').first().json.quantity }}\n{{ $('Calculate Quote Details').first().json.unit_price }}\n{{ $('Calculate Quote Details').first().json.total }}"
+          "queryReplacement": "={{ [String(($('When Executed by Another Workflow').first().json.business_id) ?? ''), String(($('Create Quote Record').first().json.id) ?? ''), String(($('Calculate Quote Details').first().json.product_id) ?? ''), String(($('Calculate Quote Details').first().json.quantity) ?? ''), String(($('Calculate Quote Details').first().json.unit_price) ?? ''), String(($('Calculate Quote Details').first().json.total) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -162,9 +162,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('quote', $1::uuid, 'quote_created', NULL, 'ai', 'Quote generated via AI tool', jsonb_build_object('quote_number', $2), jsonb_build_object('request_id', $3, 'timestamp', NOW())) RETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('quote', NULLIF($1, '')::uuid, 'quote_created', NULL, 'ai', 'Quote generated via AI tool', jsonb_build_object('quote_number', $2), jsonb_build_object('request_id', $3, 'timestamp', NOW())) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $('Create Quote Record').first().json.id }}\n{{ $('Create Quote Record').first().json.quote_number }}\n{{ $('When Executed by Another Workflow').first().json.request_id }}"
+          "queryReplacement": "={{ [String(($('Create Quote Record').first().json.id) ?? ''), String(($('Create Quote Record').first().json.quote_number) ?? ''), String(($('When Executed by Another Workflow').first().json.request_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",

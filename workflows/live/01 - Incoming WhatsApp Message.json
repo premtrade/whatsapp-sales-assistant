@@ -214,9 +214,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, (SELECT resolved_phone FROM resolved), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) IS NOT NULL AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> NULLIF($5, '')) FROM businesses b WHERE (regexp_replace(regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') OR b.waha_session_name = $3) AND b.deleted_at IS NULL ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
+        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, COALESCE(NULLIF((SELECT resolved_phone FROM resolved), ''), 'unknown'), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> '' AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> COALESCE(NULLIF($5, ''), '')) FROM businesses b WHERE (regexp_replace(regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') = regexp_replace(regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'), '^1([0-9]{10})$', '\\1', 'g') OR b.waha_session_name = $3) AND b.deleted_at IS NULL ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
         "options": {
-          "queryReplacement": "={{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.customer_name }}, {{ $('Sanitize Inputs').first().json.business_phone }}, {{ $('Sanitize Inputs').first().json.phone }}, {{ $('Sanitize Inputs').first().json.wa_lid }}, {{ $('Sanitize Inputs').first().json.chat_id }}"
+          "queryReplacement": "={{ [String(($('Sanitize Inputs').first().json.phone) ?? ''), String(($('Sanitize Inputs').first().json.customer_name) ?? ''), String(($('Sanitize Inputs').first().json.business_phone) ?? ''), String(($('Sanitize Inputs').first().json.phone) ?? ''), String(($('Sanitize Inputs').first().json.wa_lid) ?? ''), String(($('Sanitize Inputs').first().json.chat_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -237,9 +237,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO conversations (business_id, contact_id, channel, status, last_message_at)\nSELECT business_id, id, 'whatsapp', 'active', NOW()\nFROM contacts\nWHERE id = $1::uuid\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id, business_id;",
+        "query": "INSERT INTO conversations (business_id, contact_id, channel, status, last_message_at)\nSELECT business_id, id, 'whatsapp', 'active', NOW()\nFROM contacts\nWHERE id = NULLIF($1, '')::uuid\nON CONFLICT (contact_id, channel)\nDO UPDATE SET last_message_at = NOW()\nRETURNING id, business_id;",
         "options": {
-          "queryReplacement": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}"
+          "queryReplacement": "={{ [String((String($(\"Upsert Contact\").first().json.id || \"\")) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -262,7 +262,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO messages (\n    conversation_id, whatsapp_message_id, direction,\n    sender_type, message_type, text_body, metadata, business_id\n)\nVALUES (\n    $1, $2, 'incoming', 'customer', 'text', $3::text, jsonb_build_object('event', $4, 'phone', $5, 'customer_name', $6, 'timestamp', $7, 'hasMedia', $8), $9\n)\nON CONFLICT (whatsapp_message_id)\nDO NOTHING\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ String($(\"Sanitize Inputs\").first().json.message_id || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\") }}, {{ String($(\"Normalize Payload\").first().json.event || \"\") }}, {{ String($(\"Normalize Payload\").first().json.phone || \"\") }}, {{ JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\") }}, {{ String($(\"Normalize Payload\").first().json.timestamp || \"\") }}, {{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}, {{ String($(\"Upsert Conversation\").first().json.business_id || \"\") }}"
+          "queryReplacement": "={{ [String((String($(\"Upsert Conversation\").first().json.id || \"\")) ?? ''), String((String($(\"Sanitize Inputs\").first().json.message_id || \"\")) ?? ''), String((JSON.stringify($(\"Sanitize Inputs\").first().json.message || \"\")) ?? ''), String((String($(\"Normalize Payload\").first().json.event || \"\")) ?? ''), String((String($(\"Normalize Payload\").first().json.phone || \"\")) ?? ''), String((JSON.stringify($(\"Sanitize Inputs\").first().json.customer_name || \"\")) ?? ''), String((String($(\"Normalize Payload\").first().json.timestamp || \"\")) ?? ''), String((Boolean($(\"Normalize Payload\").first().json.hasMedia)) ?? ''), String((String($(\"Upsert Conversation\").first().json.business_id || \"\")) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -285,7 +285,7 @@
         "operation": "executeQuery",
         "query": "UPDATE conversations\nSET last_message_at = NOW(), updated_at = NOW()\nWHERE id = $1\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}"
+          "queryReplacement": "={{ [String((String($(\"Upsert Conversation\").first().json.id || \"\")) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -340,9 +340,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (\n    entity_type, entity_id, action, performed_by,\n    performed_by_type, description, new_values, metadata\n)\nVALUES (\n    'conversation', $1, 'message_received', NULL,\n    'system', 'Incoming WhatsApp message received', $2::jsonb,\n    jsonb_build_object('source', 'whatsapp', 'workflow', 'Webhook 1')\n)\nRETURNING id;",
+        "query": "INSERT INTO audit_logs (\n    entity_type, entity_id, action, performed_by,\n    performed_by_type, description, new_values, metadata\n)\nVALUES (\n    'conversation', $1, 'message_received', NULL,\n    'system', 'Incoming WhatsApp message received', COALESCE(NULLIF($2, '')::jsonb, '{}'::jsonb),\n    jsonb_build_object('source', 'whatsapp', 'workflow', 'Webhook 1')\n)\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}, {{ JSON.stringify($(\"Normalize Payload\").first().json) }}"
+          "queryReplacement": "={{ [String((String($(\"Upsert Conversation\").first().json.id || \"\")) ?? ''), String((JSON.stringify($(\"Normalize Payload\").first().json)) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -507,7 +507,7 @@
         "operation": "executeQuery",
         "query": "WITH target AS (\n    SELECT cv.id AS conversation_id\n    FROM contacts c\n    JOIN conversations cv ON cv.contact_id = c.id AND cv.channel = 'whatsapp'\n    WHERE c.phone = $1\n    ORDER BY cv.last_message_at DESC NULLS LAST\n    LIMIT 1\n),\necho AS (\n    SELECT EXISTS(\n        SELECT 1\n        FROM messages m\n        WHERE m.conversation_id = (SELECT conversation_id FROM target)\n          AND m.direction = 'outgoing'\n          AND m.created_at > NOW() - INTERVAL '15 minutes'\n          AND length($2) > 0\n          AND lower(regexp_replace(coalesce(m.text_body, ''), '[^a-zA-Z0-9]+', '', 'g')) = $2\n    ) AS is_echo\n),\nown AS (\n    SELECT EXISTS(\n        SELECT 1 FROM businesses b\n        WHERE regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace($1, '[^0-9]', '', 'g')\n          AND b.deleted_at IS NULL\n    ) AS is_own_number\n)\nSELECT own.is_own_number, echo.is_echo, (own.is_own_number OR echo.is_echo) AS should_block\nFROM own CROSS JOIN echo;",
         "options": {
-          "queryReplacement": "={{ $json.phone }}, {{ ($json.message || '').replace(/[^a-zA-Z0-9]+/g, '').toLowerCase() }}"
+          "queryReplacement": "={{ [String(($json.phone) ?? ''), String((($json.message || '').replace(/[^a-zA-Z0-9]+/g, '').toLowerCase()) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",

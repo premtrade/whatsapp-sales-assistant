@@ -54,9 +54,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT h.id, h.status, h.reason, h.assigned_to, h.created_at FROM handoffs h JOIN conversations c ON c.id = h.conversation_id AND c.business_id = h.business_id WHERE h.conversation_id = $1::uuid AND h.status = 'pending' LIMIT 1;",
+        "query": "SELECT h.id, h.status, h.reason, h.assigned_to, h.created_at FROM handoffs h JOIN conversations c ON c.id = h.conversation_id AND c.business_id = h.business_id WHERE h.conversation_id = NULLIF($1, '')::uuid AND h.status = 'pending' LIMIT 1;",
         "options": {
-          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}",
+          "queryReplacement": "={{ [String((String($('Normalize Input').first().json.conversation_id || '')) ?? '')] }}",
           "continueOnFail": true
         }
       },
@@ -111,9 +111,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE conversations SET status = 'waiting_agent', updated_at = NOW() WHERE id = $1::uuid RETURNING id, status, business_id;",
+        "query": "UPDATE conversations SET status = 'waiting_agent', updated_at = NOW() WHERE id = NULLIF($1, '')::uuid RETURNING id, status, business_id;",
         "options": {
-          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}",
+          "queryReplacement": "={{ [String((String($('Normalize Input').first().json.conversation_id || '')) ?? '')] }}",
           "continueOnFail": true
         }
       },
@@ -135,9 +135,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO handoffs (business_id, conversation_id, status, reason, assigned_to) SELECT c.business_id, c.id, 'pending', $2, CASE WHEN $3 IS NULL OR btrim($3) = '' OR lower(btrim($3)) = 'null' THEN NULL WHEN $3 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN $3::uuid WHEN lower(btrim($3)) IN ('unassigned', 'none', 'n/a') THEN NULL ELSE (SELECT su.id FROM staff_users su WHERE su.business_id = c.business_id AND su.status = 'active' AND (su.display_name ILIKE btrim($3) || '%' OR su.first_name ILIKE btrim($3) OR su.last_name ILIKE btrim($3) OR su.email::text ILIKE btrim($3) || '%') ORDER BY su.display_name LIMIT 1) END FROM conversations c WHERE c.id = $1::uuid RETURNING id, status, reason, assigned_to, created_at;",
+        "query": "INSERT INTO handoffs (business_id, conversation_id, status, reason, assigned_to) SELECT c.business_id, c.id, 'pending', $2, CASE WHEN $3 IS NULL OR btrim($3) = '' OR lower(btrim($3)) = 'null' THEN NULL WHEN $3 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN NULLIF($3, '')::uuid WHEN lower(btrim($3)) IN ('unassigned', 'none', 'n/a') THEN NULL ELSE (SELECT su.id FROM staff_users su WHERE su.business_id = c.business_id AND su.status = 'active' AND (su.display_name ILIKE btrim($3) || '%' OR su.first_name ILIKE btrim($3) OR su.last_name ILIKE btrim($3) OR su.email::text ILIKE btrim($3) || '%') ORDER BY su.display_name LIMIT 1) END FROM conversations c WHERE c.id = NULLIF($1, '')::uuid RETURNING id, status, reason, assigned_to, created_at;",
         "options": {
-          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}\n{{ String($('Normalize Input').first().json.reason || '') }}\n{{ String($('Normalize Input').first().json.assigned_to || '') }}",
+          "queryReplacement": "={{ [String((String($('Normalize Input').first().json.conversation_id || '')) ?? ''), String((String($('Normalize Input').first().json.reason || '')) ?? ''), String((String($('Normalize Input').first().json.assigned_to || '')) ?? '')] }}",
           "continueOnFail": true
         }
       },
@@ -159,9 +159,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', $1::uuid, 'human_handoff_requested', NULL, 'ai', $2, jsonb_build_object('handoff_id', $3::uuid), jsonb_build_object('request_id', $4, 'timestamp', NOW())) RETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', NULLIF($1, '')::uuid, 'human_handoff_requested', NULL, 'ai', $2, jsonb_build_object('handoff_id', NULLIF($3, '')::uuid), jsonb_build_object('request_id', $4, 'timestamp', NOW())) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ String($('Normalize Input').first().json.conversation_id || '') }}\n{{ String($('Normalize Input').first().json.reason || '') }}\n{{ String($('Create Handoff Record').first().json.id || '') }}\n{{ String($('Normalize Input').first().json.request_id || '') }}",
+          "queryReplacement": "={{ [String((String($('Normalize Input').first().json.conversation_id || '')) ?? ''), String((String($('Normalize Input').first().json.reason || '')) ?? ''), String((String($('Create Handoff Record').first().json.id || '')) ?? ''), String((String($('Normalize Input').first().json.request_id || '')) ?? '')] }}",
           "continueOnFail": true
         }
       },

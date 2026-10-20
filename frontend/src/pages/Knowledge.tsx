@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getKnowledgeDocuments, createKnowledgeDocument, uploadKnowledgeDocument, updateKnowledgeDocument, deleteKnowledgeDocument, getKnowledgeChunks, reindexKnowledgeDocument } from '@/services/api'
+import {
+  getKnowledgeDocuments,
+  createKnowledgeDocument,
+  uploadKnowledgeDocument,
+  updateKnowledgeDocument,
+  deleteKnowledgeDocument,
+  getKnowledgeChunks,
+  reindexKnowledgeDocument,
+  getKnowledgeDiagnostics,
+  testKnowledgeQuery,
+} from '@/services/api'
 import { StatusBadge } from '@/components/StatusIndicator/StatusIndicator'
 import { ErrorState, LoadingState, PageHeader } from '@/components/ErrorState/ErrorState'
 import { EmptyState, NoDataIcon } from '@/components/EmptyState/EmptyState'
@@ -38,7 +48,31 @@ export function KnowledgePage() {
     title: string
     message: string
   } | null>(null)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [testQuestion, setTestQuestion] = useState('')
   const queryClient = useQueryClient()
+
+  // Knowledge health: which business the assistant answers for, whether the
+  // stored chunks are actually searchable, and what a question retrieves.
+  const { data: diagnostics } = useQuery({
+    queryKey: ['knowledge', 'diagnostics'],
+    queryFn: getKnowledgeDiagnostics,
+    enabled: showDiagnostics,
+  })
+
+  const testQueryMutation = useMutation({
+    mutationFn: (question: string) => testKnowledgeQuery(question),
+    onSuccess: (result) => {
+      if (result.hitCount === 0) {
+        toast('No matching knowledge found for that question')
+      } else {
+        toast(`Found ${result.hitCount} matching chunk(s)`)
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Knowledge test failed')
+    },
+  })
 
   // Pages restored from the back-forward cache (bfcache) can keep a File object
   // in React state whose underlying blob data is no longer readable, which
@@ -387,6 +421,116 @@ export function KnowledgePage() {
           </button>
         </div>
       )}
+
+      <div className="card p-4">
+        <button
+          onClick={() => setShowDiagnostics((value) => !value)}
+          className="w-full flex items-center justify-between text-left"
+          aria-expanded={showDiagnostics}
+        >
+          <div>
+            <p className="text-sm font-semibold text-surface-800">Knowledge health</p>
+            <p className="text-xs text-surface-500">
+              Check which business the assistant answers for and whether your documents are actually searchable
+            </p>
+          </div>
+          <span className="text-xs font-medium text-primary-600">
+            {showDiagnostics ? 'Hide' : 'Show'}
+          </span>
+        </button>
+
+        {showDiagnostics && (
+          <div className="mt-4 space-y-4 border-t border-surface-200 pt-4">
+            {diagnostics ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg bg-surface-50 p-3">
+                    <p className="text-xs text-surface-500 uppercase tracking-wide">Assistant answers as</p>
+                    <p className="font-semibold text-surface-800 mt-1">
+                      {diagnostics.business.name || 'Unknown business'}
+                    </p>
+                    {diagnostics.business.greetingReply && (
+                      <p className="text-xs text-surface-500 mt-1">
+                        Greeting: “{diagnostics.business.greetingReply}”
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-lg bg-surface-50 p-3">
+                    <p className="text-xs text-surface-500 uppercase tracking-wide">Retrievable documents</p>
+                    <p className="font-semibold text-surface-800 mt-1">
+                      {diagnostics.totals.retrievable} of {diagnostics.totals.documents}
+                    </p>
+                    <p className="text-xs text-surface-500 mt-1">
+                      {diagnostics.totals.embeddedChunks} of {diagnostics.totals.chunks} chunks embedded
+                    </p>
+                  </div>
+                </div>
+
+                {diagnostics.documents.some((doc) => doc.issues.length > 0) && (
+                  <ul className="space-y-1 text-xs text-amber-800">
+                    {diagnostics.documents
+                      .filter((doc) => doc.issues.length > 0)
+                      .map((doc) => (
+                        <li key={doc.id}>
+                          <span className="font-medium">{doc.title}:</span> {doc.issues.join('; ')}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+
+                <div className="rounded-lg border border-surface-200 p-3">
+                  <p className="text-sm font-medium text-surface-800">Test a question</p>
+                  <p className="text-xs text-surface-500 mb-2">
+                    Ask something a customer would ask and see exactly which knowledge the AI would use.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={testQuestion}
+                      onChange={(event) => setTestQuestion(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && testQuestion.trim()) {
+                          testQueryMutation.mutate(testQuestion.trim())
+                        }
+                      }}
+                      placeholder="e.g. What are your services?"
+                      className="input flex-1"
+                    />
+                    <button
+                      onClick={() => testQueryMutation.mutate(testQuestion.trim())}
+                      disabled={!testQuestion.trim() || testQueryMutation.isPending}
+                      className="btn-primary px-4 py-2 text-sm"
+                    >
+                      {testQueryMutation.isPending ? 'Testing...' : 'Test'}
+                    </button>
+                  </div>
+
+                  {testQueryMutation.data && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs text-surface-600">
+                        {testQueryMutation.data.hitCount} match(es), best score{' '}
+                        {testQueryMutation.data.maxSimilarity?.toFixed(3) ?? 'n/a'} (
+                        {testQueryMutation.data.confidence})
+                      </p>
+                      {testQueryMutation.data.hits.map((hit, index) => (
+                        <div key={index} className="rounded-md bg-surface-50 p-2 text-xs text-surface-700">
+                          <span className="font-medium">{hit.source}</span>
+                          {hit.similarity !== null && (
+                            <span className="ml-2 text-surface-500">score {hit.similarity.toFixed(3)}</span>
+                          )}
+                          <p className="mt-1">{hit.excerpt}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-surface-500">Loading diagnostics…</p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="card overflow-hidden">
         {isLoading ? (

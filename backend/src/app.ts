@@ -37,6 +37,7 @@ import ownerRoutes from './routes/owner.routes';
 import adminRoutes from './routes/admin.routes';
 import billingRoutes from './routes/billing.routes';
 import betaRoutes from './routes/beta.routes';
+import aiRoutes from './routes/ai.routes';
 import { ApiResponse } from './types';
 
 const app: Application = express();
@@ -125,6 +126,8 @@ app.use('/api/beta', betaRoutes);
 app.use('/beta', betaRoutes);
 app.use('/api/billing', subscriptionRoutes);
 app.use('/billing', subscriptionRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/ai', aiRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/owner', ownerRoutes);
 app.use('/api/admin', adminRoutes);

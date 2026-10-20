@@ -5,25 +5,54 @@
       "parameters": {
         "workflowInputs": {
           "values": [
-            { "name": "conversation_id" },
-            { "name": "contact_id" },
-            { "name": "business_id" },
-            { "name": "reply" },
-            { "name": "facts_extracted" },
-            { "name": "intent" },
-            { "name": "lead_stage" },
-            { "name": "sentiment" },
-            { "name": "escalate" },
-            { "name": "escalation_reason" },
-            { "name": "customer_name" },
-            { "name": "phone" },
-            { "name": "request_id" }
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "business_id"
+            },
+            {
+              "name": "reply"
+            },
+            {
+              "name": "facts_extracted"
+            },
+            {
+              "name": "intent"
+            },
+            {
+              "name": "lead_stage"
+            },
+            {
+              "name": "sentiment"
+            },
+            {
+              "name": "escalate"
+            },
+            {
+              "name": "escalation_reason"
+            },
+            {
+              "name": "customer_name"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "request_id"
+            }
           ]
         }
       },
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
-      "position": [ -912, 64 ],
+      "position": [
+        -912,
+        64
+      ],
       "id": "trigger",
       "name": "When Executed by Another Workflow"
     },
@@ -33,7 +62,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [ -720, 64 ],
+      "position": [
+        -720,
+        64
+      ],
       "id": "prepare-facts-node",
       "name": "Prepare Facts"
     },
@@ -43,23 +75,29 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [ -480, 64 ],
+      "position": [
+        -480,
+        64
+      ],
       "id": "upsert-fact-node",
       "name": "Upsert Customer Fact"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT $1::uuid, $6::uuid, $2, $3, $4::numeric, $5\nWHERE $2 IS NOT NULL AND $3 IS NOT NULL\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id;",
+        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT NULLIF($1, '')::uuid, NULLIF($6, '')::uuid, $2, $3, $4::numeric, $5\nWHERE $2 IS NOT NULL AND $3 IS NOT NULL\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $json.contact_id }}\n{{ $json.fact_key }}\n{{ $json.fact_value }}\n{{ $json.confidence }}\n{{ $json.source }}\n{{ $('When Executed by Another Workflow').first().json.business_id }}"
+          "queryReplacement": "={{ [String(($json.contact_id) ?? ''), String(($json.fact_key) ?? ''), String(($json.fact_value) ?? ''), String(($json.confidence) ?? ''), String(($json.source) ?? ''), String(($('When Executed by Another Workflow').first().json.business_id) ?? '')] }}"
         },
         "continueOnFail": true,
         "onError": "continueRegularOutput"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [ -240, 64 ],
+      "position": [
+        -240,
+        64
+      ],
       "id": "save-fact-node",
       "name": "Save Fact",
       "alwaysOutputData": true,
@@ -76,12 +114,15 @@
         "operation": "executeQuery",
         "query": "INSERT INTO lead_scores (contact_id, conversation_id, budget_score, urgency_score, project_type_score, location_score, engagement_score, total_score, status, project_type, estimated_budget, preferred_timeline, project_location, score_reasoning)\nVALUES ($1, $2, 0, 0, 0, 0, 0, 0, $3, NULL, NULL, NULL, NULL, $4)\nON CONFLICT (contact_id, conversation_id)\nDO UPDATE SET status = EXCLUDED.status, score_reasoning = EXCLUDED.score_reasoning, last_calculated_at = NOW(), updated_at = NOW()\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.contact_id }}, {{ $('When Executed by Another Workflow').first().json.conversation_id }}, {{ $('When Executed by Another Workflow').first().json.lead_stage }}, {{ JSON.stringify($('Prepare Facts').first().json) }}"
+          "queryReplacement": "={{ [String(($('When Executed by Another Workflow').first().json.contact_id) ?? ''), String(($('When Executed by Another Workflow').first().json.conversation_id) ?? ''), String(($('When Executed by Another Workflow').first().json.lead_stage) ?? ''), String((JSON.stringify($('Prepare Facts').first().json)) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [ -240, 160 ],
+      "position": [
+        -240,
+        160
+      ],
       "id": "upsert-lead-score-node",
       "name": "Upsert Lead Score",
       "alwaysOutputData": true,
@@ -96,14 +137,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE conversations\nSET lead_stage = $1,\n    updated_at = NOW()\nWHERE id = $2 AND business_id = $3::uuid\nRETURNING id;",
+        "query": "UPDATE conversations\nSET lead_stage = $1,\n    updated_at = NOW()\nWHERE id = $2 AND business_id = NULLIF($3, '')::uuid\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ $('When Executed by Another Workflow').first().json.lead_stage }}, {{ $('When Executed by Another Workflow').first().json.conversation_id }}, {{ $('When Executed by Another Workflow').first().json.business_id }}"
+          "queryReplacement": "={{ [String(($('When Executed by Another Workflow').first().json.lead_stage) ?? ''), String(($('When Executed by Another Workflow').first().json.conversation_id) ?? ''), String(($('When Executed by Another Workflow').first().json.business_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [ 32, 160 ],
+      "position": [
+        32,
+        160
+      ],
       "id": "update-conversation-stage-node",
       "name": "Update Conversation Stage",
       "alwaysOutputData": true,
@@ -142,7 +186,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [ 32, 64 ],
+      "position": [
+        32,
+        64
+      ],
       "id": "should-escalate-if",
       "name": "Should Escalate?"
     },
@@ -165,7 +212,10 @@
       },
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
-      "position": [ 288, 0 ],
+      "position": [
+        288,
+        0
+      ],
       "id": "call-handoff-tool-node",
       "name": "Call Handoff Tool"
     },
@@ -175,7 +225,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [ 544, 64 ],
+      "position": [
+        544,
+        64
+      ],
       "id": "format-output-node",
       "name": "Format Output"
     }
@@ -184,59 +237,95 @@
     "When Executed by Another Workflow": {
       "main": [
         [
-          { "node": "Prepare Facts", "type": "main", "index": 0 }
+          {
+            "node": "Prepare Facts",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Prepare Facts": {
       "main": [
         [
-          { "node": "Upsert Customer Fact", "type": "main", "index": 0 }
+          {
+            "node": "Upsert Customer Fact",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Upsert Customer Fact": {
       "main": [
         [
-          { "node": "Save Fact", "type": "main", "index": 0 }
+          {
+            "node": "Save Fact",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Save Fact": {
       "main": [
         [
-          { "node": "Upsert Lead Score", "type": "main", "index": 0 }
+          {
+            "node": "Upsert Lead Score",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Upsert Lead Score": {
       "main": [
         [
-          { "node": "Update Conversation Stage", "type": "main", "index": 0 }
+          {
+            "node": "Update Conversation Stage",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Update Conversation Stage": {
       "main": [
         [
-          { "node": "Should Escalate?", "type": "main", "index": 0 }
+          {
+            "node": "Should Escalate?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Should Escalate?": {
       "main": [
         [
-          { "node": "Call Handoff Tool", "type": "main", "index": 0 }
+          {
+            "node": "Call Handoff Tool",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Format Output", "type": "main", "index": 0 }
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Call Handoff Tool": {
       "main": [
         [
-          { "node": "Format Output", "type": "main", "index": 0 }
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

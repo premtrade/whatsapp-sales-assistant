@@ -14,19 +14,25 @@
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-800, 0],
+      "position": [
+        -800,
+        0
+      ],
       "id": "schedule-trigger",
       "name": "Schedule Trigger"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-         "query": "SELECT a.id, a.title, a.location, a.starts_at, a.ends_at, a.reminder_sent, a.conversation_id, c.display_name, c.phone, c.email, c.id as contact_id, c.business_id, b.waha_session_name FROM appointments a JOIN contacts c ON a.contact_id = c.id JOIN businesses b ON b.id = c.business_id WHERE a.status IN ('scheduled', 'confirmed') AND a.starts_at > NOW() AND a.starts_at <= NOW() + INTERVAL '48 hours' AND (a.reminder_sent = false OR a.reminder_sent IS NULL) ORDER BY a.starts_at ASC LIMIT 20;",
+        "query": "SELECT a.id, a.title, a.location, a.starts_at, a.ends_at, a.reminder_sent, a.conversation_id, c.display_name, c.phone, c.email, c.id as contact_id, c.business_id, b.waha_session_name FROM appointments a JOIN contacts c ON a.contact_id = c.id JOIN businesses b ON b.id = c.business_id WHERE a.status IN ('scheduled', 'confirmed') AND a.starts_at > NOW() AND a.starts_at <= NOW() + INTERVAL '48 hours' AND (a.reminder_sent = false OR a.reminder_sent IS NULL) ORDER BY a.starts_at ASC LIMIT 20;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-560, 0],
+      "position": [
+        -560,
+        0
+      ],
       "id": "find-appointments",
       "name": "Find Upcoming Appointments",
       "credentials": {
@@ -42,21 +48,27 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-320, 0],
+      "position": [
+        -320,
+        0
+      ],
       "id": "format-reminder",
       "name": "Format Reminder Message"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) SELECT $1::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = $1::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW() RETURNING id;",
+        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) SELECT NULLIF($1, '')::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = NULLIF($1, '')::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW() RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $('Find Upcoming Appointments').first().json.conversation_id || $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ reminder_type: $json.reminder_type, appointment_id: $json.id, automated: true }) }}"
+          "queryReplacement": "={{ [String(($('Find Upcoming Appointments').first().json.conversation_id || $json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ reminder_type: $json.reminder_type, appointment_id: $json.id, automated: true })) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-80, 0],
+      "position": [
+        -80,
+        0
+      ],
       "id": "insert-reminder",
       "name": "Insert Reminder Message",
       "credentials": {
@@ -86,7 +98,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [40, 0],
+      "position": [
+        40,
+        0
+      ],
       "id": "waha-send-reminder",
       "name": "WAHA Send Reminder",
       "continueOnFail": true
@@ -94,14 +109,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE appointments SET reminder_sent = true, updated_at = NOW() WHERE id = $1::uuid;",
+        "query": "UPDATE appointments SET reminder_sent = true, updated_at = NOW() WHERE id = NULLIF($1, '')::uuid;",
         "options": {
-          "queryReplacement": "={{ $json.id }}"
+          "queryReplacement": "={{ [String(($json.id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [160, 0],
+      "position": [
+        160,
+        0
+      ],
       "id": "update-appointment",
       "name": "Mark Reminder Sent",
       "credentials": {
@@ -114,14 +132,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('appointment', $1::uuid, 'reminder_sent', 'system', 'automation', $2, jsonb_build_object('reminder_type', $3), jsonb_build_object('appointment_title', $4, 'contact_id', $5::uuid, 'timestamp', NOW())) RETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('appointment', NULLIF($1, '')::uuid, 'reminder_sent', 'system', 'automation', $2, jsonb_build_object('reminder_type', $3), jsonb_build_object('appointment_title', $4, 'contact_id', NULLIF($5, '')::uuid, 'timestamp', NOW())) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $json.id }}\n={{ 'Automated ' + $json.reminder_type + ' reminder sent for appointment: ' + $json.title }}\n={{ $json.reminder_type }}\n={{ $json.title }}\n={{ $json.contact_id }}"
+          "queryReplacement": "={{ [String(($json.id) ?? ''), String(('Automated ' + $json.reminder_type + ' reminder sent for appointment: ' + $json.title) ?? ''), String(($json.reminder_type) ?? ''), String(($json.title) ?? ''), String(($json.contact_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [400, 0],
+      "position": [
+        400,
+        0
+      ],
       "id": "audit-log",
       "name": "Audit Log",
       "credentials": {
@@ -135,40 +156,80 @@
   "pinData": {},
   "connections": {
     "Schedule Trigger": {
-      "main": [[
-        { "node": "Find Upcoming Appointments", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Find Upcoming Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Find Upcoming Appointments": {
-      "main": [[
-        { "node": "Format Reminder Message", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Format Reminder Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Reminder Message": {
-      "main": [[
-        { "node": "Insert Reminder Message", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Insert Reminder Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Insert Reminder Message": {
-      "main": [[
-        { "node": "WAHA Send Reminder", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "WAHA Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "WAHA Send Reminder": {
-      "main": [[
-        { "node": "Mark Reminder Sent", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Mark Reminder Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Mark Reminder Sent": {
-      "main": [[
-        { "node": "Audit Log", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "1.0.0",
-  "meta": { "instanceId": "whatsapp-sales-assistant" },
+  "meta": {
+    "instanceId": "whatsapp-sales-assistant"
+  },
   "nodeGroups": [],
   "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "tags": []

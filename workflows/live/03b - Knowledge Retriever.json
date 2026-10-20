@@ -30,13 +30,11 @@
       "parameters": {
         "method": "POST",
         "url": "http://backend:4000/api/knowledge/embed",
-        "sendHeaders": false,
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { text: String($('When Executed by Another Workflow').first().json.message || '').slice(0, 8000) } }}",
         "options": {
-          "timeout": 30000,
-          "continueOnFail": true
+          "timeout": 30000
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -68,13 +66,11 @@
       "parameters": {
         "method": "POST",
         "url": "http://backend:4000/api/knowledge/search/hybrid",
-        "sendHeaders": false,
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ embeddingB64: $('Prepare Search Params').first().json.embedding_b64, message: String($('Prepare Search Params').first().json.message_text || '').slice(0, 500), hasVector: Boolean($('Prepare Search Params').first().json.has_vector), businessId: String($('When Executed by Another Workflow').first().json.business_id || ''), limit: Number($('When Executed by Another Workflow').first().json.limit || 10) }) }}",
         "options": {
-          "timeout": 30000,
-          "continueOnFail": true
+          "timeout": 30000
         }
       },
       "type": "n8n-nodes-base.httpRequest",

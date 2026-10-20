@@ -365,6 +365,57 @@ export async function getKnowledgeChunks(documentId: string): Promise<KnowledgeC
   return response.data.data
 }
 
+// Diagnostics: shows what the AI will actually retrieve for this tenant.
+export interface KnowledgeDiagnosticsDocument {
+  id: string
+  title: string
+  status: string
+  source: string | null
+  documentType: string | null
+  createdAt: string
+  chunkCount: number
+  embeddedChunks: number
+  retrievable: boolean
+  issues: string[]
+}
+
+export interface KnowledgeDiagnostics {
+  business: {
+    id: string
+    name: string
+    slug: string
+    resolved: boolean
+    greetingReply: string | null
+  }
+  embeddingModel: string
+  totals: {
+    documents: number
+    indexed: number
+    retrievable: number
+    chunks: number
+    embeddedChunks: number
+  }
+  documents: KnowledgeDiagnosticsDocument[]
+}
+
+export async function getKnowledgeDiagnostics(): Promise<KnowledgeDiagnostics> {
+  const response = await api.get<{ success: boolean; data: KnowledgeDiagnostics }>('/knowledge/diagnostics')
+  return response.data.data
+}
+
+export interface KnowledgeTestResult {
+  query: string
+  hitCount: number
+  maxSimilarity: number | null
+  confidence: 'none' | 'low' | 'medium' | 'high'
+  hits: Array<{ source: string; similarity: number | null; excerpt: string }>
+}
+
+export async function testKnowledgeQuery(query: string): Promise<KnowledgeTestResult> {
+  const response = await api.post<{ success: boolean; data: KnowledgeTestResult }>('/knowledge/test-query', { query })
+  return response.data.data
+}
+
 // Re-index request: original file bytes are not stored, so the backend returns
 // an instruction to re-upload rather than re-deriving vectors in place.
 export async function reindexKnowledgeDocument(id: string): Promise<{ requiresReupload: boolean; documentId: string; message: string }> {

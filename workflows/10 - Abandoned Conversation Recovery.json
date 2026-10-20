@@ -14,19 +14,25 @@
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-800, 0],
+      "position": [
+        -800,
+        0
+      ],
       "id": "schedule-trigger",
       "name": "Schedule Trigger"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-         "query": "SELECT c.id AS conversation_id, c.contact_id, c.last_message_at, c.status, ct.display_name, ct.phone, ct.email, ct.business_id, b.waha_session_name, (SELECT text_body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_text FROM conversations c JOIN contacts ct ON c.contact_id = ct.id JOIN businesses b ON b.id = ct.business_id WHERE c.status = 'active' AND c.last_message_at < NOW() - INTERVAL '3 days' AND c.last_message_at > NOW() - INTERVAL '4 days' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.created_at > c.last_message_at AND m.sender_type = 'staff' AND m.metadata->>'recovery_attempt' = 'true') ORDER BY c.last_message_at ASC LIMIT 10;",
+        "query": "SELECT c.id AS conversation_id, c.contact_id, c.last_message_at, c.status, ct.display_name, ct.phone, ct.email, ct.business_id, b.waha_session_name, (SELECT text_body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_text FROM conversations c JOIN contacts ct ON c.contact_id = ct.id JOIN businesses b ON b.id = ct.business_id WHERE c.status = 'active' AND c.last_message_at < NOW() - INTERVAL '3 days' AND c.last_message_at > NOW() - INTERVAL '4 days' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.created_at > c.last_message_at AND m.sender_type = 'staff' AND m.metadata->>'recovery_attempt' = 'true') ORDER BY c.last_message_at ASC LIMIT 10;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-560, 0],
+      "position": [
+        -560,
+        0
+      ],
       "id": "find-abandoned",
       "name": "Find Abandoned Conversations",
       "credentials": {
@@ -42,21 +48,27 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-320, 0],
+      "position": [
+        -320,
+        0
+      ],
       "id": "format-recovery",
       "name": "Format Recovery Message"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) VALUES ($1::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = $1::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW());",
+        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) VALUES (NULLIF($1, '')::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = NULLIF($1, '')::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW());",
         "options": {
-          "queryReplacement": "={{ $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ recovery_attempt: true, automated: true, original_message_at: $json.last_message_at }) }}"
+          "queryReplacement": "={{ [String(($json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ recovery_attempt: true, automated: true, original_message_at: $json.last_message_at })) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [-80, 0],
+      "position": [
+        -80,
+        0
+      ],
       "id": "insert-recovery",
       "name": "Insert Recovery Message",
       "credentials": {
@@ -86,7 +98,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [40, 0],
+      "position": [
+        40,
+        0
+      ],
       "id": "waha-send-recovery",
       "name": "WAHA Send Recovery",
       "continueOnFail": true
@@ -94,14 +109,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', $1::uuid, 'recovery_attempt', 'system', 'automation', $2, jsonb_build_object('recovery_attempt', true), jsonb_build_object('contact_id', $3::uuid, 'timestamp', NOW())) RETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', NULLIF($1, '')::uuid, 'recovery_attempt', 'system', 'automation', $2, jsonb_build_object('recovery_attempt', true), jsonb_build_object('contact_id', NULLIF($3, '')::uuid, 'timestamp', NOW())) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $json.conversation_id }}\n={{ 'Recovery attempt sent for abandoned conversation' }}\n={{ $json.contact_id }}"
+          "queryReplacement": "={{ [String(($json.conversation_id) ?? ''), String(('Recovery attempt sent for abandoned conversation') ?? ''), String(($json.contact_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
-      "position": [160, 0],
+      "position": [
+        160,
+        0
+      ],
       "id": "audit-log",
       "name": "Audit Log",
       "credentials": {
@@ -115,35 +133,69 @@
   "pinData": {},
   "connections": {
     "Schedule Trigger": {
-      "main": [[
-        { "node": "Find Abandoned Conversations", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Find Abandoned Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Find Abandoned Conversations": {
-      "main": [[
-        { "node": "Format Recovery Message", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Format Recovery Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Recovery Message": {
-      "main": [[
-        { "node": "Insert Recovery Message", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Insert Recovery Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Insert Recovery Message": {
-      "main": [[
-        { "node": "WAHA Send Recovery", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "WAHA Send Recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "WAHA Send Recovery": {
-      "main": [[
-        { "node": "Audit Log", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "1.0.0",
-  "meta": { "instanceId": "whatsapp-sales-assistant" },
+  "meta": {
+    "instanceId": "whatsapp-sales-assistant"
+  },
   "nodeGroups": [],
   "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   "tags": []

@@ -18,6 +18,7 @@ import {
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/subscription';
 import { sanitizePagination } from '../middleware/validation';
+import { getKnowledgeDiagnostics, testKnowledgeQuery } from '../controllers/knowledgeDiagnostics.controller';
 
 const router = Router();
 
@@ -28,6 +29,7 @@ router.use(sanitizePagination);
 router.get('/', authenticate, requireActiveSubscription, listKnowledgeDocuments);
 // Static sub-paths must come before '/:id' — Express matches top-down, so
 // '/:id' would otherwise swallow '/:id/chunks' and 404 on the wrong handler.
+router.get('/diagnostics', authenticate, getKnowledgeDiagnostics);
 router.get('/:id/chunks', authenticate, requireActiveSubscription, getKnowledgeDocumentChunks);
 router.get('/:id', authenticate, requireActiveSubscription, getKnowledgeDocument);
 router.post('/', authenticate, requireActiveSubscription, createKnowledgeDocumentController);
@@ -44,6 +46,8 @@ router.post('/search/text', optionalAuth, searchKnowledgeChunksText);
 // instead of raw SQL because its Postgres node splits queryReplacement on
 // commas, which shatters a 768-dim vector ("[0.1,0.2,...]") into fragments.
 router.post('/search/hybrid', optionalAuth, hybridSearchKnowledge);
+// Diagnostics: why is a document "indexed" but not used by the AI?
+router.post('/test-query', authenticate, testKnowledgeQuery);
 // Internal: used by n8n to embed the incoming message with the same local model
 // that indexes documents, so vector search is consistent. optionalAuth so the
 // n8n caller on the internal network is unaffected.

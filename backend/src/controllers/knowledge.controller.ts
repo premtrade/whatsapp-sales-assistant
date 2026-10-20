@@ -39,6 +39,13 @@ const upload = multer({
   },
 });
 
+function headerTenantId(req: Request): string | undefined {
+  const raw = req.headers['x-tenant-id'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const trimmed = String(value || '').trim();
+  return trimmed ? trimmed : undefined;
+}
+
 async function resolveTenantId(currentUser: UserPayload, fallbackId?: string): Promise<string> {
   if (fallbackId) {
     return fallbackId;
@@ -58,6 +65,11 @@ async function resolveTenantId(currentUser: UserPayload, fallbackId?: string): P
     // continue
   }
   if (currentUser.role === 'super_admin') {
+    // A platform owner is not bound to a tenant. The impersonation header is
+    // the only unambiguous way to pick one; without it we fall back to the
+    // first active business, which is how the owner dashboard has always
+    // behaved. Callers that KNOW the tenant must always pass it explicitly
+    // (or send X-Tenant-Id) so a document never lands in the wrong tenant.
     const businessRes = await query<{ id: string }>(
       `SELECT id FROM businesses WHERE status = 'active' ORDER BY created_at ASC LIMIT 1`
     );
@@ -176,7 +188,7 @@ export const createKnowledgeDocumentController = async (req: Request, res: Respo
 
   try {
     const validated = createSchema.parse(req.body);
-    const tenantId = await resolveTenantId(currentUser, validated.business_id);
+    const tenantId = await resolveTenantId(currentUser, validated.business_id || headerTenantId(req));
 
     // Manual text document (FAQ / policy / website copy): chunk + embed the
     // supplied content so it is immediately searchable by the AI.
@@ -556,7 +568,7 @@ export const uploadKnowledgeDocumentController = async (req: Request, res: Respo
   const docType = document_type || inferDocumentType(req.file.originalname, normalizedMime);
 
   try {
-    const tenantId = await resolveTenantId(currentUser, req.body.business_id);
+    const tenantId = await resolveTenantId(currentUser, req.body.business_id || headerTenantId(req));
     const result = await processAndIndexDocument({
       title: docTitle,
       documentType: docType,

@@ -1,6 +1,16 @@
 # Knowledge Base + AI Reply — Fix Runbook
 
-_Last updated: 2026-10-14. Captures the state of the WhatsApp AI fixes, what's committed to the repo, and the manual n8n edits still required._
+_Last updated: 2026-10-19. Captures the state of the WhatsApp AI fixes, what's committed to the repo, and the manual n8n edits still required._
+
+> **2026-10-19 — read this first.** The "AI does not use the knowledge base" and
+> "the assistant greets customers as *Acme Corp*" problems were caused by n8n
+> **not** resolving `{{ }}` expressions inside an AI Agent node's
+> `options.systemMessage` (the model received the raw template), plus n8n
+> Postgres nodes **silently dropping empty query parameters** (which dropped
+> real customer messages). Both are fixed and verified on the live instance.
+> See **[AI_PROMPT_AND_KNOWLEDGE_FIX.md](./AI_PROMPT_AND_KNOWLEDGE_FIX.md)**
+> for the root cause, the fix and the scripts that re-apply it. The manual
+> edits below are now optional - the scripts do the same work.
 
 ## ⚠️ Key fact: n8n does NOT read these repo files
 

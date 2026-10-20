@@ -92,9 +92,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT $1::uuid, NULLIF($3, '')::uuid, 'customer_name', $2, 0.99, 'ai'\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id, contact_id, fact_key, fact_value, confidence, source, updated_at;",
+        "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT NULLIF($1, '')::uuid, NULLIF($3, '')::uuid, 'customer_name', $2, 0.99, 'ai'\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id, contact_id, fact_key, fact_value, confidence, source, updated_at;",
         "options": {
-          "queryReplacement": "={{ $('Extract Customer Name').item.json.contact_id }}\n{{ $('Extract Customer Name').item.json.customer_name }}\n{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String(($('Extract Customer Name').item.json.contact_id) ?? ''), String(($('Extract Customer Name').item.json.customer_name) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true,
         "onError": "continueRegularOutput"
@@ -117,9 +117,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE contacts SET display_name = $1, updated_at = NOW(), last_seen_at = NOW() WHERE id = $2::uuid AND business_id = $3::uuid RETURNING id, phone, display_name, updated_at;",
+        "query": "UPDATE contacts SET display_name = $1, updated_at = NOW(), last_seen_at = NOW() WHERE id = NULLIF($2, '')::uuid AND business_id = NULLIF($3, '')::uuid RETURNING id, phone, display_name, updated_at;",
         "options": {
-          "queryReplacement": "={{ $('Extract Customer Name').item.json.customer_name }}\n{{ $('Extract Customer Name').item.json.contact_id }}\n{{ $('When Executed by Another Workflow').first().json.business_id }}"
+          "queryReplacement": "={{ [String(($('Extract Customer Name').item.json.customer_name) ?? ''), String(($('Extract Customer Name').item.json.contact_id) ?? ''), String(($('When Executed by Another Workflow').first().json.business_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -157,7 +157,7 @@
     },
     {
       "parameters": {
-        "model": "openai/gpt-oss-20b",
+        "model": "openai/gpt-oss-120b",
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
@@ -240,7 +240,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT * FROM json_to_recordset($1::json)\n  AS x(contact_id uuid, business_id uuid, fact_key text, fact_value text, confidence numeric, source text)\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW();",
         "options": {
-          "queryReplacement": "={{ JSON.stringify($json.facts) }}"
+          "queryReplacement": "={{ [String((JSON.stringify($json.facts)) ?? '')] }}"
         },
         "continueOnFail": true,
         "onError": "continueRegularOutput"

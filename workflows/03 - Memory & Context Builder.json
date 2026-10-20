@@ -73,7 +73,7 @@
         "operation": "executeQuery",
         "options": {
           "continueOnFail": true,
-          "queryReplacement": "{{ String($('When Executed by Another Workflow').first().json.business_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.session || 'default') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.session || 'default')) ?? '')] }}"
         }
       },
       "position": [
@@ -84,9 +84,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, business_id, phone, display_name, source, created_at, updated_at FROM contacts WHERE id = $1::uuid AND business_id = $2::uuid;",
+        "query": "SELECT id, business_id, phone, display_name, source, created_at, updated_at FROM contacts WHERE id = NULLIF($1, '')::uuid AND business_id = NULLIF($2, '')::uuid;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.contact_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -109,9 +109,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, business_id, contact_id, channel, status, last_message_at, created_at, updated_at FROM conversations WHERE id = $1::uuid AND business_id = $2::uuid;",
+        "query": "SELECT id, business_id, contact_id, channel, status, last_message_at, created_at, updated_at FROM conversations WHERE id = NULLIF($1, '')::uuid AND business_id = NULLIF($2, '')::uuid;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.conversation_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -134,9 +134,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n    json_agg(\n        json_build_object(\n            'direction', direction,\n            'sender_type', sender_type,\n            'text_body', text_body,\n            'created_at', created_at\n        )\n        ORDER BY created_at ASC\n    ),\n    '[]'::json\n) AS messages\nFROM (\n    SELECT direction, sender_type, text_body, created_at\n    FROM messages m\n    WHERE m.conversation_id = $1::uuid\n      AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = m.conversation_id AND c.business_id = $2::uuid)\n    ORDER BY created_at DESC\n    LIMIT 10\n) recent;",
+        "query": "SELECT COALESCE(\n    json_agg(\n        json_build_object(\n            'direction', direction,\n            'sender_type', sender_type,\n            'text_body', text_body,\n            'created_at', created_at\n        )\n        ORDER BY created_at ASC\n    ),\n    '[]'::json\n) AS messages\nFROM (\n    SELECT direction, sender_type, text_body, created_at\n    FROM messages m\n    WHERE m.conversation_id = NULLIF($1, '')::uuid\n      AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = m.conversation_id AND c.business_id = NULLIF($2, '')::uuid)\n    ORDER BY created_at DESC\n    LIMIT 10\n) recent;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.conversation_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -159,9 +159,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', cf.fact_key,\n      'fact_value', cf.fact_value,\n      'confidence', cf.confidence\n    )\n    ORDER BY cf.confidence DESC, cf.updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts cf\nWHERE cf.contact_id = $1::uuid\n  AND (cf.business_id = $2::uuid OR cf.business_id IS NULL OR $2 = '');",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'fact_key', cf.fact_key,\n      'fact_value', cf.fact_value,\n      'confidence', cf.confidence\n    )\n    ORDER BY cf.confidence DESC, cf.updated_at DESC\n  ),\n  '[]'::json\n) AS facts\nFROM customer_facts cf\nWHERE cf.contact_id = NULLIF($1, '')::uuid\n  AND (cf.business_id = NULLIF($2, '')::uuid OR cf.business_id IS NULL OR $2 = '');",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.contact_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true,
         "onError": "continueRegularOutput"
@@ -185,9 +185,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(summary, '') AS summary, COALESCE(message_count, 0) AS message_count, COALESCE(created_by, 'none') AS created_by\nFROM conversation_summaries\nWHERE conversation_id = $1::uuid\nLIMIT 1;",
+        "query": "SELECT COALESCE(summary, '') AS summary, COALESCE(message_count, 0) AS message_count, COALESCE(created_by, 'none') AS created_by\nFROM conversation_summaries\nWHERE conversation_id = NULLIF($1, '')::uuid\nLIMIT 1;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.conversation_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -210,9 +210,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'sku', sku,\n      'name', name,\n      'description', description,\n      'price', price,\n      'currency', currency,\n      'unit', unit,\n      'category', category,\n      'product_type', product_type\n    )\n    ORDER BY name\n  ),\n  '[]'::json\n) AS products\nFROM products \nWHERE active = true AND business_id = $1::uuid\nLIMIT 50;",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'sku', sku,\n      'name', name,\n      'description', description,\n      'price', price,\n      'currency', currency,\n      'unit', unit,\n      'category', category,\n      'product_type', product_type\n    )\n    ORDER BY name\n  ),\n  '[]'::json\n) AS products\nFROM products \nWHERE active = true AND business_id = NULLIF($1, '')::uuid\nLIMIT 50;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -235,9 +235,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'quote_number', quote_number,\n      'status', status,\n      'total', total,\n      'currency', currency,\n      'valid_until', valid_until\n    )\n    ORDER BY created_at DESC\n  ),\n  '[]'::json\n) AS quotes\nFROM quotes\nWHERE contact_id = $1::uuid AND business_id = $2::uuid\nLIMIT 20;",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'quote_number', quote_number,\n      'status', status,\n      'total', total,\n      'currency', currency,\n      'valid_until', valid_until\n    )\n    ORDER BY created_at DESC\n  ),\n  '[]'::json\n) AS quotes\nFROM quotes\nWHERE contact_id = NULLIF($1, '')::uuid AND business_id = NULLIF($2, '')::uuid\nLIMIT 20;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.contact_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -260,9 +260,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'title', title,\n      'status', status,\n      'starts_at', starts_at,\n      'ends_at', ends_at\n    )\n    ORDER BY starts_at DESC\n  ),\n  '[]'::json\n) AS appointments\nFROM appointments\nWHERE contact_id = $1::uuid AND business_id = $2::uuid\nLIMIT 20;",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'title', title,\n      'status', status,\n      'starts_at', starts_at,\n      'ends_at', ends_at\n    )\n    ORDER BY starts_at DESC\n  ),\n  '[]'::json\n) AS appointments\nFROM appointments\nWHERE contact_id = NULLIF($1, '')::uuid AND business_id = NULLIF($2, '')::uuid\nLIMIT 20;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.contact_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.contact_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -285,9 +285,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'status', status,\n      'reason', reason,\n      'assigned_to', assigned_to,\n      'created_at', created_at\n    )\n    ORDER BY created_at DESC\n  ),\n  '[]'::json\n) AS handoffs\nFROM handoffs\nWHERE conversation_id = $1::uuid AND business_id = $2::uuid\nLIMIT 10;",
+        "query": "SELECT COALESCE(\n  json_agg(\n    json_build_object(\n      'id', id,\n      'status', status,\n      'reason', reason,\n      'assigned_to', assigned_to,\n      'created_at', created_at\n    )\n    ORDER BY created_at DESC\n  ),\n  '[]'::json\n) AS handoffs\nFROM handoffs\nWHERE conversation_id = NULLIF($1, '')::uuid AND business_id = NULLIF($2, '')::uuid\nLIMIT 10;",
         "options": {
-          "queryReplacement": "={{ String($('When Executed by Another Workflow').first().json.conversation_id || '') }}, {{ String($('When Executed by Another Workflow').first().json.business_id || '') }}"
+          "queryReplacement": "={{ [String((String($('When Executed by Another Workflow').first().json.conversation_id || '')) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true
       },
@@ -309,7 +309,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const _safe = function(n,k){ try { const d = $(n).first(); return (d && d.json && Array.isArray(d.json[k])) ? d.json[k] : []; } catch (e) { return []; } }; const products = _safe('Get Products','products'); const quotes = _safe('Get Quotes','quotes'); const appointments = _safe('Get Appointments','appointments'); const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const _tz = business.timezone || 'America/Jamaica'; const _localTime = new Intl.DateTimeFormat('en-US', {timeZone:_tz,dateStyle:'full',timeStyle:'short'}).format(new Date()); const _h = new Date().toLocaleString('en-US', {timeZone:_tz,hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : ((_hr >= 17 && _hr < 24) || (_hr >= 0 && _hr < 4)) ? 'evening' : 'morning'; const settings = $('Get Business Settings').first()?.json || {}; const _sims = knowledge.map(function(k){return typeof k.similarity==='number'?k.similarity:null;}).filter(function(s){return s!==null;}); const _maxSim = _sims.length ? Math.max.apply(null,_sims) : null; const _conf = _maxSim===null ? 'none' : (_maxSim>=0.3 ? 'high' : (_maxSim>=0.1 ? 'medium' : 'low')); return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, knowledge_count: knowledge.length, knowledge_max_similarity: _maxSim, knowledge_confidence: _conf, knowledge_preview: knowledge.map(function(k){return k.chunk_text||\"\";}).join(\" | \").slice(0,300), products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || business.slug || settings.setting_value || 'ROLINJ.IO', time_greeting: _greet, business_id: business.id || null, business_timezone: _tz, current_business_time: _localTime, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first()?.json || {}; const contact = $('Get Contact').first()?.json || {}; const conversation = $('Get Conversation').first()?.json || {}; const messages = $('Get Recent Messages').first()?.json?.messages || []; const facts = $('Retrieve Customer Facts').first()?.json?.facts || []; const summary = $('Get Conversation Summary').first()?.json || { summary: '', message_count: 0, created_by: 'none' }; const knowledge = $('Get Knowledge Chunks').first()?.json?.knowledge || []; const _safe = function(n,k){ try { const d = $(n).first(); return (d && d.json && Array.isArray(d.json[k])) ? d.json[k] : []; } catch (e) { return []; } }; const products = _safe('Get Products','products'); const quotes = _safe('Get Quotes','quotes'); const appointments = _safe('Get Appointments','appointments'); const handoffs = $('Get Handoff').first()?.json?.handoffs || []; const business = $('Get Business by Phone').first()?.json || {}; const _tz = business.timezone || 'America/Jamaica'; const _localTime = new Intl.DateTimeFormat('en-US', {timeZone:_tz,dateStyle:'full',timeStyle:'short'}).format(new Date()); const _h = new Date().toLocaleString('en-US', {timeZone:_tz,hour:'2-digit',hour12:false}); const _hr = parseInt(_h, 10); const _greet = _hr >= 12 && _hr < 17 ? 'afternoon' : ((_hr >= 17 && _hr < 24) || (_hr >= 0 && _hr < 4)) ? 'evening' : 'morning'; const settings = $('Get Business Settings').first()?.json || {}; const _sims = knowledge.map(function(k){return typeof k.similarity==='number'?k.similarity:null;}).filter(function(s){return s!==null;}); const _maxSim = _sims.length ? Math.max.apply(null,_sims) : null; const _conf = _maxSim===null ? 'none' : (_maxSim>=0.3 ? 'high' : (_maxSim>=0.1 ? 'medium' : 'low')); return [{ json: { conversation_id: trigger.conversation_id, contact_id: trigger.contact_id, customer: { id: contact.id || trigger.contact_id, customer: contact, phone: contact.phone || trigger.phone, name: contact.display_name || trigger.customer_name }, conversation, recent_messages: messages, customer_facts: facts, conversation_summary: summary, knowledge, knowledge_count: knowledge.length, knowledge_max_similarity: _maxSim, knowledge_confidence: _conf, knowledge_preview: knowledge.map(function(k){return k.chunk_text||\"\";}).join(\" | \").slice(0,300), products, quotes, appointments, handoff: handoffs.length > 0 ? handoffs[0] : {}, business_name: business.name || business.slug || settings.setting_value || '', business_slug: business.slug || '', business_name_known: Boolean(business.name || business.slug || settings.setting_value), time_greeting: _greet, business_id: business.id || null, business_timezone: _tz, current_business_time: _localTime, conversationHistory: messages.map(m => `${m.direction === 'in' ? 'Customer' : 'Assistant'}: ${m.text_body}`).join(' | ') || 'No previous messages.', current_message: { message_id: trigger.message_id, text: trigger.message, hasMedia: trigger.hasMedia, timestamp: trigger.timestamp } } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -333,11 +333,11 @@
       },
       "typeVersion": 2.7,
       "parameters": {
-        "query": "SELECT setting_value FROM settings WHERE setting_key = 'company_name' AND business_id = $1::uuid LIMIT 1;",
+        "query": "SELECT setting_value FROM settings WHERE setting_key = 'company_name' AND business_id = NULLIF($1, '')::uuid LIMIT 1;",
         "operation": "executeQuery",
         "options": {
           "continueOnFail": true,
-          "queryReplacement": "={{ String($('Get Business by Phone').first().json.id || '') }}"
+          "queryReplacement": "={{ [String((String($('Get Business by Phone').first().json.id || '')) ?? '')] }}"
         }
       },
       "position": [

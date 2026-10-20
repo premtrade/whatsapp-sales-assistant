@@ -6,8 +6,7 @@
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hoursInterval": 1
+              "field": "hours"
             }
           ]
         }
@@ -160,9 +159,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (business_id, conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES ($1::uuid, $2::uuid, 'outgoing', 'staff', 'text', $3, $4::jsonb, NOW(), NOW()) RETURNING id, business_id, conversation_id, text_body, metadata;",
+        "query": "INSERT INTO messages (business_id, conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, 'outgoing', 'staff', 'text', $3, COALESCE(NULLIF($4, '')::jsonb, '{}'::jsonb), NOW(), NOW()) RETURNING id, business_id, conversation_id, text_body, metadata;",
         "options": {
-          "queryReplacement": "={{ $json.business_id }}\n={{ $json.conversation_id }}\n={{ $json.message }}\n={{ JSON.stringify({ follow_up_type: $json.follow_up_type, template_used: $json.template_used, quote_id: $json.id, quote_number: $json.quote_number, contact_id: $json.contact_id, phone: $json.phone, display_name: $json.display_name, waha_session_name: $json.waha_session_name, automated: true, delivery_status: 'pending' }) }}"
+          "queryReplacement": "={{ [String(($json.business_id) ?? ''), String(($json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ follow_up_type: $json.follow_up_type, template_used: $json.template_used, quote_id: $json.id, quote_number: $json.quote_number, contact_id: $json.contact_id, phone: $json.phone, display_name: $json.display_name, waha_session_name: $json.waha_session_name, automated: true, delivery_status: 'pending' })) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -210,9 +209,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata, business_id) VALUES ('quote', $1::uuid, 'automated_follow_up', NULL, 'automation', $2, jsonb_build_object('follow_up_type', $3), jsonb_build_object('quote_number', $4, 'contact_id', $5::uuid, 'timestamp', NOW()), $6::uuid) RETURNING id;",
+        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata, business_id) VALUES ('quote', NULLIF($1, '')::uuid, 'automated_follow_up', NULL, 'automation', $2, jsonb_build_object('follow_up_type', $3), jsonb_build_object('quote_number', $4, 'contact_id', NULLIF($5, '')::uuid, 'timestamp', NOW()), NULLIF($6, '')::uuid) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ $('Insert Follow-up Message').item.json.metadata.quote_id }}\n={{ 'Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.follow_up_type }}\n={{ $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.contact_id }}\n={{ $('Insert Follow-up Message').item.json.business_id }}"
+          "queryReplacement": "={{ [String(($('Insert Follow-up Message').item.json.metadata.quote_id) ?? ''), String(('Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number) ?? ''), String(($('Insert Follow-up Message').item.json.metadata.follow_up_type) ?? ''), String(($('Insert Follow-up Message').item.json.metadata.quote_number) ?? ''), String(($('Insert Follow-up Message').item.json.metadata.contact_id) ?? ''), String(($('Insert Follow-up Message').item.json.business_id) ?? '')] }}"
         },
         "queryReplacement": "={{ $('Insert Follow-up Message').item.json.metadata.quote_id }}\n={{ 'Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.follow_up_type }}\n={{ $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.contact_id }}\n={{ $('Insert Follow-up Message').item.json.business_id }}"
       },
@@ -247,9 +246,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE messages SET metadata = metadata || jsonb_build_object('delivery_status', 'sent', 'delivered_at', NOW()) WHERE id = $1::uuid RETURNING id, business_id, metadata;",
+        "query": "UPDATE messages SET metadata = metadata || jsonb_build_object('delivery_status', 'sent', 'delivered_at', NOW()) WHERE id = NULLIF($1, '')::uuid RETURNING id, business_id, metadata;",
         "options": {
-          "queryReplacement": "={{ $('Insert Follow-up Message').item.json.id }}"
+          "queryReplacement": "={{ [String(($('Insert Follow-up Message').item.json.id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
