@@ -39,14 +39,37 @@ function minutesAgo(minutes: number): Date {
   return new Date(Date.now() - minutes * 60 * 1000);
 }
 
+/** Where each demo enquiry ended up. */
+const LEAD_STAGE: Record<string, string> = {
+  karen: 'quote_sent',
+  devon: 'appointment_requested',
+  marcia: 'qualified',
+  trevor: 'new',
+};
+
 /** Removes a previous demo tenant and everything that cascades from it. */
 export async function removeDemoTenant(): Promise<void> {
-  const existing = await query<{ id: string }>('SELECT id FROM businesses WHERE slug = $1', [DEMO_SLUG]);
-  for (const business of existing.rows) {
-    // knowledge_chunks and messages cascade from the business, but be explicit
-    // about the tables that reference rows the business owns.
-    await query(`DELETE FROM businesses WHERE id = $1`, [business.id]);
-    logger.info('Removed previous demo tenant', { businessId: business.id });
+  const existing = await query<{ id: string }>(
+    `SELECT id FROM businesses WHERE slug = $1 OR metadata->>'is_demo' = 'true'`,
+    [DEMO_SLUG]
+  );
+  const ids = existing.rows.map((row) => row.id);
+
+  // staff_users.business_id is ON DELETE SET NULL, so deleting the business
+  // orphans its staff rows rather than removing them, and their unique email
+  // constraint then blocks the next insert. Remove them by email as well as
+  // by business id, so a partially seeded run cannot block the next one.
+  await query(
+    `DELETE FROM staff_users
+      WHERE (business_id = ANY($1::uuid[]))
+         OR email LIKE '%@harbourpointroofing.demo'`,
+    [ids]
+  );
+
+  // Everything else the demo owns cascades from the business.
+  for (const id of ids) {
+    await query(`DELETE FROM businesses WHERE id = $1`, [id]);
+    logger.info('Removed previous demo tenant', { businessId: id });
   }
 }
 
@@ -79,23 +102,37 @@ export async function seedDemoTenant(options?: {
 
   // Mark the tenant so the public demo surface can find it, and so nothing
   // else mistakes it for a real customer.
+  //
+  // demo_agent_live stays false until an operator pairs a real WhatsApp
+  // number to this tenant. Until then the public demo never publishes a
+  // number, so a visitor cannot be sent a message to a stranger's phone.
   await query(
     `UPDATE businesses
         SET metadata = metadata || $2::jsonb
       WHERE id = $1`,
-    [businessId, JSON.stringify({ is_demo: true, public_demo: true, sector: 'roofing', country: 'JM' })]
+    [
+      businessId,
+      JSON.stringify({
+        is_demo: true,
+        public_demo: true,
+        sector: 'roofing',
+        country: 'JM',
+        demo_agent_live: false,
+      }),
+    ]
   );
 
   await createTrial(businessId, 'professional');
 
   // --- settings -------------------------------------------------------
+  // data_type is constrained to string | integer | decimal | boolean | json.
   const settings: { key: string; value: string; type: string; description: string }[] = [
     { key: 'currency', value: 'JMD', type: 'string', description: 'Currency for quotes and pipeline values' },
     { key: 'timezone', value: 'America/Jamaica', type: 'string', description: 'Timezone for appointments and timestamps' },
     { key: 'ai_model', value: 'qwen/qwen3.8-27b', type: 'string', description: 'Default chat model' },
-    { key: 'ai_prompt', value: AI_PROMPT, type: 'text', description: 'Custom instructions for the agent' },
-    { key: 'whatsapp_api_version', value: '2.0', type: 'string', description: 'WhatsApp API version' },
-    { key: 'message_limit', value: '1000', type: 'number', description: 'Max WhatsApp messages per 24 hours' },
+    { key: 'ai_prompt', value: AI_PROMPT, type: 'string', description: 'Custom instructions for the agent' },
+    { key: 'whatsapp_api_version', value: 'v18.0', type: 'string', description: 'WhatsApp API version' },
+    { key: 'message_limit', value: '1000', type: 'integer', description: 'Max WhatsApp messages per 24 hours' },
     { key: 'webhook_url', value: 'https://waflo.vercel.app/api/webhooks/waha', type: 'string', description: 'Webhook URL' },
     { key: 'crm_provider', value: 'none', type: 'string', description: 'CRM provider to sync with' },
     { key: 'crm_sync_enabled', value: 'false', type: 'boolean', description: 'Whether CRM sync runs automatically' },
@@ -130,11 +167,22 @@ export async function seedDemoTenant(options?: {
   );
   const ownerId = owner.rows[0]!.id;
 
+  // No ON CONFLICT clause: staff_users has no unique index on
+  // employee_number, and the previous demo tenant was deleted at the start of
+  // this run, so there is nothing to conflict with.
   await query(
-    `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, phone, business_id)
-     VALUES ($1,$2,$3,$4,'sales','active',$5,$6,$7)
-     ON CONFLICT (employee_number) DO NOTHING`,
-    ['HPR-002', 'Sasha', 'Bell', 'sasha@harbourpointroofing.demo', BUSINESS.timezone, '+18765550102', businessId]
+    `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, phone, password_hash, business_id)
+     VALUES ($1,$2,$3,$4,'sales','active',$5,$6,$7,$8)`,
+    [
+      'HPR-002',
+      'Sasha',
+      'Bell',
+      'sasha@harbourpointroofing.demo',
+      BUSINESS.timezone,
+      '+18765550102',
+      passwordHash,
+      businessId,
+    ]
   );
 
   // --- products -------------------------------------------------------
@@ -171,9 +219,9 @@ export async function seedDemoTenant(options?: {
 
     const conversation = await query<{ id: string }>(
       `INSERT INTO conversations (contact_id, channel, status, started_at, last_message_at, business_id, lead_stage)
-       VALUES ($1,'whatsapp','active',NOW(),NOW(),$2,'new')
+       VALUES ($1,'whatsapp','active',NOW(),NOW(),$2,$3)
        RETURNING id`,
-      [contactIds[contact.key], businessId]
+      [contactIds[contact.key], businessId, LEAD_STAGE[contact.key] || 'new']
     );
     conversationIds[contact.key] = conversation.rows[0]!.id;
   }
@@ -336,7 +384,7 @@ export async function seedDemoTenant(options?: {
   for (const doc of KNOWLEDGE_DOCUMENTS) {
     const inserted = await query<{ id: string }>(
       `INSERT INTO knowledge_documents (title, document_type, source, file_name, mime_type, file_size, language, status, metadata, business_id)
-       VALUES ($1,$2,$3,$4,'text/plain',$5,'en','ready',$6::jsonb,$7)
+       VALUES ($1,$2,$3,$4,'text/plain',$5,'en','indexed',$6::jsonb,$7)
        RETURNING id`,
       [
         doc.title,

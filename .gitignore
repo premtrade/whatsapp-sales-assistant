@@ -6,6 +6,10 @@ tests/node_modules/
 frontend/dist/
 frontend/dist-ssr/
 
+# Headless Chrome profile used by scripts/screenshot-demo.mjs
+.chrome-screenshot-profile/
+.chrome-diag-profile/
+
 # Secrets & environment files - never commit
 .env
 .env.*

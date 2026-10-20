@@ -56,14 +56,17 @@ type DemoData = {
 }
 
 function formatMoney(amount: number, currency: string): string {
+  // The currency code is spelled out rather than using a symbol. A Jamaican
+  // roofer reading "$245,000" cannot tell whether that is Jamaican or US
+  // dollars, and the business is priced in JMD.
   try {
-    return new Intl.NumberFormat('en-JM', {
-      style: 'currency',
-      currency,
+    const formatted = new Intl.NumberFormat('en-JM', {
+      minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount)
+    }).format(amount);
+    return `${currency} ${formatted}`;
   } catch {
-    return `${amount.toLocaleString()} ${currency}`
+    return `${currency} ${amount.toLocaleString()}`;
   }
 }
 

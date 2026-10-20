@@ -114,10 +114,13 @@ async function login() {
     body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
   });
   const body = await response.json().catch(() => null);
-  if (!body?.success || !body?.data?.token) {
+  // The API returns { token, user }; the frontend renames user -> staff.
+  const token = body?.data?.token;
+  const staff = body?.data?.user;
+  if (!body?.success || !token || !staff) {
     throw new Error(`demo login failed: ${JSON.stringify(body)?.slice(0, 200)}`);
   }
-  return body.data;
+  return { token, staff };
 }
 
 async function setup(cdp, { width, height }) {
@@ -168,6 +171,42 @@ async function shoot(cdp, { clip, quality = 88, format = 'jpeg' }) {
   return Buffer.from(result.data, 'base64');
 }
 
+/**
+ * Screenshots an element exactly, by resizing the viewport to the element and
+ * scrolling it to the top left. A CDP clip is interpreted against the
+ * document, which cuts the top off when the element is taller than the
+ * viewport, so resizing is more reliable.
+ */
+async function shootElement(cdp, selector, { quality = 90 } = {}) {
+  const size = await cdp.evaluate(`
+    (() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        width: Math.ceil(r.width),
+        height: Math.ceil(r.height),
+        x: r.left + window.scrollX,
+        y: r.top + window.scrollY,
+      };
+    })()
+  `);
+  if (!size) throw new Error(`element not found: ${selector}`);
+
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: Math.min(size.width, 1400),
+    height: Math.min(size.height, 3000),
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  await sleep(900);
+  await cdp.evaluate(`window.scrollTo(${size.x}, ${size.y}); true`);
+  await sleep(900);
+
+  const result = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality });
+  return Buffer.from(result.data, 'base64');
+}
+
 async function main() {
   const chrome = findChrome();
   if (!chrome) throw new Error('No Chrome or Edge found');
@@ -202,21 +241,16 @@ async function main() {
     const cdp = await connect(port);
 
     // ---- the public demo page ----------------------------------------
-    await setup(cdp, { width: 1280, height: 1000 });
+    await setup(cdp, { width: 1400, height: 1000 });
     console.log('[screenshot] capturing the demo conversation');
-    await goTo(cdp, `${SITE}/demo`, { delay: 4000 });
+    await goTo(cdp, `${SITE}/demo`, { delay: 5000 });
 
-    const conversationBox = await boxOf(cdp, '[data-shot="conversation"]');
-    if (!conversationBox) throw new Error('the conversation panel was not found on /demo');
-    await sleep(600);
-    const conversationBox2 = (await boxOf(cdp, '[data-shot="conversation"]')) || conversationBox;
-    await write('demo-conversation.jpg', await shoot(cdp, { clip: conversationBox2 }));
+    await write('demo-conversation.jpg', await shootElement(cdp, '[data-shot="conversation"]'));
 
-    const statsBox = await boxOf(cdp, '[data-shot="stats"]');
-    if (statsBox) {
-      await sleep(600);
-      const statsBox2 = (await boxOf(cdp, '[data-shot="stats"]')) || statsBox;
-      await write('demo-stats.jpg', await shoot(cdp, { clip: statsBox2 }));
+    try {
+      await write('demo-stats.jpg', await shootElement(cdp, '[data-shot="stats"]'));
+    } catch (error) {
+      console.log(`  (no stats panel: ${error.message})`);
     }
 
     // ---- the real dashboard, signed in --------------------------------

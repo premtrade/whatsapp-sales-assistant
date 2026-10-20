@@ -37,8 +37,10 @@ async function resolveDemoBusinessId(): Promise<string | null> {
 /**
  * The full demo: the showcase conversation, its lead score, the quote, and
  * the operating numbers a visitor would see in the dashboard.
+ *
+ * Mounted at /api/demo, so the path is /api/demo.
  */
-publicDemoRouter.get('/demo', async (_req, res: Response): Promise<void> => {
+publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
   try {
     const businessId = await resolveDemoBusinessId();
     if (!businessId) {
@@ -52,8 +54,11 @@ publicDemoRouter.get('/demo', async (_req, res: Response): Promise<void> => {
       currency: string;
       timezone: string;
       whatsapp_phone: string | null;
+      agent_live: boolean;
     }>(
-      `SELECT name, description, currency, timezone, whatsapp_phone FROM businesses WHERE id = $1`,
+      `SELECT name, description, currency, timezone, whatsapp_phone,
+              COALESCE((metadata->>'demo_agent_live')::boolean, FALSE) AS agent_live
+         FROM businesses WHERE id = $1`,
       [businessId]
     );
     const row = business.rows[0];
@@ -157,9 +162,13 @@ publicDemoRouter.get('/demo', async (_req, res: Response): Promise<void> => {
           description: row?.description,
           currency: row?.currency,
           timezone: row?.timezone,
-          /** The number a visitor can message. Null until a live demo number
-           *  has been paired to the demo tenant. */
-          whatsappPhone: row?.whatsapp_phone,
+          /**
+           * The number a visitor can message, but only once a real WhatsApp
+           * number has been paired to the demo tenant. The seeded placeholder
+           * is never published, because a visitor must not be sent to a
+           * stranger's phone.
+           */
+          whatsappPhone: row?.agent_live ? row?.whatsapp_phone : null,
         },
         conversation: {
           contactName: showcase.contact_name,
