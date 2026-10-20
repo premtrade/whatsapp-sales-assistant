@@ -137,6 +137,49 @@ it supports that. "Keep my subscription" undoes it.
 Everything else — activation, grace periods, expiry, cancellation, reporting —
 runs without a human.
 
+## How customers are told
+
+**WhatsApp first, email second.** WAFLO's customers are WhatsApp businesses and
+the platform already holds a WhatsApp connection for every tenant, so a renewal
+request goes out over the tenant's own WhatsApp connection to their phone. That
+costs a fraction of an email and gets read, because the owner is already
+holding the phone.
+
+The recipient is the business's admin or manager (from `staff_users.phone`),
+falling back to the business contact. If there is no usable phone, or the
+WhatsApp send fails, it falls back to email. If both fail, the request is still
+visible on the Billing page — the notification is a convenience, not the
+system of record.
+
+This means **email is not on the critical path for collecting money.**
+
+## Email providers
+
+Email is still used for trial reminders, welcome messages and platform
+notifications. The provider is a deployment choice, not a code choice:
+
+```bash
+EMAIL_PROVIDER=sendgrid   # default, 100/day free
+EMAIL_PROVIDER=resend     # 3,000/month free
+EMAIL_PROVIDER=smtp2go    # 1,000/month free, 200/day, never expires
+EMAIL_PROVIDER=brevo      # 300/day free
+EMAIL_PROVIDER=console    # writes to the log, sends nothing
+```
+
+Set the key for whichever you pick (`SENDGRID_API_KEY`, `RESEND_API_KEY`,
+`SMTP2GO_API_KEY`, `BREVO_API_KEY`) and a verified sender
+(`SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`).
+
+**SendGrid is not required.** For a platform this size, any of the free tiers is
+more than enough — SMTP2GO's never-expiring 1,000/month plan and Resend's
+3,000/month are both comfortably above what trial reminders and renewals will
+use for a long time.
+
+One thing that applies to all of them: the sender must be a domain you control
+(`waflo.com`) with **SPF and DKIM** set up, or the mail will land in junk.
+That is a DNS change, not a code change, and it is worth doing before you pick
+a provider.
+
 ## Processor options
 
 ### Option A — Merchant of record (recommended)

@@ -29,11 +29,15 @@ export interface Config {
      apiKey: string;
    };
 
-   sendgrid: {
-     apiKey: string;
-    fromEmail: string;
-    fromName: string;
-    supportEmail: string;
+   email: {
+     provider: string;
+     sendgridApiKey: string;
+     resendApiKey: string;
+     smtp2goApiKey: string;
+     brevoApiKey: string;
+     fromEmail: string;
+     fromName: string;
+     supportEmail: string;
    };
 
    ai: {
@@ -124,12 +128,18 @@ export const config: Config = {
     apiKey: getEnv('GEMINI_API_KEY', ''),
    },
 
-  sendgrid: {
-    apiKey: getEnv('SENDGRID_API_KEY', ''),
+  email: {
+    // Which transactional email provider to use. SendGrid is only the default,
+    // not a requirement - see docs/BILLING.md for the free-tier options.
+    provider: getEnv('EMAIL_PROVIDER', 'sendgrid'),
+    sendgridApiKey: getEnv('SENDGRID_API_KEY', ''),
+    resendApiKey: getEnv('RESEND_API_KEY', ''),
+    smtp2goApiKey: getEnv('SMTP2GO_API_KEY', ''),
+    brevoApiKey: getEnv('BREVO_API_KEY', ''),
     fromEmail: getEnv('SENDGRID_FROM_EMAIL', ''),
     fromName: getEnv('SENDGRID_FROM_NAME', 'WAFLO Support'),
     supportEmail: getEnv('SUPPORT_EMAIL', ''),
-   },
+  },
 
   ai: {
     // Must stay in sync with the model configured on the n8n 'Workflow 2 - AI Brain' Groq node.

@@ -320,6 +320,12 @@ services:
       BILLING_PAYMENT_EMAIL: ${BILLING_PAYMENT_EMAIL:-}
       BILLING_PAYMENT_PHONE: ${BILLING_PAYMENT_PHONE:-}
       BILLING_RENEWAL_WINDOW_DAYS: ${BILLING_RENEWAL_WINDOW_DAYS:-7}
+      # Transactional email provider. SendGrid is the default but not a
+      # requirement - resend, smtp2go and brevo all have free tiers.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-sendgrid}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP2GO_API_KEY: ${SMTP2GO_API_KEY:-}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GEMINI_API_KEY: ${GEMINI_API_KEY}

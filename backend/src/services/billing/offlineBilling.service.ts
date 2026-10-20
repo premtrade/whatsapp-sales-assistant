@@ -4,8 +4,8 @@ import { config } from '../../config';
 import { clearSubCache, GRACE_PERIOD_DAYS } from '../subscription.service';
 import { createPaymentRequest, listPaymentRequests } from './paymentRequests.service';
 import { applyScheduledCancellations } from './cancellation.service';
+import { notifyPaymentRequest } from './notification.service';
 import { getPaymentProvider } from './index';
-import { emailService } from '../email.service';
 
 /**
  * Lifecycle for offline (bank transfer) billing.
@@ -114,23 +114,16 @@ export async function createRenewalRequests(): Promise<number> {
         periodEnd: candidate.current_period_end,
       });
 
-      if (candidate.email) {
-        try {
-          await emailService.sendPaymentRequest(candidate.email, candidate.business_name, {
-            reference: request.reference,
-            amount: Number(candidate.price_monthly),
-            currency: candidate.currency,
-            planName: candidate.plan_name,
-            periodEnd: candidate.current_period_end,
-            isRenewal: true,
-          });
-        } catch (error) {
-          logger.warn('Renewal payment request email not delivered', {
-            businessId: candidate.business_id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
+      // WhatsApp first - the owner is holding the phone and already pays for
+      // the conversation. Email is only the fallback.
+      await notifyPaymentRequest(candidate.business_id, {
+        reference: request.reference,
+        amount: Number(candidate.price_monthly),
+        currency: candidate.currency,
+        planName: candidate.plan_name,
+        periodEnd: candidate.current_period_end,
+        isRenewal: true,
+      });
     } catch (error) {
       logger.error('Failed to create renewal payment request', {
         businessId: candidate.business_id,

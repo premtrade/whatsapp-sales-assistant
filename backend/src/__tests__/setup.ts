@@ -53,6 +53,17 @@ jest.mock('../config', () => ({
       defaultModel: 'test-ai-model',
       embeddingModel: 'test-embedding-model',
     },
+    email: {
+      // keep this mock in sync with the Config interface in src/config/index.ts.
+      provider: 'console',
+      sendgridApiKey: '',
+      resendApiKey: '',
+      smtp2goApiKey: '',
+      brevoApiKey: '',
+      fromEmail: 'noreply@example.com',
+      fromName: 'WAFLO Support',
+      supportEmail: 'support@example.com',
+    },
     billing: {
       // keep this mock in sync with the Config interface in src/config/index.ts.
       provider: '',

@@ -1,9 +1,8 @@
 import { BadRequestError } from '../../../utils/errors';
-import { query } from '../../../utils/database';
 import logger from '../../../utils/logger';
 import { getActiveSubscription, getPlanBySlug } from '../../subscription.service';
 import { createPaymentRequest } from '../paymentRequests.service';
-import { emailService } from '../../email.service';
+import { notifyPaymentRequest } from '../notification.service';
 import type { CheckoutRequest, PaymentProvider } from '../types';
 
 /**
@@ -39,31 +38,24 @@ export const manualProvider: PaymentProvider = {
 
     const paymentRequest = await createPaymentRequest({ businessId, planSlug });
 
-    // Send the instructions by email so the customer has them off-platform. A
-    // missing mail provider must not block the request — the Billing page
-    // always shows the same details.
-    const contact = await query<{ name: string; email: string | null }>(
-      `SELECT name, email FROM businesses WHERE id = $1 LIMIT 1`,
-      [businessId]
-    );
-    const business = contact.rows[0];
-    if (business?.email) {
-      try {
-        await emailService.sendPaymentRequest(business.email, business.name, {
-          reference: paymentRequest.reference,
-          amount: Number(paymentRequest.amount),
-          currency: paymentRequest.currency,
-          planName: plan.name,
-          periodEnd: sub.current_period_end ?? new Date(),
-          isRenewal: sub.status === 'active',
-        });
-      } catch (error) {
-        logger.warn('Payment request email not delivered', {
-          businessId,
-          reference: paymentRequest.reference,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    // Send the details over WhatsApp (or email) so the customer has them off
+    // the dashboard. A missing mail provider must not block the request - the
+    // Billing page always shows the same details.
+    try {
+      await notifyPaymentRequest(businessId, {
+        reference: paymentRequest.reference,
+        amount: Number(paymentRequest.amount),
+        currency: paymentRequest.currency,
+        planName: plan.name,
+        periodEnd: sub.current_period_end ?? new Date(),
+        isRenewal: sub.status === 'active',
+      });
+    } catch (error) {
+      logger.warn('Payment request notification failed', {
+        businessId,
+        reference: paymentRequest.reference,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return {

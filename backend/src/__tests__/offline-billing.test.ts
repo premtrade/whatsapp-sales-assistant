@@ -25,13 +25,13 @@ jest.mock('../services/billing/paymentRequests.service', () => ({
   listPaymentRequests: jest.fn(),
 }));
 
-jest.mock('../services/email.service', () => ({
-  emailService: { sendPaymentRequest: jest.fn().mockResolvedValue(undefined) },
+jest.mock('../services/billing/notification.service', () => ({
+  notifyPaymentRequest: jest.fn().mockResolvedValue('whatsapp'),
 }));
 
 const mockQuery = query as jest.MockedFunction<typeof query>;
 const { createPaymentRequest, listPaymentRequests } = jest.requireMock('../services/billing/paymentRequests.service');
-const { emailService } = jest.requireMock('../services/email.service');
+const { notifyPaymentRequest } = jest.requireMock('../services/billing/notification.service');
 
 function rows(value: any[]) {
   return { rows: value, rowCount: value.length } as any;
@@ -93,11 +93,14 @@ describe('offline billing lifecycle', () => {
       businessId: 'biz-1',
       planSlug: 'professional',
     });
-    expect(emailService.sendPaymentRequest).toHaveBeenCalledWith(
-      'owner@demo.test',
-      'Demo Construction',
-      expect.objectContaining({ reference: 'WAF-ABCD2345', amount: 199, isRenewal: true })
-    );
+    expect(notifyPaymentRequest).toHaveBeenCalledWith('biz-1', {
+      reference: 'WAF-ABCD2345',
+      amount: 199,
+      currency: 'USD',
+      planName: 'Professional',
+      periodEnd: expect.any(Date),
+      isRenewal: true,
+    });
   });
 
   it('does not raise a second request while one is already pending', async () => {
