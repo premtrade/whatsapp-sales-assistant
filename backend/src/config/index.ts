@@ -54,6 +54,16 @@ export interface Config {
     paymentPhone: string;
     renewalWindowDays: number;
   };
+
+  // The WhatsApp number a visitor can message from the marketing site.
+  //
+  // It is configured here rather than read from a tenant, because a tenant's
+  // whatsapp_phone can be a placeholder and must never be published. If this
+  // is empty the "message our agent" button is not shown at all.
+  demoAgent: {
+    whatsappNumber: string;
+    whatsappName: string;
+  };
 }
 
 function getEnv(name: string, defaultValue?: string): string {
@@ -159,6 +169,11 @@ export const config: Config = {
     paymentEmail: getEnv('BILLING_PAYMENT_EMAIL', ''),
     paymentPhone: getEnv('BILLING_PAYMENT_PHONE', ''),
     renewalWindowDays: getEnvNumber('BILLING_RENEWAL_WINDOW_DAYS', 7),
+  },
+
+  demoAgent: {
+    whatsappNumber: getEnv('DEMO_AGENT_WHATSAPP_NUMBER', ''),
+    whatsappName: getEnv('DEMO_AGENT_WHATSAPP_NAME', 'ROLINJ.IO'),
   },
 };
 

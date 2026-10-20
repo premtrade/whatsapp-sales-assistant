@@ -10,10 +10,10 @@ import {
   BUSINESS,
   CONTACTS,
   DEMO_SLUG,
-  KNOWLEDGE_DOCUMENTS,
   OTHER_THREADS,
   PRODUCTS,
-  KAREN_THREAD,
+  PRIYA_THREAD,
+  SOURCE_SLUG,
 } from './demoSeed.data';
 
 /**
@@ -41,10 +41,10 @@ function minutesAgo(minutes: number): Date {
 
 /** Where each demo enquiry ended up. */
 const LEAD_STAGE: Record<string, string> = {
-  karen: 'quote_sent',
-  devon: 'appointment_requested',
-  marcia: 'qualified',
-  trevor: 'new',
+  priya: 'appointment_requested',
+  michael: 'qualified',
+  denise: 'qualified',
+  andre: 'new',
 };
 
 /**
@@ -53,12 +53,10 @@ const LEAD_STAGE: Record<string, string> = {
  * started today renders as a single flat point.
  */
 const STARTED_DAYS_AGO: Record<string, number> = {
-  karen: 0,
-  devon: 9,
-  rohan: 7,
-  marcia: 5,
-  trevor: 3,
-  alison: 1,
+  priya: 0,
+  michael: 8,
+  denise: 5,
+  andre: 2,
 };
 
 /** Removes a previous demo tenant and everything that cascades from it. */
@@ -76,7 +74,7 @@ export async function removeDemoTenant(): Promise<void> {
   await query(
     `DELETE FROM staff_users
       WHERE (business_id = ANY($1::uuid[]))
-         OR email LIKE '%@harbourpointroofing.demo'`,
+         OR email LIKE '%@waflo.demo'`,
     [ids]
   );
 
@@ -92,7 +90,7 @@ export async function seedDemoTenant(options?: {
   adminPassword?: string;
   regenerate?: boolean;
 }): Promise<DemoSeedResult> {
-  const adminEmail = options?.adminEmail || 'demo@harbourpointroofing.demo';
+  const adminEmail = options?.adminEmail || 'demo.admin@waflo.demo';
   const adminPassword = options?.adminPassword || process.env.DEMO_ADMIN_PASSWORD || 'Demo1234!';
 
   await removeDemoTenant();
@@ -169,7 +167,7 @@ export async function seedDemoTenant(options?: {
      VALUES ($1,$2,$3,$4,'admin','active',$5,$6,$7,$8)
      RETURNING id`,
     [
-      'HPR-001',
+      'ROL-DEMO-001',
       'Marcus',
       'Reid',
       adminEmail,
@@ -188,10 +186,10 @@ export async function seedDemoTenant(options?: {
     `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, phone, password_hash, business_id)
      VALUES ($1,$2,$3,$4,'sales','active',$5,$6,$7,$8)`,
     [
-      'HPR-002',
+      'ROL-DEMO-002',
       'Sasha',
       'Bell',
-      'sasha@harbourpointroofing.demo',
+      'demo.manager@waflo.demo',
       BUSINESS.timezone,
       '+18765550102',
       passwordHash,
@@ -201,12 +199,26 @@ export async function seedDemoTenant(options?: {
 
   // --- products -------------------------------------------------------
   const productIds: Record<string, string> = {};
-  for (const product of PRODUCTS) {
+  for (const [index, product] of PRODUCTS.entries()) {
     const inserted = await query<{ id: string }>(
       `INSERT INTO products (sku, name, description, category, product_type, unit, price, currency, taxable, tax_rate, active, metadata, business_id)
-       VALUES ($1,$2,$3,$4,'service',$5,$6,'JMD',TRUE,0,TRUE,'{}'::jsonb,$7)
+       VALUES ($1,$2,$3,$4,'service',$5,$6,'JMD',TRUE,0,TRUE,$7::jsonb,$8)
        RETURNING id`,
-      [product.sku, product.name, product.description, product.category, product.unit, product.price, businessId]
+      [
+        product.sku,
+        product.name,
+        product.description,
+        product.category,
+        product.unit,
+        product.price,
+        JSON.stringify({
+          order: index + 1,
+          // No published prices exist, so the price is the one thing the
+          // assistant must never make up.
+          pricedAfterDiscovery: true,
+        }),
+        businessId,
+      ]
     );
     productIds[product.sku] = inserted.rows[0]!.id;
   }
@@ -262,7 +274,7 @@ export async function seedDemoTenant(options?: {
         message.text,
         JSON.stringify(
           message.document
-            ? { document: true, quote_number: 'HQ-2026-0148', file_name: 'Harbour-Point-Quote-HQ-2026-0148.pdf' }
+            ? { document: true, quote_number: 'ROL-2026-0148', file_name: 'ROLINJ-Quote-0148.pdf' }
             : {}
         ),
         businessId,
@@ -276,8 +288,8 @@ export async function seedDemoTenant(options?: {
     messageCount += 1;
   };
 
-  for (const message of KAREN_THREAD) {
-    await insertMessage(conversationIds.karen!, message);
+  for (const message of PRIYA_THREAD) {
+    await insertMessage(conversationIds.priya!, message);
   }
   for (const [key, thread] of Object.entries(OTHER_THREADS)) {
     for (const message of thread) {
@@ -292,20 +304,20 @@ export async function seedDemoTenant(options?: {
         location_score, engagement_score, total_score, status, project_type,
         estimated_budget, preferred_timeline, project_location, score_reasoning,
         last_calculated_at, business_id)
-     VALUES ($1,$2,85,80,90,95,85,87,'qualified','Roof Replacement',
-             'JMD 250,000','Within 2 weeks','St. Andrew',$3::jsonb,NOW(),$4)`,
+     VALUES ($1,$2,70,85,90,95,90,84,'qualified','Accounting & Invoicing',
+             'Not stated','This week','Portmore, Jamaica',$3::jsonb,NOW(),$4)`,
     [
-      contactIds.karen,
-      conversationIds.karen,
+      contactIds.priya,
+      conversationIds.priya,
       JSON.stringify({
         summary:
-          'Homeowner in St. Andrew with a stated budget of JMD 250,000 for a 2,000 sq ft roof replacement. Location is in our service area and they responded quickly to the site visit offer.',
+          'Pharmacy owner in Portmore asking to replace manual invoicing and payment chasing. Clear operational pain, confirmed a consultation within the hour, and is inside our service area.',
         factors: {
-          budget: 'Stated JMD 250,000 against a JMD 245,000 package — affordable.',
-          urgency: 'Asked for a quote directly, no urgency language, booking within the week.',
-          projectType: '2,000 sq ft roof replacement — our highest-volume package.',
-          location: 'St. Andrew — core service area.',
-          engagement: 'Replied within 13 minutes and confirmed a site visit.',
+          budget: 'Not stated, so this has to be worked out in discovery rather than assumed.',
+          urgency: 'Described the cost as a full day every month - a recurring, felt problem.',
+          projectType: 'Invoice generation and payment reminders - our Accounting & Invoicing service.',
+          location: 'Portmore - Jamaica, our core market.',
+          engagement: 'Replied within 14 minutes and accepted the consultation slot.',
         },
       }),
       businessId,
@@ -313,9 +325,9 @@ export async function seedDemoTenant(options?: {
   );
 
   for (const [key, scores] of Object.entries({
-    devon: { budget: 70, urgency: 75, project: 80, location: 95, engagement: 80, total: 80, status: 'qualified', type: 'Gutter Replacement' },
-    marcia: { budget: 65, urgency: 95, project: 85, location: 90, engagement: 75, total: 82, status: 'qualified', type: 'Emergency Leak Repair' },
-    trevor: { budget: 55, urgency: 40, project: 70, location: 90, engagement: 65, total: 64, status: 'new', type: 'Inspection' },
+    michael: { budget: 60, urgency: 75, project: 85, location: 95, engagement: 80, total: 78, status: 'qualified', type: 'CRM & Sales Automation' },
+    denise: { budget: 60, urgency: 70, project: 80, location: 90, engagement: 75, total: 74, status: 'qualified', type: 'Operations Workflows' },
+    andre: { budget: 50, urgency: 45, project: 75, location: 90, engagement: 70, total: 65, status: 'new', type: 'Dashboards & Reporting' },
   })) {
     await query(
       `INSERT INTO lead_scores
@@ -340,90 +352,96 @@ export async function seedDemoTenant(options?: {
     );
   }
 
-  // --- quote ----------------------------------------------------------
+  // --- quotes ----------------------------------------------------------
+  // ROLINJ.IO publishes no prices, and its knowledge profile forbids the
+  // assistant making one up. The quotes are therefore real documents with a
+  // real scope and a zero figure: the price follows the written proposal
+  // after discovery. Nothing here claims a price ROLINJ.IO does not have.
   const quote = await query<{ id: string }>(
     `INSERT INTO quotes
        (quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total,
         currency, notes, valid_until, created_by, business_id, sent_at, sent_via, metadata)
-     VALUES ('HQ-2026-0148',$1,$2,'sent',245000,0,0,245000,'JMD',
-             '2,000 sq ft shingle package for St. Andrew. Valid 30 days from issue.',
+     VALUES ('ROL-2026-0148',$1,$2,'sent',0,0,0,0,'JMD',
+             'CRM and sales automation: lead capture across channels, pipeline visibility, automated follow-up, WhatsApp and email notifications, and Odoo CRM integration. Scope, deliverables, timeline and payment milestones are set in the written proposal after discovery.',
              (CURRENT_DATE + 30),$3,$4,NOW(),'whatsapp',$5::jsonb)
      RETURNING id`,
     [
-      contactIds.karen,
-      conversationIds.karen,
+      contactIds.michael,
+      conversationIds.michael,
       ownerId,
       businessId,
-      JSON.stringify({ document: true, file_name: 'Harbour-Point-Quote-HQ-2026-0148.pdf' }),
+      JSON.stringify({ document: true, file_name: 'ROLINJ-Quote-0148.pdf', pricedAfterDiscovery: true }),
     ]
   );
 
   await query(
     `INSERT INTO quote_items (quote_id, product_id, line_number, description, quantity, unit, unit_price, tax_rate, discount, line_total, metadata, business_id)
-     VALUES ($1,$2,1,$3,1,'project',245000,0,0,245000,'{}'::jsonb,$4)`,
+     VALUES ($1,$2,1,$3,1,'engagement',0,0,0,0,$4::jsonb,$5)`,
     [
       quote.rows[0]!.id,
-      productIds['HPR-ROOF-2000'],
-      'Roof Replacement — 2,000 sq ft shingle package',
+      productIds['ROLINJ-PRO'],
+      'CRM & Sales Automation - priced after discovery',
+      JSON.stringify({ pricedAfterDiscovery: true }),
       businessId,
     ]
   );
 
-  // A second, won job. Without it the pipeline shows a 0% conversion rate and
-  // the dashboard looks like nothing has ever closed.
+  // A second, won engagement. Without it the pipeline shows a 0% conversion
+  // rate and the dashboard looks like nothing has ever closed.
   const wonQuote = await query<{ id: string }>(
     `INSERT INTO quotes
        (quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total,
         currency, notes, valid_until, created_by, business_id, sent_at, sent_via, metadata)
-     VALUES ('HQ-2026-0119',$1,$2,'accepted',68000,0,0,68000,'JMD',
-             '5 inch seamless gutters with new downpipes and brackets for the warehouse.',
+     VALUES ('ROL-2026-0119',$1,$2,'accepted',0,0,0,0,'JMD',
+             'Dashboards and reporting: revenue trends, customer activity tracking, team performance metrics, and automated daily or weekly reports. Figure confirmed in the signed proposal.',
              (CURRENT_DATE + 30),$3,$4,NOW(),'whatsapp',$5::jsonb)
      RETURNING id`,
     [
-      contactIds.devon,
-      conversationIds.devon,
+      contactIds.andre,
+      conversationIds.andre,
       ownerId,
       businessId,
-      JSON.stringify({ document: true, file_name: 'Harbour-Point-Quote-HQ-2026-0119.pdf' }),
+      JSON.stringify({ document: true, file_name: 'ROLINJ-Quote-0119.pdf', pricedAfterDiscovery: true }),
     ]
   );
 
   await query(
     `INSERT INTO quote_items (quote_id, product_id, line_number, description, quantity, unit, unit_price, tax_rate, discount, line_total, metadata, business_id)
-     VALUES ($1,$2,1,$3,1,'project',68000,0,0,68000,'{}'::jsonb,$4)`,
+     VALUES ($1,$2,1,$3,1,'engagement',0,0,0,0,$4::jsonb,$5)`,
     [
       wonQuote.rows[0]!.id,
-      productIds['HPR-GUTTER-REPLACE'],
-      'Gutter Replacement — 5 inch seamless',
+      productIds['ROLINJ-SUITE'],
+      'Dashboards & Reporting - priced after discovery',
+      JSON.stringify({ pricedAfterDiscovery: true }),
       businessId,
     ]
   );
 
-  // --- appointment ----------------------------------------------------
-  // Next Thursday at 09:00 in the demo business's timezone.
-  const siteVisit = nextWeekdayAt(9, BUSINESS.timezone);
-  const siteVisitEnd = new Date(siteVisit.getTime() + 60 * 60 * 1000);
+  // --- appointments ----------------------------------------------------
+  // The consultation booked in the showcase conversation.
+  const consultation = nextWeekdayAt(11, BUSINESS.timezone);
+  const consultationEnd = new Date(consultation.getTime() + 45 * 60 * 1000);
 
   await query(
     `INSERT INTO appointments
        (contact_id, conversation_id, quote_id, appointment_type, status, title, description,
         location, starts_at, ends_at, assigned_to, reminder_sent, metadata, business_id)
-     VALUES ($1,$2,$3,'site_visit','confirmed','Site visit — roof replacement, St. Andrew',
-             'Measure the roof and confirm the deck before the replacement is scheduled.',
-             'St. Andrew, Kingston',$4,$5,$6,FALSE,'{}'::jsonb,$7)`,
-    [contactIds.karen, conversationIds.karen, quote.rows[0]!.id, siteVisit, siteVisitEnd, ownerId, businessId]
+     VALUES ($1,$2,$3,'consultation','confirmed','Free consultation - pharmacy invoicing automation',
+             'Discovery call to map the current invoicing and payment chasing process, then a workflow review and a written automation roadmap.',
+             'Portmore, Jamaica (video call)',$4,$5,$6,FALSE,'{}'::jsonb,$7)`,
+    [contactIds.priya, conversationIds.priya, null, consultation, consultationEnd, ownerId, businessId]
   );
 
   await query(
     `INSERT INTO appointments
        (contact_id, conversation_id, appointment_type, status, title, description,
         location, starts_at, ends_at, assigned_to, reminder_sent, metadata, business_id)
-     VALUES ($1,$2,'site_visit','completed','Site visit — gutter measurement',
-             'Measured the warehouse gutters and confirmed the downpipe runs.',
-             'Bailey Hardware, Portmore',$3,$4,$5,TRUE,'{}'::jsonb,$6)`,
+     VALUES ($1,$2,'consultation','completed','Free consultation - CRM and sales automation',
+             'Discovery call and workflow review for lead capture and follow-up.',
+             'Video call',$3,$4,$5,TRUE,'{}'::jsonb,$6)`,
     [
-      contactIds.devon,
-      conversationIds.devon,
+      contactIds.michael,
+      conversationIds.michael,
       new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
       new Date(Date.now() - 6 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
       ownerId,
@@ -435,61 +453,24 @@ export async function seedDemoTenant(options?: {
     `INSERT INTO appointments
        (contact_id, conversation_id, appointment_type, status, title, description,
         location, starts_at, ends_at, assigned_to, reminder_sent, metadata, business_id)
-     VALUES ($1,$2,'site_visit','scheduled','Site visit — gutter measurement',
-             'Measure the warehouse gutters and confirm downpipe runs.',
-             'Bailey Hardware, Portmore',$3,$4,$5,FALSE,'{}'::jsonb,$6)`,
+     VALUES ($1,$2,'consultation','scheduled','Free consultation - onboarding workflows',
+             'Discovery call for HR onboarding automation.',
+             'Video call',$3,$4,$5,FALSE,'{}'::jsonb,$6)`,
     [
-      contactIds.devon,
-      conversationIds.devon,
-      nextWeekdayAt(11, BUSINESS.timezone),
-      new Date(nextWeekdayAt(11, BUSINESS.timezone).getTime() + 45 * 60 * 1000),
+      contactIds.denise,
+      conversationIds.denise,
+      nextWeekdayAt(14, BUSINESS.timezone),
+      new Date(nextWeekdayAt(14, BUSINESS.timezone).getTime() + 45 * 60 * 1000),
       ownerId,
       businessId,
     ]
   );
 
   // --- knowledge base -------------------------------------------------
-  let knowledgeChunks = 0;
-  for (const doc of KNOWLEDGE_DOCUMENTS) {
-    const inserted = await query<{ id: string }>(
-      `INSERT INTO knowledge_documents (title, document_type, source, file_name, mime_type, file_size, language, status, metadata, business_id)
-       VALUES ($1,$2,$3,$4,'text/plain',$5,'en','indexed',$6::jsonb,$7)
-       RETURNING id`,
-      [
-        doc.title,
-        doc.document_type,
-        doc.text,
-        `${doc.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.txt`,
-        Buffer.byteLength(doc.text),
-        JSON.stringify({ seeded: true, demo: true }),
-        businessId,
-      ]
-    );
-    const documentId = inserted.rows[0]!.id;
-
-    const chunks = chunkText(doc.text);
-    const embeddings = await generateEmbeddingsBatch(chunks.map((c) => c.text));
-
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]!;
-      await query(
-        `INSERT INTO knowledge_chunks
-           (document_id, chunk_number, chunk_text, token_count, embedding_model, metadata, embedding, business_id)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::vector,$8)`,
-        [
-          documentId,
-          i + 1,
-          chunk.text,
-          chunk.tokenCount ?? null,
-          EMBEDDING_MODEL,
-          JSON.stringify({ seeded: true, demo: true }),
-          formatEmbeddingForPgVector(embeddings[i]!),
-          businessId,
-        ]
-      );
-      knowledgeChunks += 1;
-    }
-  }
+  // Copied from the live ROLINJ.IO tenant, embeddings and all, so the demo
+  // answers exactly what the agent a visitor can message will answer. The
+  // copy is refreshed on every seed, so the two can never drift apart.
+  const knowledgeChunks = await copyKnowledgeBase(businessId);
 
   logger.info('Demo tenant seeded', {
     businessId,
@@ -510,7 +491,108 @@ export async function seedDemoTenant(options?: {
   };
 }
 
-/** Offset of a timezone from UTC, in milliseconds, at a given instant. */
+/**
+ * Copies the source tenant's knowledge base, embeddings included.
+ *
+ * The demo answers from the same documents the live agent answers from, so a
+ * visitor who reads the demo and then messages the number gets the same
+ * answers. Re-copied on every seed, so an edit to the real knowledge base
+ * reaches the demo without anyone remembering to update it.
+ */
+async function copyKnowledgeBase(targetBusinessId: string): Promise<number> {
+  const source = await query<{ id: string }>(
+    'SELECT id FROM businesses WHERE slug = $1 AND deleted_at IS NULL LIMIT 1',
+    [SOURCE_SLUG]
+  );
+  const sourceId = source.rows[0]?.id;
+  if (!sourceId) {
+    logger.warn('Knowledge base source tenant not found, demo will have no knowledge', {
+      source: SOURCE_SLUG,
+    });
+    return 0;
+  }
+
+  const documents = await query<{
+    id: string;
+    title: string;
+    document_type: string;
+    source: string | null;
+    file_name: string | null;
+    mime_type: string | null;
+    file_size: number | null;
+    language: string | null;
+    status: string;
+    metadata: Record<string, unknown>;
+  }>(
+    `SELECT id, title, document_type, source, file_name, mime_type, file_size, language, status, metadata
+       FROM knowledge_documents WHERE business_id = $1 ORDER BY title`,
+    [sourceId]
+  );
+
+  let chunkCount = 0;
+
+  for (const document of documents.rows) {
+    const inserted = await query<{ id: string }>(
+      `INSERT INTO knowledge_documents
+         (title, document_type, source, file_name, mime_type, file_size, language, status, metadata, business_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+       RETURNING id`,
+      [
+        document.title,
+        document.document_type,
+        document.source,
+        document.file_name,
+        document.mime_type,
+        document.file_size,
+        document.language,
+        document.status,
+        JSON.stringify({ ...(document.metadata || {}), seeded: true, demo: true, copiedFrom: SOURCE_SLUG }),
+        targetBusinessId,
+      ]
+    );
+    const newDocumentId = inserted.rows[0]!.id;
+
+    const chunks = await query<{
+      chunk_number: number;
+      chunk_text: string;
+      token_count: number | null;
+      embedding_model: string | null;
+      metadata: Record<string, unknown>;
+      embedding: string;
+    }>(
+      `SELECT chunk_number, chunk_text, token_count, embedding_model, metadata, embedding::text
+         FROM knowledge_chunks WHERE document_id = $1 ORDER BY chunk_number`,
+      [document.id]
+    );
+
+    for (const chunk of chunks.rows) {
+      await query(
+        `INSERT INTO knowledge_chunks
+           (document_id, chunk_number, chunk_text, token_count, embedding_model, metadata, embedding, business_id)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::vector,$8)`,
+        [
+          newDocumentId,
+          chunk.chunk_number,
+          chunk.chunk_text,
+          chunk.token_count,
+          chunk.embedding_model || EMBEDDING_MODEL,
+          JSON.stringify({ ...(chunk.metadata || {}), seeded: true, demo: true }),
+          chunk.embedding,
+          targetBusinessId,
+        ]
+      );
+      chunkCount += 1;
+    }
+  }
+
+  logger.info('Copied the knowledge base into the demo tenant', {
+    source: SOURCE_SLUG,
+    documents: documents.rows.length,
+    chunks: chunkCount,
+  });
+
+  return chunkCount;
+}
 function tzOffsetMs(instant: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,

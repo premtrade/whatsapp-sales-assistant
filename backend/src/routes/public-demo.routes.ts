@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { query } from '../utils/database';
 import logger from '../utils/logger';
+import { config } from '../config';
 import { DEMO_SLUG } from '../services/demoSeed.data';
 
 /**
@@ -53,12 +54,9 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
       description: string | null;
       currency: string;
       timezone: string;
-      whatsapp_phone: string | null;
-      agent_live: boolean;
+      website: string | null;
     }>(
-      `SELECT name, description, currency, timezone, whatsapp_phone,
-              COALESCE((metadata->>'demo_agent_live')::boolean, FALSE) AS agent_live
-         FROM businesses WHERE id = $1`,
+      `SELECT name, description, currency, timezone, website FROM businesses WHERE id = $1`,
       [businessId]
     );
     const row = business.rows[0];
@@ -147,10 +145,18 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
       [businessId]
     );
 
-    const products = await query<{ name: string; price: string; currency: string; unit: string }>(
-      `SELECT name, price, currency, unit FROM products
+    const products = await query<{
+      name: string;
+      description: string | null;
+      price: string;
+      currency: string;
+      unit: string;
+      metadata: Record<string, unknown>;
+    }>(
+      `SELECT name, description, price, currency, unit, metadata FROM products
         WHERE business_id = $1 AND active = TRUE
-        ORDER BY price ASC LIMIT 4`,
+        ORDER BY COALESCE((metadata->>'order')::int, 99), name
+        LIMIT 6`,
       [businessId]
     );
 
@@ -162,13 +168,18 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
           description: row?.description,
           currency: row?.currency,
           timezone: row?.timezone,
+          website: row?.website,
           /**
-           * The number a visitor can message, but only once a real WhatsApp
-           * number has been paired to the demo tenant. The seeded placeholder
-           * is never published, because a visitor must not be sent to a
-           * stranger's phone.
+           * The number a visitor can message.
+           *
+           * This comes from configuration, not from a tenant row. The demo
+           * tenant's own whatsapp_phone is a placeholder that was never
+           * paired to anything, and publishing it would send a visitor to a
+           * stranger's phone. If no number is configured the button is simply
+           * not shown.
            */
-          whatsappPhone: row?.agent_live ? row?.whatsapp_phone : null,
+          whatsappPhone: config.demoAgent.whatsappNumber || null,
+          whatsappName: config.demoAgent.whatsappName,
         },
         conversation: {
           contactName: showcase.contact_name,
@@ -192,6 +203,12 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
               total: Number(showcase.quote_total),
               currency: showcase.quote_currency,
               status: showcase.quote_status,
+              /**
+               * ROLINJ.IO publishes no prices, so a quote carries a scope and
+               * a zero figure. The price follows the written proposal after
+               * discovery. Nothing here claims a price that does not exist.
+               */
+              pricedAfterDiscovery: Number(showcase.quote_total) === 0,
             }
           : null,
         appointment: appointment.rows[0]
@@ -213,9 +230,11 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
         },
         services: products.rows.map((p) => ({
           name: p.name,
-          price: Number(p.price),
+          description: p.description,
+          price: Number(p.price) === 0 ? null : Number(p.price),
           currency: p.currency,
           unit: p.unit,
+          pricedAfterDiscovery: Number(p.price) === 0,
         })),
       },
     });

@@ -322,6 +322,12 @@ services:
       BILLING_PAYMENT_EMAIL: ${BILLING_PAYMENT_EMAIL:-}
       BILLING_PAYMENT_PHONE: ${BILLING_PAYMENT_PHONE:-}
       BILLING_RENEWAL_WINDOW_DAYS: ${BILLING_RENEWAL_WINDOW_DAYS:-7}
+      # The WhatsApp number published on the marketing site, and the demo
+      # tenant's sign-in. Both are configuration rather than tenant data, so a
+      # placeholder can never be published by accident.
+      DEMO_AGENT_WHATSAPP_NUMBER: ${DEMO_AGENT_WHATSAPP_NUMBER:-}
+      DEMO_AGENT_WHATSAPP_NAME: ${DEMO_AGENT_WHATSAPP_NAME:-ROLINJ.IO}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       # Transactional email provider. SendGrid is the default but not a
       # requirement - resend, smtp2go and brevo all have free tiers.
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-sendgrid}
