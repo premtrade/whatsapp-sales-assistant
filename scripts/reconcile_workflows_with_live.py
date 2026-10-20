@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """
 reconcile_workflows_with_live.py - align the repo workflow exports with the
-live n8n instance for the nodes that drifted (model names, payload mapping,
-timeouts).
+live n8n instance.
 
-Only the node types/names in SYNCED_NODES are copied from live; the
-executeWorkflow nodes keep their portable "name" references in the repo, and
-every node this project patches (Format Context, Parse AI Output, Build
-Context Package, the Postgres nodes) is left untouched.
+The repo exports are a BACKUP of the live instance, so the live instance is
+the source of truth. This script copies the live node parameters into the repo
+files for every node that drifted, so that a later repo -> live sync cannot
+overwrite live-only fixes (that is exactly how the knowledge retrieval broke:
+the repo copy of a node still referenced a child workflow by name and had no
+input schema).
 
 Usage:
     # on the server (has DB access) - writes the repo files in place
     python3 scripts/reconcile_workflows_with_live.py workflows workflows/live
+    python3 scripts/reconcile_workflows_with_live.py workflows/live --node "Format Context"
 """
+import argparse
 import json
 import os
 import sys
@@ -20,18 +23,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _n8n_db import run_sql  # noqa: E402
 
-SYNCED_NODES = {
-    "Normalize Payload",
-    "Groq Chat Model",
-    "Schedule Trigger",
-    "Generate Message Embedding",
-    "Get Knowledge Chunks (semantic)",
-    "Get Business by Phone",
-}
-
 
 def main() -> int:
-    dirs = sys.argv[1:] or ["workflows", "workflows/live"]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("dirs", nargs="*", default=["workflows", "workflows/live"])
+    parser.add_argument("--node", action="append", help="only reconcile this node name")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
     out = run_sql("SELECT name, nodes::text FROM workflow_entity;")
     live: dict = {}
     for line in out.splitlines():
@@ -44,7 +43,7 @@ def main() -> int:
             continue
 
     changed = 0
-    for d in dirs:
+    for d in args.dirs:
         if not os.path.isdir(d):
             continue
         for fname in sorted(os.listdir(d)):
@@ -60,7 +59,7 @@ def main() -> int:
                 continue
             touched = []
             for node in wf["nodes"]:
-                if node.get("name") not in SYNCED_NODES:
+                if args.node and node.get("name") not in args.node:
                     continue
                 live_node = live_nodes.get(node.get("name"))
                 if not live_node:
@@ -73,10 +72,11 @@ def main() -> int:
             if touched:
                 changed += len(touched)
                 print(f"reconciled {path}: {', '.join(touched)}")
-                with open(path, "w", encoding="utf-8") as fh:
-                    json.dump(wf, fh, indent=2, ensure_ascii=False)
-                    fh.write("\n")
-    print(f"\n{changed} node(s) reconciled")
+                if not args.dry_run:
+                    with open(path, "w", encoding="utf-8") as fh:
+                        json.dump(wf, fh, indent=2, ensure_ascii=False)
+                        fh.write("\n")
+    print(f"\n{changed} node(s) {'would be ' if args.dry_run else ''}reconciled")
     return 0
 
 

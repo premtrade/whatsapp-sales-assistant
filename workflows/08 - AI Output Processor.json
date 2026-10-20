@@ -195,19 +195,22 @@
     },
     {
       "parameters": {
+        "options": {},
         "workflowId": {
           "__rl": true,
-          "value": "07 - Handoff Tool",
-          "mode": "name"
+          "mode": "list",
+          "value": "ia6qRQwj6DN7CaVU",
+          "cachedResultUrl": "/workflow/ia6qRQwj6DN7CaVU",
+          "cachedResultName": "07 - Handoff Tool"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
-            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
             "reason": "={{ $('When Executed by Another Workflow').first().json.escalation_reason || 'ai_escalation' }}",
-            "assigned_to": "unassigned"
-          }
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "assigned_to": "unassigned",
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}"
+          },
+          "mappingMode": "defineBelow"
         }
       },
       "type": "n8n-nodes-base.executeWorkflow",

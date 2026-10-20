@@ -214,7 +214,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, COALESCE(NULLIF((SELECT resolved_phone FROM resolved), ''), 'unknown'), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> '' AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> COALESCE(NULLIF($5, ''), '')) FROM businesses b WHERE (b.waha_session_name = split_part($3, '@', 1) OR b.waha_session_name = $3 OR COALESCE(NULLIF(b.waha_session_name, ''), 'default') = split_part($3, '@', 1) OR regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR EXISTS (SELECT 1 FROM settings s WHERE s.business_id = b.id AND s.setting_key = 'whatsapp_phone_number' AND regexp_replace(s.setting_value, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'))) AND b.deleted_at IS NULL ORDER BY CASE WHEN b.waha_session_name = split_part($3, '@', 1) THEN 0 ELSE 1 END, CASE WHEN regexp_replace(COALESCE(b.whatsapp_phone, ''), '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') AND COALESCE(b.whatsapp_phone, '') <> '' THEN 0 ELSE 1 END, CASE WHEN b.status = 'active' THEN 0 ELSE 1 END, b.created_at DESC LIMIT 1 ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
+        "query": "WITH resolved AS ( SELECT COALESCE(NULLIF($4, ''), NULLIF($1, ''), NULLIF($5, '')) AS resolved_phone ), result AS ( INSERT INTO contacts (business_id, phone, display_name, source, wa_lid, wa_chat_id, phone_verified) SELECT b.id, COALESCE(NULLIF((SELECT resolved_phone FROM resolved), ''), 'unknown'), $2, 'whatsapp', NULLIF($5, ''), NULLIF($6, ''), (COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> '' AND COALESCE(NULLIF($4, ''), NULLIF($1, '')) <> COALESCE(NULLIF($5, ''), '')) FROM businesses b WHERE (b.waha_session_name = split_part($3, '@', 1) OR b.waha_session_name = $3 OR COALESCE(NULLIF(b.waha_session_name, ''), 'default') = split_part($3, '@', 1) OR regexp_replace(b.whatsapp_phone, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g') OR EXISTS (SELECT 1 FROM settings s WHERE s.business_id = b.id AND s.setting_key = 'whatsapp_phone_number' AND regexp_replace(s.setting_value, '[^0-9]', '', 'g') = regexp_replace(split_part($3, '@', 1), '[^0-9]', '', 'g'))) AND b.deleted_at IS NULL ORDER BY CASE WHEN b.waha_session_name = split_part($3, '@', 1) THEN 0 ELSE 1 END LIMIT 1 ON CONFLICT (business_id, phone) DO UPDATE SET display_name = CASE WHEN EXCLUDED.display_name NOT IN ('Unknown', 'WhatsApp Customer', '') THEN EXCLUDED.display_name ELSE contacts.display_name END, wa_lid = COALESCE(NULLIF(EXCLUDED.wa_lid, ''), contacts.wa_lid), wa_chat_id = COALESCE(NULLIF(EXCLUDED.wa_chat_id, ''), contacts.wa_chat_id), phone_verified = (contacts.phone_verified OR EXCLUDED.phone_verified), updated_at = NOW(), last_seen_at = NOW() RETURNING id, business_id, phone ) SELECT r.id, r.business_id, r.phone, b.waha_session_name FROM result r JOIN businesses b ON b.id = r.business_id;",
         "options": {
           "queryReplacement": "={{ [String(($('Sanitize Inputs').first().json.phone) ?? ''), String(($('Sanitize Inputs').first().json.customer_name) ?? ''), String(($('Sanitize Inputs').first().json.business_phone) ?? ''), String(($('Sanitize Inputs').first().json.phone) ?? ''), String(($('Sanitize Inputs').first().json.wa_lid) ?? ''), String(($('Sanitize Inputs').first().json.chat_id) ?? '')] }}"
         }
@@ -334,129 +334,138 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "Workflow 2 - AI Brain",
-          "mode": "name"
+          "mode": "list",
+          "value": "vEm4Ge3mbaTndrj9",
+          "cachedResultName": "Workflow 2 - AI Brain"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}",
-            "contact_id": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}",
             "phone": "={{ $(\"Normalize Payload\").first().json.phone }}",
             "chat_id": "={{ $(\"Normalize Payload\").first().json.chat_id }}",
+            "message": "={{ $(\"Sanitize Inputs\").first().json.message }}",
+            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}",
+            "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
+            "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
+            "contact_id": "={{ String($(\"Upsert Contact\").first().json.id || \"\") }}",
+            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}",
             "business_id": "={{ $(\"Upsert Contact\").first().json.business_id }}",
             "customer_name": "={{ $(\"Sanitize Inputs\").first().json.customer_name }}",
-            "message": "={{ $(\"Sanitize Inputs\").first().json.message }}",
-            "timestamp": "={{ $(\"Normalize Payload\").first().json.timestamp }}",
-            "hasMedia": "={{ Boolean($(\"Normalize Payload\").first().json.hasMedia) }}",
-            "message_id": "={{ $('Sanitize Inputs').first().json.message_id }}",
-            "session": "={{ $('Upsert Contact').first().json.waha_session_name || 'default' }}"
+            "conversation_id": "={{ String($(\"Upsert Conversation\").first().json.id || \"\") }}"
           },
-          "matchingColumns": [],
           "schema": [
             {
               "id": "conversation_id",
-              "displayName": "conversation_id",
-              "required": false,
-              "defaultMatch": false,
+              "type": "string",
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "removed": false,
+              "required": false,
+              "displayName": "conversation_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             },
             {
               "id": "contact_id",
-              "displayName": "contact_id",
-              "required": false,
-              "defaultMatch": false,
+              "type": "string",
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "removed": false,
+              "required": false,
+              "displayName": "contact_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             },
             {
               "id": "phone",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
               "displayName": "phone",
-              "required": false,
               "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "customer_name",
-              "displayName": "customer_name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "message",
-              "displayName": "message",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
-            },
-            {
-              "id": "message_id",
-              "displayName": "message_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "hasMedia",
-              "displayName": "hasMedia",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "boolean",
-              "removed": false
-            },
-            {
-              "id": "timestamp",
-              "displayName": "timestamp",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "business_id",
-              "displayName": "business_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "canBeUsedToMatch": true
             },
             {
               "id": "chat_id",
-              "displayName": "chat_id",
-              "required": false,
-              "defaultMatch": false,
+              "type": "string",
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "removed": false,
+              "required": false,
+              "displayName": "chat_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "business_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "customer_name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "message",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "message_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hasMedia",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "hasMedia",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "timestamp",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             },
             {
               "id": "session",
-              "displayName": "session",
-              "required": false,
-              "defaultMatch": false,
+              "type": "string",
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "removed": false,
+              "required": false,
+              "displayName": "session",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             }
           ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
           "attemptToConvertTypes": true,
           "convertFieldsToString": false
         },

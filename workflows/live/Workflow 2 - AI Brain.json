@@ -82,28 +82,31 @@
     },
     {
       "parameters": {
+        "options": {},
         "workflowId": {
           "__rl": true,
-          "value": "08 - AI Output Processor",
-          "mode": "name"
+          "mode": "list",
+          "value": "W3bfxLECrhljlMha",
+          "cachedResultUrl": "/workflow/W3bfxLECrhljlMha",
+          "cachedResultName": "08 - AI Output Processor"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
-            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
-            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
-            "reply": "={{ $('Parse AI Output').first().json.reply }}",
-            "facts_extracted": "={{ JSON.stringify($('Parse AI Output').first().json.facts_extracted || []) }}",
-            "intent": "={{ $('Parse AI Output').first().json.intent }}",
-            "lead_stage": "={{ $('Parse AI Output').first().json.lead_stage }}",
-            "sentiment": "={{ $('Parse AI Output').first().json.sentiment }}",
-            "escalate": "={{ String($('Parse AI Output').first().json.escalate) }}",
-            "escalation_reason": "={{ $('Parse AI Output').first().json.escalation_reason }}",
-            "customer_name": "={{ $('When Executed by Another Workflow').first().json.customer_name }}",
             "phone": "={{ $('When Executed by Another Workflow').first().json.phone }}",
-            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
-          }
+            "reply": "={{ $('Parse AI Output').first().json.reply }}",
+            "intent": "={{ $('Parse AI Output').first().json.intent }}",
+            "escalate": "={{ String($('Parse AI Output').first().json.escalate) }}",
+            "sentiment": "={{ $('Parse AI Output').first().json.sentiment }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "lead_stage": "={{ $('Parse AI Output').first().json.lead_stage }}",
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
+            "customer_name": "={{ $('When Executed by Another Workflow').first().json.customer_name }}",
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "facts_extracted": "={{ JSON.stringify($('Parse AI Output').first().json.facts_extracted || []) }}",
+            "escalation_reason": "={{ $('Parse AI Output').first().json.escalation_reason }}"
+          },
+          "mappingMode": "defineBelow"
         }
       },
       "type": "n8n-nodes-base.executeWorkflow",
@@ -248,140 +251,165 @@
     },
     {
       "parameters": {
+        "options": {},
         "workflowId": {
           "__rl": true,
-          "value": "03 - Memory & Context Builder",
-          "mode": "name"
+          "mode": "list",
+          "value": "DwzMFnhUXhcG1Bnu",
+          "cachedResultUrl": "/workflow/DwzMFnhUXhcG1Bnu",
+          "cachedResultName": "03 - Memory & Context Builder"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ $json.conversation_id.trim() }}",
-            "contact_id": "={{ $json.contact_id.trim() }}",
             "phone": "={{ $json.phone }}",
             "chat_id": "={{ $json.chat_id }}",
+            "message": "={{ $json.message }}",
+            "session": "={{ $json.session }}",
+            "hasMedia": "={{ $json.hasMedia }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "contact_id": "={{ $json.contact_id.trim() }}",
+            "message_id": "={{ $json.message_id }}",
             "business_id": "={{ $json.business_id }}",
             "customer_name": "={{ $json.customer_name }}",
-            "message": "={{ $json.message }}",
-            "message_id": "={{ $json.message_id }}",
-            "timestamp": "={{ $json.timestamp }}",
-            "hasMedia": "={{ $json.hasMedia }}",
-            "session": "={{ $json.session }}"
+            "conversation_id": "={{ $json.conversation_id.trim() }}"
           },
-          "matchingColumns": [],
           "schema": [
             {
               "id": "conversation_id",
-              "displayName": "conversation_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
               "type": "string",
-              "removed": false
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "conversation_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             },
             {
               "id": "contact_id",
-              "displayName": "contact_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
               "type": "string",
-              "removed": false
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "contact_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             },
             {
               "id": "phone",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
               "displayName": "phone",
-              "required": false,
               "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "customer_name",
-              "displayName": "customer_name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "message",
-              "displayName": "message",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "message_id",
-              "displayName": "message_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "hasMedia",
-              "displayName": "hasMedia",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "boolean",
-              "removed": false
-            },
-            {
-              "id": "timestamp",
-              "displayName": "timestamp",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "business_id",
-              "displayName": "business_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "canBeUsedToMatch": true
             },
             {
               "id": "chat_id",
-              "displayName": "chat_id",
-              "required": false,
-              "defaultMatch": false,
+              "type": "string",
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "removed": false,
+              "required": false,
+              "displayName": "chat_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "business_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "customer_name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "message",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "message_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hasMedia",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "hasMedia",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "timestamp",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "request_id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "request_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             },
             {
               "id": "session",
-              "displayName": "session",
-              "required": false,
-              "defaultMatch": false,
+              "type": "string",
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string"
+              "removed": false,
+              "required": false,
+              "displayName": "session",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_phone",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "business_phone",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             }
           ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
           "attemptToConvertTypes": true,
           "convertFieldsToString": false
-        },
-        "options": {}
+        }
       },
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
@@ -394,22 +422,103 @@
     },
     {
       "parameters": {
+        "options": {},
         "workflowId": {
           "__rl": true,
-          "value": "04 - Memory Writer",
-          "mode": "name"
+          "mode": "list",
+          "value": "r4RxLbTW6R2Aihlz",
+          "cachedResultUrl": "/workflow/r4RxLbTW6R2Aihlz",
+          "cachedResultName": "04 - Memory Writer"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}",
-            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
-            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
             "phone": "={{$('When Executed by Another Workflow').first().json.phone}}",
-            "customer_name": "={{$('When Executed by Another Workflow').first().json.customer_name}}",
             "message": "={{$('When Executed by Another Workflow').first().json.message}}",
-            "message_id": "={{$('When Executed by Another Workflow').first().json.message_id}}"
-          }
+            "contact_id": "={{$('When Executed by Another Workflow').first().json.contact_id}}",
+            "message_id": "={{$('When Executed by Another Workflow').first().json.message_id}}",
+            "business_id": "={{$('When Executed by Another Workflow').first().json.business_id}}",
+            "customer_name": "={{$('When Executed by Another Workflow').first().json.customer_name}}",
+            "conversation_id": "={{$('When Executed by Another Workflow').first().json.conversation_id}}"
+          },
+          "schema": [
+            {
+              "id": "conversation_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "conversation_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "contact_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "business_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "phone",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "customer_name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "message",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "message_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "request_id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "request_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
         }
       },
       "type": "n8n-nodes-base.executeWorkflow",
@@ -527,25 +636,104 @@
     },
     {
       "parameters": {
+        "options": {},
         "workflowId": {
           "__rl": true,
-          "value": "06 - Quote Tool",
-          "mode": "name"
+          "mode": "list",
+          "value": "cdV81rvcdGw57hN7",
+          "cachedResultUrl": "/workflow/cdV81rvcdGw57hN7",
+          "cachedResultName": "06 - Quote Tool"
         },
         "workflowInputs": {
-          "mappingMode": "defineBelow",
           "value": {
-            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
-            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
-            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
-            "product_name_or_sku": "={{ $('Parse AI Output').first().json.quote_product || '' }}",
-            "quantity": "={{ $('Parse AI Output').first().json.quote_quantity || 1 }}",
-            "currency": "JMD",
             "notes": "={{ $('Parse AI Output').first().json.reply }}",
-            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}"
-          }
-        },
-        "options": {}
+            "currency": "JMD",
+            "quantity": "={{ $('Parse AI Output').first().json.quote_quantity || 1 }}",
+            "contact_id": "={{ $('When Executed by Another Workflow').first().json.contact_id }}",
+            "request_id": "={{ $('When Executed by Another Workflow').first().json.message_id }}",
+            "business_id": "={{ $('When Executed by Another Workflow').first().json.business_id }}",
+            "conversation_id": "={{ $('When Executed by Another Workflow').first().json.conversation_id }}",
+            "product_name_or_sku": "={{ $('Parse AI Output').first().json.quote_product || '' }}"
+          },
+          "schema": [
+            {
+              "id": "conversation_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "conversation_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "contact_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "business_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "product_name_or_sku",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "product_name_or_sku",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quantity",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "displayName": "quantity",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "currency",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "currency",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "notes",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "request_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "request_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        }
       },
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
