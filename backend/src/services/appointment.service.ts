@@ -231,7 +231,7 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Book
          (business_id, contact_id, conversation_id, appointment_type, status, title,
           description, location, starts_at, ends_at, assigned_to, metadata)
        VALUES ($1, $2, $3, $4, 'confirmed', $5, $6, $7, $8, $9, $10,
-          jsonb_build_object('source', 'ai_whatsapp', 'timezone', $11))
+          jsonb_build_object('source', 'ai_whatsapp', 'timezone', $11::text))
        RETURNING id, business_id, contact_id, conversation_id, quote_id, appointment_type,
           status, title, description, location, starts_at, ends_at, assigned_to,
           reminder_sent, metadata, created_at, updated_at`,

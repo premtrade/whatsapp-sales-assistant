@@ -145,11 +145,13 @@ for i in $(seq 1 45); do
   sleep 2
 done
 
-echo "--- verifying the published version carries the fix ---"
+# The published version has to match the file that was deployed. Comparing the
+# content is the only check that works for every workflow, rather than looking
+# for one workflow's particular fix.
+echo "--- verifying the published version matches the file ---"
 compose exec -T -e "PGPASSWORD=$POSTGRES_PASSWORD" postgres psql -U "$POSTGRES_USER" -d "${N8N_DB:-n8n}" -tAc \
-  "SELECT CASE WHEN h.nodes::text LIKE '%business_timezone%' AND h.nodes::text LIKE '%marked AS%'
-                 THEN 'the running version has the fix'
-                 ELSE 'STILL MISSING' END
+  "SELECT CASE WHEN h.nodes::text = w.nodes::text THEN 'the published version matches the file'
+                ELSE 'MISMATCH between the file and the published version' END
      FROM workflow_history h
      JOIN workflow_entity w ON w.\"activeVersionId\" = h.\"versionId\"
-    WHERE w.id = (SELECT id FROM workflow_entity WHERE name = '$NAME');" | sed 's/^/    /'
+    WHERE w.name = '$NAME';" | sed 's/^/    /'
