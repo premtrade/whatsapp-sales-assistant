@@ -112,33 +112,70 @@ export const CONTACTS = [
 ]
 
 /**
+ * The proposal the assistant sent in the showcase conversation.
+ *
+ * The figure is zero on purpose: ROLINJ.IO publishes no prices, so the quote
+ * carries a real scope and a price that follows the written proposal. The
+ * document is real, the number is not invented.
+ */
+export const PRIYA_QUOTE = {
+  number: 'ROL-2026-0207',
+  fileName: 'ROLINJ-Quote-0207.pdf',
+  product: 'ROLINJ-PRO',
+  lineItem: 'Accounting & Invoicing automation - priced after discovery',
+  notes:
+    'Accounting and invoicing automation: invoice generation from the existing records, payment reminders with customer-friendly messaging, receipt tracking, monthly email reporting, and Odoo Accounting integration where it is already in use. Scope, deliverables, timeline and payment milestones are set in the written proposal; the figure depends on the data and the number of systems connected.',
+}
+
+/**
  * The showcase conversation: a real shape of enquiry, answered the way the
  * live agent answers - from the knowledge base, without inventing a price.
+ *
+ * The thread runs the whole way a real enquiry runs: the question, the
+ * answer, the booking, the discovery call, and the written proposal that
+ * follows it. The last message carries the proposal document, because a
+ * quote the assistant actually produced is the thing a prospect most wants
+ * to see.
  */
 export const PRIYA_THREAD = [
   {
     direction: 'incoming',
     sender_type: 'customer',
-    minutes_ago: 42,
+    minutes_ago: 60 * 24 * 2 + 120,
     text: "Hi, I run a pharmacy in Portmore. We're still doing invoices by hand in a spreadsheet and chasing overdue customers takes me most of a day every month. Can you automate that?",
   },
   {
     direction: 'outgoing',
     sender_type: 'ai',
-    minutes_ago: 41,
-    text: "Good afternoon. You're speaking with ROLINJ.IO - Automation & AI Solutions.\n\nYes — that sits inside our Accounting & Invoicing service: automated invoice generation, payment reminders with customer-friendly messaging, receipt tracking, monthly email reports, and Odoo Accounting integration where you already run it.\n\nOne thing I won't do is quote you a figure before I've seen the workflow, because the price depends on the tools you're on, how much data needs cleaning up and how many systems we connect. What we do first is a short discovery call to map the process, then a workflow review, and you get a written quote with scope, deliverables, timeline and payment milestones.\n\nCan I book you in for a free consultation? Would tomorrow at 11am work for you?",
+    minutes_ago: 60 * 24 * 2 + 119,
+    text: "Good afternoon. You're speaking with ROLINJ.IO - Automation & AI Solutions.\n\nYes - that sits inside our Accounting & Invoicing service: automated invoice generation, payment reminders with customer-friendly messaging, receipt tracking, monthly email reports, and Odoo Accounting integration where you already run it.\n\nOne thing I won't do is quote you a figure before I've seen the workflow, because the price depends on the tools you're on, how much data needs cleaning up and how many systems we connect. What we do first is a short discovery call to map the process, then a workflow review, and you get a written quote with scope, deliverables, timeline and payment milestones.\n\nCan I book you in for a free consultation?",
   },
   {
     direction: 'incoming',
     sender_type: 'customer',
-    minutes_ago: 28,
-    text: 'Tomorrow at 11 works. Please send me the details.',
+    minutes_ago: 60 * 24 * 2 + 60,
+    text: 'Yes please. What do you need from me to make the call useful?',
   },
   {
     direction: 'outgoing',
     sender_type: 'ai',
-    minutes_ago: 28,
-    text: "Booked - tomorrow at 11:00am. You'll get a calendar invite and a short note on what to have ready: a sample of your current invoices, who signs off on them, and where the overdue balances live. Anything you can't get to, that's fine too.\n\nAfter the call I'll send a free automation roadmap with the workflows worth doing first and what each one would save you, so you can decide without us.",
+    minutes_ago: 60 * 24 * 2 + 59,
+    text: "Booked. You'll get a calendar invite with the time, and a short note on what to have ready: a sample of your current invoices, who signs off on them, and where the overdue balances live. Anything you can't get to, that's fine too.",
+  },
+  {
+    direction: 'incoming',
+    sender_type: 'customer',
+    minutes_ago: 60 * 24 * 2 + 12,
+    text: 'That was really helpful, thank you. Please send the written proposal with the scope and the payment milestones.',
+  },
+  {
+    direction: 'outgoing',
+    sender_type: 'ai',
+    minutes_ago: 60 * 24 * 2 + 11,
+    document: true,
+    quote_number: PRIYA_QUOTE.number,
+    file_name: PRIYA_QUOTE.fileName,
+    text: "Sending the written proposal now. It sets out the scope, deliverables, timeline and payment milestones for the invoice generation and payment-reminder workflow, and it is valid for 30 days.\n\nThe figure is in the proposal. There is no number in this chat because I do not have one yet - it depends on what is in your spreadsheet and how many customers need chasing. The next consultation is on the invite, and we can go through the proposal line by line.",
   },
 ]
 

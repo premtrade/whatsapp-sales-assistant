@@ -11,8 +11,9 @@ import {
   CONTACTS,
   DEMO_SLUG,
   OTHER_THREADS,
-  PRODUCTS,
+  PRIYA_QUOTE,
   PRIYA_THREAD,
+  PRODUCTS,
   SOURCE_SLUG,
 } from './demoSeed.data';
 
@@ -41,7 +42,7 @@ function minutesAgo(minutes: number): Date {
 
 /** Where each demo enquiry ended up. */
 const LEAD_STAGE: Record<string, string> = {
-  priya: 'appointment_requested',
+  priya: 'quote_sent',
   michael: 'qualified',
   denise: 'qualified',
   andre: 'new',
@@ -53,7 +54,7 @@ const LEAD_STAGE: Record<string, string> = {
  * started today renders as a single flat point.
  */
 const STARTED_DAYS_AGO: Record<string, number> = {
-  priya: 0,
+  priya: 2,
   michael: 8,
   denise: 5,
   andre: 2,
@@ -260,7 +261,15 @@ export async function seedDemoTenant(options?: {
   let messageCount = 0;
   const insertMessage = async (
     conversationId: string,
-    message: { direction: string; sender_type: string; minutes_ago: number; text: string; document?: boolean }
+    message: {
+      direction: string;
+      sender_type: string;
+      minutes_ago: number;
+      text: string;
+      document?: boolean;
+      quote_number?: string;
+      file_name?: string;
+    }
   ): Promise<void> => {
     const createdAt = minutesAgo(message.minutes_ago);
     await query(
@@ -279,7 +288,11 @@ export async function seedDemoTenant(options?: {
           // curated conversation, not whatever has piled up since.
           demo_showcase: true,
           ...(message.document
-            ? { document: true, quote_number: 'ROL-2026-0148', file_name: 'ROLINJ-Quote-0148.pdf' }
+            ? {
+                document: true,
+                quote_number: message.quote_number,
+                file_name: message.file_name,
+              }
             : {}),
         }),
         businessId,
@@ -362,6 +375,44 @@ export async function seedDemoTenant(options?: {
   // assistant making one up. The quotes are therefore real documents with a
   // real scope and a zero figure: the price follows the written proposal
   // after discovery. Nothing here claims a price ROLINJ.IO does not have.
+
+  // The proposal from the showcase conversation. It belongs to the contact
+  // whose thread the marketing page shows, so a visitor sees the assistant
+  // send a real document rather than a counter that says two.
+  const showcaseQuote = await query<{ id: string }>(
+    `INSERT INTO quotes
+       (quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total,
+        currency, notes, valid_until, created_by, business_id, sent_at, sent_via, metadata)
+     VALUES ($1,$2,$3,'sent',0,0,0,0,'JMD',$4,
+             (CURRENT_DATE + 30),$5,$6,NOW(),'whatsapp',$7::jsonb)
+     RETURNING id`,
+    [
+      PRIYA_QUOTE.number,
+      contactIds.priya,
+      conversationIds.priya,
+      PRIYA_QUOTE.notes,
+      ownerId,
+      businessId,
+      JSON.stringify({
+        document: true,
+        file_name: PRIYA_QUOTE.fileName,
+        pricedAfterDiscovery: true,
+      }),
+    ]
+  );
+
+  await query(
+    `INSERT INTO quote_items (quote_id, product_id, line_number, description, quantity, unit, unit_price, tax_rate, discount, line_total, metadata, business_id)
+     VALUES ($1,$2,1,$3,1,'engagement',0,0,0,0,$4::jsonb,$5)`,
+    [
+      showcaseQuote.rows[0]!.id,
+      productIds[PRIYA_QUOTE.product],
+      PRIYA_QUOTE.lineItem,
+      JSON.stringify({ pricedAfterDiscovery: true }),
+      businessId,
+    ]
+  );
+
   const quote = await query<{ id: string }>(
     `INSERT INTO quotes
        (quote_number, contact_id, conversation_id, status, subtotal, tax, discount, total,
@@ -423,6 +474,23 @@ export async function seedDemoTenant(options?: {
   );
 
   // --- appointments ----------------------------------------------------
+  // Two, because that is what a real enquiry produces: the discovery call
+  // the showcase thread booked, and the consultation that follows the
+  // written proposal. The completed call is two days old, so the thread and
+  // the record agree no matter what time of day the demo is opened.
+  const discoveryCall = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const discoveryEnd = new Date(discoveryCall.getTime() + 45 * 60 * 1000);
+
+  await query(
+    `INSERT INTO appointments
+       (contact_id, conversation_id, quote_id, appointment_type, status, title, description,
+        location, starts_at, ends_at, assigned_to, reminder_sent, metadata, business_id)
+     VALUES ($1,$2,$3,'consultation','completed','Discovery call - pharmacy invoicing automation',
+             'Discovery call to map the current invoicing and payment chasing process, then a workflow review and a written automation roadmap.',
+             'Portmore, Jamaica (video call)',$4,$5,$6,TRUE,'{}'::jsonb,$7)`,
+    [contactIds.priya, conversationIds.priya, showcaseQuote.rows[0]!.id, discoveryCall, discoveryEnd, ownerId, businessId]
+  );
+
   // The consultation booked in the showcase conversation.
   const consultation = nextWeekdayAt(11, BUSINESS.timezone);
   const consultationEnd = new Date(consultation.getTime() + 45 * 60 * 1000);
@@ -432,9 +500,9 @@ export async function seedDemoTenant(options?: {
        (contact_id, conversation_id, quote_id, appointment_type, status, title, description,
         location, starts_at, ends_at, assigned_to, reminder_sent, metadata, business_id)
      VALUES ($1,$2,$3,'consultation','confirmed','Free consultation - pharmacy invoicing automation',
-             'Discovery call to map the current invoicing and payment chasing process, then a workflow review and a written automation roadmap.',
+             'Second consultation: go through the written proposal line by line and agree the scope, deliverables, timeline and payment milestones.',
              'Portmore, Jamaica (video call)',$4,$5,$6,FALSE,'{}'::jsonb,$7)`,
-    [contactIds.priya, conversationIds.priya, null, consultation, consultationEnd, ownerId, businessId]
+    [contactIds.priya, conversationIds.priya, showcaseQuote.rows[0]!.id, consultation, consultationEnd, ownerId, businessId]
   );
 
   await query(

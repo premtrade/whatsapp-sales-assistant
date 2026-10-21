@@ -85,7 +85,13 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
          FROM conversations c
          JOIN contacts ct ON ct.id = c.contact_id
          LEFT JOIN lead_scores ls ON ls.contact_id = c.contact_id AND ls.business_id = c.business_id
-         LEFT JOIN quotes q ON q.contact_id = c.contact_id AND q.business_id = c.business_id
+         LEFT JOIN LATERAL (
+           SELECT q.quote_number, q.total, q.currency, q.status
+             FROM quotes q
+            WHERE q.contact_id = c.contact_id AND q.business_id = c.business_id
+            ORDER BY q.created_at DESC
+            LIMIT 1
+         ) q ON TRUE
         WHERE c.business_id = $1
         ORDER BY (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) DESC,
                  c.last_message_at DESC
@@ -114,7 +120,10 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
       [showcase.id, businessId]
     );
 
-    const appointment = await query<{
+    // The appointment to show. A completed visit is worth less to a visitor
+    // than the one still to come, so the next upcoming appointment wins and
+    // the most recent past one is the fallback.
+    const appointments = await query<{
       title: string;
       appointment_type: string;
       status: string;
@@ -124,9 +133,14 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
       `SELECT title, appointment_type, status, starts_at, location
          FROM appointments
         WHERE conversation_id = $1 AND business_id = $2
-        ORDER BY starts_at ASC LIMIT 1`,
+        ORDER BY starts_at ASC
+        LIMIT 10`,
       [showcase.id, businessId]
     );
+
+    const now = Date.now();
+    const upcoming = appointments.rows.find((a) => new Date(a.starts_at).getTime() >= now);
+    const appointment = upcoming ?? appointments.rows[appointments.rows.length - 1] ?? null;
 
     const stats = await query<{
       conversations: string;
@@ -212,13 +226,13 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
               pricedAfterDiscovery: Number(showcase.quote_total) === 0,
             }
           : null,
-        appointment: appointment.rows[0]
+        appointment: appointment
           ? {
-              title: appointment.rows[0].title,
-              type: appointment.rows[0].appointment_type,
-              status: appointment.rows[0].status,
-              startsAt: appointment.rows[0].starts_at,
-              location: appointment.rows[0].location,
+              title: appointment.title,
+              type: appointment.appointment_type,
+              status: appointment.status,
+              startsAt: appointment.starts_at,
+              location: appointment.location,
             }
           : null,
         stats: {

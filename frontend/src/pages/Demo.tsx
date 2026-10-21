@@ -273,13 +273,25 @@ export default function DemoPage() {
                     { label: 'Site visits', value: demo.stats.appointments },
                     { label: 'Avg lead score', value: demo.stats.averageLeadScore },
                     {
+                      // ROLINJ.IO publishes no prices, so a pipeline of JMD 0
+                      // is the honest number. Printing it as a figure reads as
+                      // an empty business, so it says what the zero means.
                       label: 'Quoted value',
-                      value: formatMoney(demo.stats.quoteValue, demo.business.currency),
+                      value:
+                        demo.stats.quoteValue === 0
+                          ? 'Priced after discovery'
+                          : formatMoney(demo.stats.quoteValue, demo.business.currency),
                     },
                   ].map((stat) => (
                     <div key={stat.label} className="rounded-lg bg-surface-50 p-3">
                       <dt className="text-xs text-surface-500">{stat.label}</dt>
-                      <dd className="mt-1 text-lg font-semibold text-surface-900">{stat.value}</dd>
+                      <dd
+                        className={`mt-1 font-semibold text-surface-900 ${
+                          typeof stat.value === 'string' && stat.value.length > 12 ? 'text-sm' : 'text-lg'
+                        }`}
+                      >
+                        {stat.value}
+                      </dd>
                     </div>
                   ))}
                 </dl>
