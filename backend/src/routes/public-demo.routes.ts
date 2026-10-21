@@ -109,6 +109,7 @@ publicDemoRouter.get('/', async (_req, res: Response): Promise<void> => {
       `SELECT direction, sender_type, text_body, created_at, metadata
          FROM messages
         WHERE conversation_id = $1 AND business_id = $2
+          AND COALESCE(metadata->>'demo_showcase', 'false') = 'true'
         ORDER BY created_at ASC`,
       [showcase.id, businessId]
     );

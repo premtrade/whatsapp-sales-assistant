@@ -272,11 +272,16 @@ export async function seedDemoTenant(options?: {
         message.sender_type,
         'text',
         message.text,
-        JSON.stringify(
-          message.document
+        JSON.stringify({
+          // The seeded showcase thread is marked so the public demo can show
+          // it. The demo tenant is a live tenant - its agent keeps working and
+          // real traffic accumulates - and the marketing page should show the
+          // curated conversation, not whatever has piled up since.
+          demo_showcase: true,
+          ...(message.document
             ? { document: true, quote_number: 'ROL-2026-0148', file_name: 'ROLINJ-Quote-0148.pdf' }
-            : {}
-        ),
+            : {}),
+        }),
         businessId,
         createdAt,
       ]
