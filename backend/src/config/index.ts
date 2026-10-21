@@ -29,16 +29,23 @@ export interface Config {
      apiKey: string;
    };
 
-   email: {
-     provider: string;
-     sendgridApiKey: string;
-     resendApiKey: string;
-     smtp2goApiKey: string;
-     brevoApiKey: string;
-     fromEmail: string;
-     fromName: string;
-     supportEmail: string;
-   };
+  email: {
+    provider: string;
+    sendgridApiKey: string;
+    resendApiKey: string;
+    smtp2goApiKey: string;
+    brevoApiKey: string;
+    fromEmail: string;
+    fromName: string;
+    supportEmail: string;
+    smtp: {
+      host: string;
+      port: number;
+      user: string;
+      pass: string;
+      secure: boolean;
+    };
+  };
 
    ai: {
      defaultModel: string;
@@ -149,6 +156,15 @@ export const config: Config = {
     fromEmail: getEnv('SENDGRID_FROM_EMAIL', ''),
     fromName: getEnv('SENDGRID_FROM_NAME', 'WAFLO Support'),
     supportEmail: getEnv('SUPPORT_EMAIL', ''),
+    // Any SMTP relay: SMTP2GO, Resend, a Google Workspace or self-hosted
+    // mail server. This is the one that works without a private domain.
+    smtp: {
+      host: getEnv('SMTP_HOST', ''),
+      port: getEnvNumber('SMTP_PORT', 587),
+      user: getEnv('SMTP_USER', ''),
+      pass: getEnv('SMTP_PASS', ''),
+      secure: getEnv('SMTP_SECURE', 'false') === 'true',
+    },
   },
 
   ai: {

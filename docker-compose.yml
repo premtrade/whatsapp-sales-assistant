@@ -338,6 +338,14 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SMTP2GO_API_KEY: ${SMTP2GO_API_KEY:-}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
+      # Any SMTP relay: SMTP2GO (mail.smtp2go.com, user "api", password is the
+      # API key), Gmail or Yahoo with an app password, or a self-hosted mail
+      # server. This is the one that works without a private domain.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
       CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GEMINI_API_KEY: ${GEMINI_API_KEY}

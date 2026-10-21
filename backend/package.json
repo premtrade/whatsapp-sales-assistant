@@ -30,6 +30,7 @@
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.12.2",
     "multer": "^2.3.0",
+    "nodemailer": "^10.1.7",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.15.0",
     "pg": "^8.13.1",

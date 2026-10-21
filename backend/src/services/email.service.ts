@@ -33,12 +33,15 @@ type EmailInput = {
 interface EmailProvider {
   id: string;
   apiKey: string;
+  /** Whether this provider can actually send right now. */
+  isConfigured(): boolean;
   send(input: EmailInput): Promise<boolean>;
 }
 
 const sendgridProvider: EmailProvider = {
   id: 'sendgrid',
   apiKey: config.email.sendgridApiKey,
+  isConfigured() { return Boolean(config.email.sendgridApiKey); },
   async send(input) {
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -66,6 +69,7 @@ const sendgridProvider: EmailProvider = {
 const resendProvider: EmailProvider = {
   id: 'resend',
   apiKey: config.email.resendApiKey,
+  isConfigured() { return Boolean(config.email.resendApiKey); },
   async send(input) {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -93,6 +97,7 @@ const resendProvider: EmailProvider = {
 const smtp2goProvider: EmailProvider = {
   id: 'smtp2go',
   apiKey: config.email.smtp2goApiKey,
+  isConfigured() { return Boolean(config.email.smtp2goApiKey); },
   async send(input) {
     const response = await fetch('https://api.smtp2go.com/v3/email/send', {
       method: 'POST',
@@ -125,6 +130,7 @@ const smtp2goProvider: EmailProvider = {
 const brevoProvider: EmailProvider = {
   id: 'brevo',
   apiKey: config.email.brevoApiKey,
+  isConfigured() { return Boolean(config.email.brevoApiKey); },
   async send(input) {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -152,6 +158,7 @@ const brevoProvider: EmailProvider = {
 const consoleProvider: EmailProvider = {
   id: 'console',
   apiKey: '',
+  isConfigured() { return true; },
   async send(input) {
     logger.info('Email (console provider, not sent)', {
       to: input.to,
@@ -162,11 +169,51 @@ const consoleProvider: EmailProvider = {
   },
 };
 
+/**
+ * Any SMTP relay.
+ *
+ * This is the provider that works without a private domain. SMTP2GO, Resend,
+ * a Google Workspace mailbox and a self-hosted mail server all speak SMTP, so
+ * one implementation covers them all - including the case where the only
+ * account available is a consumer mailbox, which is exactly where the hosted
+ * providers refuse to sign you up.
+ */
+const smtpProvider: EmailProvider = {
+  id: 'smtp',
+  apiKey: '',
+  isConfigured() {
+    const { smtp } = config.email;
+    return Boolean(smtp.host && smtp.user && smtp.pass);
+  },
+  async send(input) {
+    const { smtp } = config.email;
+    if (!smtp.host || !smtp.user || !smtp.pass) {
+      throw new Error('SMTP is not configured: SMTP_HOST, SMTP_USER and SMTP_PASS are required');
+    }
+    const nodemailer = await import('nodemailer');
+    const transport = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: { user: smtp.user, pass: smtp.pass },
+    });
+    await transport.sendMail({
+      from: `"${input.fromName}" <${input.fromEmail}>`,
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+    });
+    return true;
+  },
+};
+
 const providers: Record<string, EmailProvider> = {
   sendgrid: sendgridProvider,
   resend: resendProvider,
   smtp2go: smtp2goProvider,
   brevo: brevoProvider,
+  smtp: smtpProvider,
   console: consoleProvider,
 };
 
@@ -184,9 +231,21 @@ async function sendEmail(to: string, content: EmailContent): Promise<boolean> {
   const provider = getEmailProvider();
   const { fromEmail, fromName } = config.email;
 
-  if (provider.id !== 'console' && (!provider.apiKey || !fromEmail)) {
-    logger.warn('Email not sent because the provider key or verified sender is not configured', {
+  if (provider.id !== 'console' && !provider.isConfigured()) {
+    logger.warn('Email not sent because the provider is not configured', {
       provider: provider.id,
+      hint:
+        provider.id === 'smtp'
+          ? 'set SMTP_HOST, SMTP_USER and SMTP_PASS'
+          : `set the api key for ${provider.id}`,
+    });
+    return false;
+  }
+
+  if (provider.id !== 'console' && !fromEmail) {
+    logger.warn('Email not sent because no verified sender is configured', {
+      provider: provider.id,
+      hint: 'set SENDGRID_FROM_EMAIL to an address the provider has verified',
     });
     return false;
   }
