@@ -2,11 +2,28 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import SiteHeader, { SITE_LINKS, type SiteLink } from './SiteHeader'
 
+/**
+ * The services ROLINJ.IO delivers, linking to the matching section of their
+ * services page.
+ *
+ * Their site is a hash-routed single page app, so the section anchors sit
+ * inside the hash: /#/services#ai-assistant. The ids are the ones their own
+ * bundle uses for those sections.
+ */
+const ROLINJ_SERVICES = [
+  { label: 'AI Customer Assistant', anchor: 'ai-assistant' },
+  { label: 'CRM Automation', anchor: 'crm' },
+  { label: 'Invoicing', anchor: 'accounting' },
+  { label: 'Document Assistant', anchor: 'documents' },
+];
+
+const ROLINJ_SITE = 'https://rolin-io.vercel.app';
+
 function MarketingFooter() {
   return (
     <footer className="border-t border-surface-200 bg-surface-950 text-surface-400">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <div className="flex items-center gap-2.5 mb-3">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary-600">
@@ -28,7 +45,7 @@ function MarketingFooter() {
             <p className="mt-4 text-sm leading-relaxed">
               WAFLO is a product of{' '}
               <a
-                href="https://rolin-io.vercel.app"
+                href={ROLINJ_SITE}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-surface-200 underline decoration-surface-600 underline-offset-4 transition-colors hover:text-white hover:decoration-primary-400"
@@ -56,6 +73,23 @@ function MarketingFooter() {
               <li><Link to="/demo" className="hover:text-white">Live demo</Link></li>
               <li><Link to="/blog" className="hover:text-white">Blog</Link></li>
               <li><Link to="/faq" className="hover:text-white">FAQ</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-white uppercase tracking-wide mb-3">Services</h4>
+            <ul className="space-y-2 text-sm">
+              {ROLINJ_SERVICES.map((service) => (
+                <li key={service.anchor}>
+                  <a
+                    href={`${ROLINJ_SITE}/#/services#${service.anchor}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-white"
+                  >
+                    {service.label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
           <div>
