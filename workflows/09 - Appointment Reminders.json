@@ -58,9 +58,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) SELECT NULLIF($1, '')::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = NULLIF($1, '')::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW() RETURNING id;",
+        "query": "WITH msg AS (\n  INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at)\n  SELECT NULLIF($1, '')::uuid, 'outgoing', 'staff', 'text', $2, $3,\n         COALESCE((SELECT business_id FROM conversations WHERE id = NULLIF($1, '')::uuid),\n                  (SELECT id FROM businesses LIMIT 1)),\n         NOW(), NOW()\n  RETURNING id\n), marked AS (\n  UPDATE appointments\n     SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reminders}',\n           COALESCE(metadata->'reminders', '{}'::jsonb) ||\n             jsonb_build_object($5::text, jsonb_build_object('status', 'sent', 'sent_at', NOW())), true),\n         reminder_sent = TRUE,\n         updated_at = NOW()\n   WHERE id = NULLIF($4, '')::uuid\n  RETURNING id\n), audited AS (\n  INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata)\n  SELECT 'appointment', NULLIF($4, '')::uuid, 'reminder_sent', NULL, 'system',\n         'Automated ' || $5 || ' reminder sent for appointment: ' || $6,\n         jsonb_build_object('reminder_type', $5),\n         jsonb_build_object('appointment_title', $6, 'contact_id', NULLIF($7, '')::uuid, 'timestamp', NOW())\n  RETURNING id\n)\nSELECT msg.id AS id, marked.id AS appointment_id, c.phone AS phone, b.waha_session_name AS waha_session_name,\n       $2 AS message, $5 AS reminder_type\n  FROM msg, marked, audited, conversations v, contacts c, businesses b\n WHERE v.id = NULLIF($1, '')::uuid AND c.id = v.contact_id AND b.id = c.business_id;",
         "options": {
-          "queryReplacement": "={{ [String(($('Find Upcoming Appointments').first().json.conversation_id || $json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ reminder_type: $json.reminder_type, appointment_id: $json.id, automated: true })) ?? '')] }}"
+          "queryReplacement": "={{ [String(($json.conversation_id) || ''), String(($json.message) || ''), String((JSON.stringify({ reminder_type: $json.reminder_type, appointment_id: $json.id, automated: true })) || ''), String(($json.id) || ''), String(($json.reminder_type) || ''), String(($json.title) || ''), String(($json.contact_id) || '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -105,52 +105,6 @@
       "id": "waha-send-reminder",
       "name": "WAHA Send Reminder",
       "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE appointments\n   SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reminders}',\n         COALESCE(metadata->'reminders', '{}'::jsonb) ||\n           jsonb_build_object($2::text, jsonb_build_object('status', 'sent', 'sent_at', NOW())), true),\n       reminder_sent = TRUE,\n       updated_at = NOW()\n WHERE id = NULLIF($1, '')::uuid\n RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [String(($('Format Reminder Message').item.json.id) || ''), String(($('Format Reminder Message').item.json.reminder_type) || '')] }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        160,
-        0
-      ],
-      "id": "update-appointment",
-      "name": "Mark Reminder Sent",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('appointment', NULLIF($1, '')::uuid, 'reminder_sent', 'system', 'automation', $2, jsonb_build_object('reminder_type', $3), jsonb_build_object('appointment_title', $4, 'contact_id', NULLIF($5, '')::uuid, 'timestamp', NOW())) RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [String(($('Format Reminder Message').item.json.id) || ''), String(('Automated ' + ($('Format Reminder Message').item.json.reminder_type || 'appointment') + ' reminder sent for appointment: ' + ($('Format Reminder Message').item.json.title || '')) || ''), String(($('Format Reminder Message').item.json.reminder_type) || ''), String(($('Format Reminder Message').item.json.title) || ''), String(($('Format Reminder Message').item.json.contact_id) || '')] }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        400,
-        0
-      ],
-      "id": "audit-log",
-      "name": "Audit Log",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
     }
   ],
   "pinData": {},
@@ -193,28 +147,6 @@
         [
           {
             "node": "WAHA Send Reminder",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "WAHA Send Reminder": {
-      "main": [
-        [
-          {
-            "node": "Mark Reminder Sent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Mark Reminder Sent": {
-      "main": [
-        [
-          {
-            "node": "Audit Log",
             "type": "main",
             "index": 0
           }

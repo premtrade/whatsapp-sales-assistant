@@ -314,9 +314,21 @@ them there, so a fix to a workflow cannot ship on its own. Deploy it by name:
 scripts/deploy-workflow.sh "09 - Appointment Reminders"
 ```
 
-It syncs the node definitions, connections and settings for that workflow and
-restarts n8n so the active workflow is reloaded. Credentials, the workflow id
-and the active flag are left alone.
+Two things about n8n 2.x make this less obvious than it looks, and both have
+cost time:
+
+- **The running definition is a published version, not the draft.** The draft
+  lives in `workflow_entity`, but the version that actually runs lives in
+  `workflow_history` and is reached through the workflow's `activeVersionId`.
+  Editing `workflow_entity.nodes` changes nothing at runtime. The script
+  therefore writes a new version and points the active and published version
+  ids at it.
+- **n8n writes its in-memory workflows back to the database when it shuts
+  down.** Updating the rows while n8n is running is undone by the restart that
+  follows. The script stops n8n first, writes, and starts it again.
+
+The script prints which version it published and checks that the published
+version carries the change, so a silent no-op is visible.
 
 ### Check Active Conversations
 ```sql
