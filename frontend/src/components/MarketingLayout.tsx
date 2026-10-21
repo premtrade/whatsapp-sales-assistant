@@ -26,7 +26,16 @@ function MarketingFooter() {
               jobs with less admin.
             </p>
             <p className="mt-4 text-sm leading-relaxed">
-              WAFLO is a product of ROLINJ.IO.
+              WAFLO is a product of{' '}
+              <a
+                href="https://rolin-io.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-surface-200 underline decoration-surface-600 underline-offset-4 transition-colors hover:text-white hover:decoration-primary-400"
+              >
+                ROLINJ.IO
+              </a>
+              .
               <br />
               Kingston, Jamaica
               <br />

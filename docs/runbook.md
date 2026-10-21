@@ -268,6 +268,56 @@ const { getActiveSubscription, isUsable } = require('/app/dist/services/subscrip
 "
 ```
 
+### Configure transactional email
+
+Trial reminders are the only automated way a prospect hears from us before
+their trial expires, and they are windowed: a trial is only reminded when it
+has seven days left and when it has two. If delivery fails for the whole of a
+window the reminder is lost, not retried. Email therefore has to work.
+
+The provider is a deployment choice, not a code choice:
+
+```bash
+EMAIL_PROVIDER=smtp2go     # 1,000/month, free, never expires
+EMAIL_PROVIDER=resend       # 3,000/month, free
+EMAIL_PROVIDER=brevo        # 300/day, free
+EMAIL_PROVIDER=sendgrid     # 100/day, free
+```
+
+Add the key for whichever you pick to the server env and restart the backend:
+
+```bash
+SMTP2GO_API_KEY=<the key>
+```
+
+Check what the running container can actually see - a key that is present but
+empty is the failure mode to look for:
+
+```bash
+docker exec <backend-container> node -e "
+const { getEmailProvider } = require('/app/dist/services/email.service');
+const p = getEmailProvider();
+console.log(p.id, p.apiKey ? 'key present' : 'KEY EMPTY', require('/app/dist/config').config.email.fromEmail || 'SENDER EMPTY');
+"
+```
+
+The sender has to be a domain you control with SPF and DKIM set up, or the mail
+will be junked. Until that is done, a trial about to expire is reported in the
+backend log every hour so it is at least visible.
+
+### Deploy a workflow change
+
+n8n keeps workflows in its own database and the release pipeline does not push
+them there, so a fix to a workflow cannot ship on its own. Deploy it by name:
+
+```bash
+scripts/deploy-workflow.sh "09 - Appointment Reminders"
+```
+
+It syncs the node definitions, connections and settings for that workflow and
+restarts n8n so the active workflow is reloaded. Credentials, the workflow id
+and the active flag are left alone.
+
 ### Check Active Conversations
 ```sql
 SELECT c.id, co.display_name, c.status, c.last_message_at
