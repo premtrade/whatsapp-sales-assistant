@@ -17,12 +17,27 @@ import { deriveAndSaveLeadScore } from '../services/leadScore.service';
 
 const router = Router();
 
-// Raw body parser for HMAC verification - must be before express.json()
+// The raw body is captured by express.json() at the app level, while the
+// stream is still being read, and handed over on the request. This router
+// must not try to read the stream again: by the time it runs, express.json()
+// has already consumed it, so listening for 'end' a second time never fires
+// and the request hangs until the client times out.
 router.use((req: Request, res: Response, next: NextFunction) => {
+  const webhookReq = req as WebhookRequest;
+  if (webhookReq.rawBody) {
+    next();
+    return;
+  }
+  if (req.readableEnded) {
+    // The body was consumed by another parser and no raw copy was kept. The
+    // signature check can still work off the parsed body.
+    next();
+    return;
+  }
   const rawBodyChunks: Buffer[] = [];
   req.on('data', (chunk) => rawBodyChunks.push(chunk));
   req.on('end', () => {
-    (req as WebhookRequest).rawBody = Buffer.concat(rawBodyChunks);
+    webhookReq.rawBody = Buffer.concat(rawBodyChunks);
     next();
   });
 });

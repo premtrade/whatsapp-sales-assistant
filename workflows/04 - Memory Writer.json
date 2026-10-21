@@ -94,7 +94,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO customer_facts (contact_id, business_id, fact_key, fact_value, confidence, source)\nSELECT NULLIF($1, '')::uuid, NULLIF($3, '')::uuid, 'customer_name', $2, 0.99, 'ai'\nON CONFLICT (business_id, contact_id, fact_key)\nDO UPDATE SET fact_value = EXCLUDED.fact_value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()\nRETURNING id, contact_id, fact_key, fact_value, confidence, source, updated_at;",
         "options": {
-          "queryReplacement": "={{ [String(($('Extract Customer Name').item.json.contact_id) ?? ''), String(($('Extract Customer Name').item.json.customer_name) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
+          "queryReplacement": "={{ [String(($('Extract Customer Name').first().json.contact_id) ?? ''), String(($('Extract Customer Name').first().json.customer_name) ?? ''), String((String($('When Executed by Another Workflow').first().json.business_id || '')) ?? '')] }}"
         },
         "continueOnFail": true,
         "onError": "continueRegularOutput"
@@ -119,7 +119,7 @@
         "operation": "executeQuery",
         "query": "UPDATE contacts SET display_name = $1, updated_at = NOW(), last_seen_at = NOW() WHERE id = NULLIF($2, '')::uuid AND business_id = NULLIF($3, '')::uuid RETURNING id, phone, display_name, updated_at;",
         "options": {
-          "queryReplacement": "={{ [String(($('Extract Customer Name').item.json.customer_name) ?? ''), String(($('Extract Customer Name').item.json.contact_id) ?? ''), String(($('When Executed by Another Workflow').first().json.business_id) ?? '')] }}"
+          "queryReplacement": "={{ [String(($('Extract Customer Name').first().json.customer_name) ?? ''), String(($('Extract Customer Name').first().json.contact_id) ?? ''), String(($('When Executed by Another Workflow').first().json.business_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",

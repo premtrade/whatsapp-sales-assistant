@@ -159,7 +159,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (business_id, conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at) VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, 'outgoing', 'staff', 'text', $3, COALESCE(NULLIF($4, '')::jsonb, '{}'::jsonb), NOW(), NOW()) RETURNING id, business_id, conversation_id, text_body, metadata;",
+        "query": "WITH msg AS (\n  INSERT INTO messages (business_id, conversation_id, direction, sender_type, message_type, text_body, metadata, created_at, updated_at)\n  SELECT NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, 'outgoing', 'staff', 'text', $3,\n         COALESCE(NULLIF($4, '')::jsonb, '{}'::jsonb), NOW(), NOW()\n  RETURNING id, business_id, conversation_id, text_body, metadata\n), audited AS (\n  INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata, business_id)\n  SELECT 'quote', NULLIF($5, '')::uuid, 'automated_follow_up', NULL, 'system',\n         'Automated ' || $6 || ' follow-up sent for quote ' || $7,\n         jsonb_build_object('follow_up_type', $6),\n         jsonb_build_object('quote_number', $7, 'contact_id', NULLIF($8, '')::uuid, 'timestamp', NOW()),\n         NULLIF($1, '')::uuid\n  RETURNING id\n)\nSELECT msg.id AS id, msg.business_id AS business_id, msg.conversation_id AS conversation_id,\n       msg.text_body AS text_body, msg.metadata AS metadata\n  FROM msg, audited;",
         "options": {
           "queryReplacement": "={{ [String(($json.business_id) ?? ''), String(($json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ follow_up_type: $json.follow_up_type, template_used: $json.template_used, quote_id: $json.id, quote_number: $json.quote_number, contact_id: $json.contact_id, phone: $json.phone, display_name: $json.display_name, waha_session_name: $json.waha_session_name, automated: true, delivery_status: 'pending' })) ?? '')] }}"
         }
@@ -208,31 +208,7 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata, business_id) VALUES ('quote', NULLIF($1, '')::uuid, 'automated_follow_up', NULL, 'automation', $2, jsonb_build_object('follow_up_type', $3), jsonb_build_object('quote_number', $4, 'contact_id', NULLIF($5, '')::uuid, 'timestamp', NOW()), NULLIF($6, '')::uuid) RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [String(($('Insert Follow-up Message').item.json.metadata.quote_id) ?? ''), String(('Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number) ?? ''), String(($('Insert Follow-up Message').item.json.metadata.follow_up_type) ?? ''), String(($('Insert Follow-up Message').item.json.metadata.quote_number) ?? ''), String(($('Insert Follow-up Message').item.json.metadata.contact_id) ?? ''), String(($('Insert Follow-up Message').item.json.business_id) ?? '')] }}"
-        },
-        "queryReplacement": "={{ $('Insert Follow-up Message').item.json.metadata.quote_id }}\n={{ 'Automated ' + $('Insert Follow-up Message').item.json.metadata.follow_up_type + ' follow-up sent for quote ' + $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.follow_up_type }}\n={{ $('Insert Follow-up Message').item.json.metadata.quote_number }}\n={{ $('Insert Follow-up Message').item.json.metadata.contact_id }}\n={{ $('Insert Follow-up Message').item.json.business_id }}"
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        -80,
-        200
-      ],
-      "id": "audit-log",
-      "name": "Audit Log",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const row = $('Insert Follow-up Message').item.json;\nconst metadata = row.metadata || {};\nreturn [{ json: { success: true, message: `Follow-up sent for quote ${metadata.quote_number} to ${metadata.display_name || metadata.phone}` } }];"
+        "jsCode": "const sent = $input.all();\nconst inserted = $('Insert Follow-up Message').all();\nreturn sent.map((item, index) => {\n  const metadata = (inserted[index] && inserted[index].json && inserted[index].json.metadata) || {};\n  const failed = item.json && (item.json.error || (item.json.success === false));\n  return {\n    json: {\n      success: !failed,\n      message: failed\n        ? 'The follow-up could not be sent. The team will follow up manually.'\n        : `Follow-up sent for quote ${metadata.quote_number || 'your quote'} to ${metadata.display_name || metadata.phone || 'you'}`,\n      quote_number: metadata.quote_number || null,\n      follow_up_type: metadata.follow_up_type || null,\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -242,29 +218,6 @@
       ],
       "id": "format-output",
       "name": "Format Output"
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE messages SET metadata = metadata || jsonb_build_object('delivery_status', 'sent', 'delivered_at', NOW()) WHERE id = NULLIF($1, '')::uuid RETURNING id, business_id, metadata;",
-        "options": {
-          "queryReplacement": "={{ [String(($('Insert Follow-up Message').item.json.id) ?? '')] }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        800,
-        600
-      ],
-      "id": "mark-followup-delivered",
-      "name": "Mark Follow-up Delivered",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
     }
   ],
   "pinData": {},
@@ -398,29 +351,7 @@
       "main": [
         [
           {
-            "node": "Mark Follow-up Delivered",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Audit Log": {
-      "main": [
-        [
-          {
             "node": "Format Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Mark Follow-up Delivered": {
-      "main": [
-        [
-          {
-            "node": "Audit Log",
             "type": "main",
             "index": 0
           }

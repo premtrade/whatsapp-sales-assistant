@@ -27,7 +27,12 @@ export function validateWebhookSource(options: {
   const signatureHeader = (options.signatureHeaderName || 'x-signature-256').toLowerCase();
   const timestampHeader = (options.timestampHeaderName || 'x-timestamp').toLowerCase();
   const envSecret = options.secretEnvVarName ? process.env[options.secretEnvVarName] : undefined;
-  const expectedSecret = envSecret || options.defaultSecret || process.env.WEBHOOK_SECRET || process.env.WAHA_API_KEY || '';
+  // The expected secret is only ever the one named for this route, or an
+  // explicit default. It must not fall back to an unrelated secret: doing that
+  // meant the WAHA API key silently became the key for the n8n webhooks, so
+  // a deployment that had not configured a webhook secret still appeared to
+  // work, and the real one was never set.
+  const expectedSecret = envSecret || options.defaultSecret || '';
   const sourceName = options.sourceName || 'webhook';
 
   return (req: WebhookRequest, res: Response, next: NextFunction): void => {

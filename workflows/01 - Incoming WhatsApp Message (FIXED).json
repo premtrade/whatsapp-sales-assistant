@@ -626,7 +626,7 @@
             },
             {
               "name": "X-Webhook-Secret",
-              "value": "REPLACE_WITH_N8N_WEBHOOK_SECRET"
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
             },
             {
               "name": "X-Timestamp",
@@ -637,7 +637,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"conversation_id\": \"{{ $('Upsert Conversation').first().json.id }}\",\n  \"business_id\": \"{{ $('Upsert Conversation').first().json.business_id }}\"\n}",
-        "options": {}
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,

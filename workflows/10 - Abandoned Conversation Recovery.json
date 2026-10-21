@@ -58,9 +58,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) VALUES (NULLIF($1, '')::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = NULLIF($1, '')::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW());",
+        "query": "WITH msg AS (\n  INSERT INTO messages (conversation_id, direction, sender_type, message_type, text_body, metadata, business_id, created_at, updated_at) VALUES (NULLIF($1, '')::uuid, 'outgoing', 'staff', 'text', $2, $3, COALESCE((SELECT business_id FROM conversations WHERE id = NULLIF($1, '')::uuid), (SELECT id FROM businesses LIMIT 1)), NOW(), NOW())\n), audited AS (\n  INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata, business_id)\n  SELECT 'conversation', NULLIF($1, '')::uuid, 'recovery_attempt', NULL, 'system',\n         'Recovery attempt sent for abandoned conversation',\n         jsonb_build_object('recovery_attempt', true),\n         jsonb_build_object('contact_id', NULLIF($2, '')::uuid, 'timestamp', NOW()),\n         NULLIF($3, '')::uuid\n  RETURNING id\n)\nSELECT msg.* FROM msg, audited;",
         "options": {
-          "queryReplacement": "={{ [String(($json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ recovery_attempt: true, automated: true, original_message_at: $json.last_message_at })) ?? '')] }}"
+          "queryReplacement": "={{ [String(($json.conversation_id) ?? ''), String(($json.message) ?? ''), String((JSON.stringify({ recovery_attempt: true, automated: true, original_message_at: $json.last_message_at })) ?? ''), String(($json.contact_id) ?? '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -105,29 +105,6 @@
       "id": "waha-send-recovery",
       "name": "WAHA Send Recovery",
       "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('conversation', NULLIF($1, '')::uuid, 'recovery_attempt', 'system', 'automation', $2, jsonb_build_object('recovery_attempt', true), jsonb_build_object('contact_id', NULLIF($3, '')::uuid, 'timestamp', NOW())) RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [String(($json.conversation_id) ?? ''), String(('Recovery attempt sent for abandoned conversation') ?? ''), String(($json.contact_id) ?? '')] }}"
-        }
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        160,
-        0
-      ],
-      "id": "audit-log",
-      "name": "Audit Log",
-      "credentials": {
-        "postgres": {
-          "id": "tOjZeRRL1hW2zbUk",
-          "name": "Postgres account"
-        }
-      }
     }
   ],
   "pinData": {},
@@ -180,7 +157,7 @@
       "main": [
         [
           {
-            "node": "Audit Log",
+            "node": "Format Output",
             "type": "main",
             "index": 0
           }

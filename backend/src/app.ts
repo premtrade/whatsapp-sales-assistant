@@ -8,6 +8,7 @@ import { apiRateLimiter, authRateLimiter, adminRateLimiter } from './middleware/
 import { validateBody } from './middleware/validation';
 import { loginSchema } from './controllers/auth.controller';
 import { requestIdMiddleware } from './middleware/requestId';
+import type { WebhookRequest } from './middleware/webhookAuth';
 import authRoutes from './routes/auth.routes';
 import conversationRoutes from './routes/conversation.routes';
 import contactRoutes from './routes/contact.routes';
@@ -67,7 +68,18 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ type: ['application/json'], limit: '10mb' }));
+// The raw body is captured here, while the stream is still being read, so the
+// webhook routes can verify an HMAC signature over the exact bytes that were
+// sent. Capturing it later, in a router, is too late: express.json() has
+// already consumed the stream, so listening for 'end' again never fires and
+// the request hangs until the client gives up.
+app.use(express.json({
+  type: ['application/json'],
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    (req as WebhookRequest).rawBody = Buffer.from(buf);
+  },
+}));
 app.use(express.urlencoded({ type: ['application/x-www-form-urlencoded'], extended: true, limit: '10mb' }));
 
 app.use('/storage', express.static('/app/storage'));

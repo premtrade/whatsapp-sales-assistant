@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "05 - Appointment Tool",
   "nodes": [
     {
@@ -167,7 +167,7 @@
             },
             {
               "name": "X-Webhook-Secret",
-              "value": "REPLACE_WITH_N8N_WEBHOOK_SECRET"
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
             },
             {
               "name": "X-Timestamp",
@@ -178,7 +178,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"business_id\": \"{{ $('When Executed by Another Workflow').first().json.business_id }}\",\n  \"contact_id\": \"{{ $('When Executed by Another Workflow').first().json.contact_id }}\",\n  \"conversation_id\": \"{{ $('When Executed by Another Workflow').first().json.conversation_id }}\",\n  \"preferred_date\": \"{{ $('Validate Inputs').first().json.preferred_date }}\",\n  \"preferred_time\": \"{{ $('Validate Inputs').first().json.preferred_time }}\",\n  \"duration_minutes\": {{ $('Validate Inputs').first().json.duration_minutes }},\n  \"appointment_type\": \"{{ $('Validate Inputs').first().json.appointment_type }}\",\n  \"title\": \"{{ $('Validate Inputs').first().json.title }}\",\n  \"location\": {{ JSON.stringify($('Validate Inputs').first().json.location ?? null) }},\n  \"description\": {{ JSON.stringify($('Validate Inputs').first().json.description ?? null) }},\n  \"assigned_to\": {{ JSON.stringify($('Validate Inputs').first().json.assigned_to ?? null) }}\n}",
-        "options": {}
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
