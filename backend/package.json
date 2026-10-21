@@ -9,6 +9,7 @@
     "start:prod": "node dist/server.js",
     "owner:recover": "node -r dotenv/config dist/scripts/seed-super-admin.js",
     "seed:demo": "ts-node --transpile-only src/scripts/seed-demo.ts",
+    "repair:tenants": "ts-node --transpile-only src/scripts/repair-tenants.ts",
     "build": "tsc",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

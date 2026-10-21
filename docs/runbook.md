@@ -230,6 +230,44 @@ Billing runs on the `BILLING_PROVIDER` setting. To switch to a card processor
 later, set the new provider and its credentials — no code change is needed.
 See [BILLING.md](BILLING.md).
 
+### Repair a tenant with no subscription
+
+A self-serve signup creates the business, then the trial subscription. If the
+second step fails, the tenant is left without a plan: every dashboard call is
+gated with a 402, and because `businesses.whatsapp_phone` is unique the
+customer cannot sign up again either.
+
+This happened between 1 and 15 October 2026, when the `ON CONFLICT` clause in
+`createTrial` could not be matched against the partial unique index added in
+migration 056, so the insert raised 42P10 every time. It is fixed, and signup
+now rolls the tenant back if the trial cannot be created.
+
+To repair anything left over:
+
+```bash
+# On the server, inside the backend container
+docker exec <backend-container> node dist/scripts/repair-tenants.js --dry-run
+docker exec <backend-container> node dist/scripts/repair-tenants.js
+```
+
+It finds every tenant with no subscription, creates a starter trial starting
+from now, and backfills any missing settings rows.
+
+### Check a tenant's entitlements
+
+```bash
+docker exec <backend-container> node -e "
+const { query, closePool } = require('/app/dist/utils/database');
+const { getActiveSubscription, isUsable } = require('/app/dist/services/subscription.service');
+(async () => {
+  const b = await query(\"SELECT id FROM businesses WHERE slug='<slug>'\");
+  const sub = await getActiveSubscription(b.rows[0].id);
+  console.log({ status: sub?.status, usable: isUsable(sub), plan: sub?.plan?.slug });
+  await closePool();
+})();
+"
+```
+
 ### Check Active Conversations
 ```sql
 SELECT c.id, co.display_name, c.status, c.last_message_at

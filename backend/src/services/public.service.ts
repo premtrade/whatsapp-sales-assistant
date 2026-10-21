@@ -41,7 +41,7 @@ export interface PublicSignupResponse {
   expiresIn: string;
 }
 
-const DEFAULT_SETTINGS: Array<{ key: string; value: string; dataType: string; description?: string }> = [
+export const DEFAULT_SETTINGS: Array<{ key: string; value: string; dataType: string; description?: string }> = [
   { key: 'whatsapp_api_version', value: 'v18.0', dataType: 'string', description: 'WhatsApp API version' },
   { key: 'ai_model', value: config.ai.defaultModel, dataType: 'string', description: 'Default AI model' },
   { key: 'message_limit', value: '1000', dataType: 'integer', description: 'WhatsApp messages per 24h' },
@@ -129,101 +129,129 @@ export async function signupBusiness(data: PublicSignupRequest): Promise<PublicS
     status: 'trialing',
   });
 
+  // Everything from here on has to succeed, and if it does not the tenant
+  // must not survive.
+  //
   // A self-serve tenant without a usable subscription is worse than no tenant:
   // every dashboard call is gated by requireActiveSubscription (402), while the
-  // n8n pipeline never checks subscriptions and keeps answering WhatsApp. So
-  // surface the failure rather than logging it and continuing.
-  await createTrial(business.id, 'starter');
-
-  // Record beta registration with the business ID now that it exists.
+  // n8n pipeline never checks subscriptions and keeps answering WhatsApp. And
+  // because businesses.whatsapp_phone is unique, a half-made tenant left
+  // behind makes the customer unable to sign up again with the same number -
+  // they would get "WhatsApp phone is already registered to another business"
+  // and have no way out.
+  //
+  // That is not hypothetical. Between 1 and 15 October 2026 the trial insert
+  // failed with a 42P10 (the ON CONFLICT clause could not be matched against
+  // the partial unique index added in migration 056), which left exactly such a
+  // tenant behind. See src/scripts/repair-tenants.ts.
   try {
-    const postInviteResult = await validateBetaInvite(normalizedEmail);
-    if (postInviteResult.valid) {
-      await recordBetaRegistration({
-        businessId: business.id,
-        email: normalizedEmail,
-        inviteType: postInviteResult.inviteType,
-      });
-    }
-  } catch {
-    // non-blocking
-  }
+    await createTrial(business.id, 'starter');
 
-  const passwordHash = await hashPassword(data.password);
-
-  const staffResult = await query<{
-    id: string;
-    employee_number: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    role: string;
-    status: string;
-    timezone: string;
-    business_id: string;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, password_hash, business_id)
-     VALUES ($1, $2, $3, $4, 'admin', 'active', $5, $6, $7)
-     RETURNING id, employee_number, first_name, last_name, email, role, status, timezone, business_id, created_at, updated_at`,
-    [`EMP-${business.id.slice(0, 6).toUpperCase()}`, firstName, lastName, normalizedEmail, 'America/Jamaica', passwordHash, business.id]
-  );
-
-  const staff = staffResult.rows[0];
-  if (!staff) {
-    throw new NotFoundError('Failed to create staff user');
-  }
-
-  for (const setting of DEFAULT_SETTINGS) {
+    // Record beta registration with the business ID now that it exists.
     try {
-      await query(
-        `INSERT INTO settings (setting_key, setting_value, data_type, description, business_id)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (business_id, setting_key) DO NOTHING`,
-        [setting.key, setting.value, setting.dataType, setting.description || null, business.id]
-      );
-    } catch (error) {
-      logger.warn('Failed to seed setting during signup', { businessId: business.id, key: setting.key, error });
+      const postInviteResult = await validateBetaInvite(normalizedEmail);
+      if (postInviteResult.valid) {
+        await recordBetaRegistration({
+          businessId: business.id,
+          email: normalizedEmail,
+          inviteType: postInviteResult.inviteType,
+        });
+      }
+    } catch {
+      // non-blocking
     }
+
+    const passwordHash = await hashPassword(data.password);
+
+    const staffResult = await query<{
+      id: string;
+      employee_number: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      role: string;
+      status: string;
+      timezone: string;
+      business_id: string;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `INSERT INTO staff_users (employee_number, first_name, last_name, email, role, status, timezone, password_hash, business_id)
+       VALUES ($1, $2, $3, $4, 'admin', 'active', $5, $6, $7)
+       RETURNING id, employee_number, first_name, last_name, email, role, status, timezone, business_id, created_at, updated_at`,
+      [`EMP-${business.id.slice(0, 6).toUpperCase()}`, firstName, lastName, normalizedEmail, 'America/Jamaica', passwordHash, business.id]
+    );
+
+    const staff = staffResult.rows[0];
+    if (!staff) {
+      throw new NotFoundError('Failed to create staff user');
+    }
+
+    for (const setting of DEFAULT_SETTINGS) {
+      try {
+        await query(
+          `INSERT INTO settings (setting_key, setting_value, data_type, description, business_id)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (business_id, setting_key) DO NOTHING`,
+          [setting.key, setting.value, setting.dataType, setting.description || null, business.id]
+        );
+      } catch (error) {
+        logger.warn('Failed to seed setting during signup', { businessId: business.id, key: setting.key, error });
+      }
+    }
+
+    const token = jwt.sign(
+      {
+        userId: staff.id,
+        email: staff.email,
+        role: staff.role,
+        firstName: staff.first_name,
+        lastName: staff.last_name,
+        businessId: business.id,
+        tenantId: business.id,
+      },
+      config.jwt.secret,
+      { expiresIn: '1d' }
+    );
+
+    return {
+      business: {
+        id: business.id,
+        name: business.name,
+        slug: business.slug,
+        status: business.status,
+        whatsapp_phone: business.whatsapp_phone || '',
+        waha_session_name: business.waha_session_name || '',
+        currency: business.currency,
+        timezone: business.timezone,
+      },
+      user: {
+        id: staff.id,
+        email: staff.email,
+        firstName: staff.first_name,
+        lastName: staff.last_name,
+        role: staff.role,
+        businessId: business.id,
+      },
+      token,
+      expiresIn: '1d',
+    };
+  } catch (err) {
+    // Roll the tenant back. Everything the tenant owns cascades from the
+    // business row, so one delete removes the orphan.
+    await query('DELETE FROM businesses WHERE id = $1', [business.id]).catch((cleanupError) => {
+      logger.error('Failed to clean up a tenant created without a subscription', {
+        businessId: business.id,
+        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+      });
+    });
+    logger.warn('Signup rolled back', {
+      businessId: business.id,
+      slug,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
-
-  const token = jwt.sign(
-    {
-      userId: staff.id,
-      email: staff.email,
-      role: staff.role,
-      firstName: staff.first_name,
-      lastName: staff.last_name,
-      businessId: business.id,
-      tenantId: business.id,
-    },
-    config.jwt.secret,
-    { expiresIn: '1d' }
-  );
-
-  return {
-    business: {
-      id: business.id,
-      name: business.name,
-      slug: business.slug,
-      status: business.status,
-      whatsapp_phone: business.whatsapp_phone || '',
-      waha_session_name: business.waha_session_name || '',
-      currency: business.currency,
-      timezone: business.timezone,
-    },
-    user: {
-      id: staff.id,
-      email: staff.email,
-      firstName: staff.first_name,
-      lastName: staff.last_name,
-      role: staff.role,
-      businessId: business.id,
-    },
-    token,
-    expiresIn: '1d',
-  };
 }
 
 export async function activateBusiness(id: string, requesterBusinessId?: string, requesterRole?: string): Promise<Business> {

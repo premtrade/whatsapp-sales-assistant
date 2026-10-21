@@ -11,8 +11,40 @@ type TrialReminderCandidate = {
   name: string;
 };
 
-/** Sends each trial reminder once. A failed delivery releases its claim so the next hourly run can retry. */
+/**
+ * Sends each trial reminder once. A failed delivery releases its claim so the next hourly run can retry.
+ *
+ * The reminder windows are narrow - a trial is only reminded when it has seven
+ * days left and when it has two. If delivery fails for the whole of a window
+ * the reminder is lost, so a tenant about to fall out of its trial is also
+ * reported to the platform owner in the logs. A trial that expires silently is
+ * a prospect that never heard from us.
+ */
 export async function sendDueTrialReminders(): Promise<number> {
+  const expiring = await query<{ slug: string; email: string | null; days_left: number }>(`
+    SELECT b.slug, b.email, EXTRACT(DAY FROM (s.trial_ends_at - NOW()))::int AS days_left
+      FROM subscriptions s
+      JOIN businesses b ON b.id = s.business_id
+     WHERE s.status = 'trialing'
+       AND s.trial_ends_at > NOW()
+       AND s.trial_ends_at <= NOW() + INTERVAL '3 days'
+       AND COALESCE(b.metadata->>'is_demo', 'false') <> 'true'
+     ORDER BY s.trial_ends_at
+  `);
+
+  if (expiring.rows.length > 0) {
+    logger.warn(
+      'Trials are about to expire. If no reminder has been delivered, check that EMAIL_PROVIDER is configured and its key is set.',
+      {
+        trials: expiring.rows.map((t) => ({
+          slug: t.slug,
+          email: t.email,
+          daysLeft: t.days_left,
+        })),
+      }
+    );
+  }
+
   const candidates = await query<TrialReminderCandidate>(`
     SELECT s.id, s.business_id, b.name,
       CASE WHEN s.trial_ends_at > NOW() + INTERVAL '6 days' THEN 'day7' ELSE 'day12' END AS reminder_key,
@@ -29,6 +61,9 @@ export async function sendDueTrialReminders(): Promise<number> {
     JOIN businesses b ON b.id = s.business_id
     WHERE s.status = 'trialing'
       AND s.trial_ends_at > NOW()
+      -- The demo tenant is not a real prospect. It would otherwise generate
+      -- trial reminders addressed to our own inbox.
+      AND COALESCE(b.metadata->>'is_demo', 'false') <> 'true'
       AND ((s.trial_ends_at > NOW() + INTERVAL '6 days' AND s.trial_ends_at <= NOW() + INTERVAL '7 days')
         OR (s.trial_ends_at > NOW() + INTERVAL '1 day' AND s.trial_ends_at <= NOW() + INTERVAL '2 days'))
       AND (
