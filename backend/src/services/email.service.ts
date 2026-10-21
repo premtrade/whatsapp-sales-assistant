@@ -200,13 +200,27 @@ const smtpProvider: EmailProvider = {
       secure: smtp.secure,
       auth: { user: smtp.user, pass: smtp.pass },
     });
-    await transport.sendMail({
-      from: `"${input.fromName}" <${input.fromEmail}>`,
-      to: input.to,
-      subject: input.subject,
-      text: input.text,
-      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
-    });
+    try {
+      await transport.sendMail({
+        from: `"${input.fromName}" <${input.fromEmail}>`,
+        to: input.to,
+        subject: input.subject,
+        text: input.text,
+        ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+      });
+    } catch (err: any) {
+      const code = err?.code || err?.responseCode || '';
+      const timedOut = /ETIMEDOUT|ECONNREFUSED|ETIMOUT/.test(String(code || err?.message || ''));
+      if (timedOut) {
+        throw new Error(
+          `Could not reach the SMTP relay at ${smtp.host}:${smtp.port} (${code || 'timeout'}). ` +
+          'Outbound SMTP is blocked on this host, so use a provider that sends over HTTPS instead: ' +
+          'EMAIL_PROVIDER=brevo (300/day free, works with a single mailbox as the sender) ' +
+          'or EMAIL_PROVIDER=resend (needs a domain).'
+        );
+      }
+      throw err;
+    }
     return true;
   },
 };
