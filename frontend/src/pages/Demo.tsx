@@ -80,10 +80,28 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
+/**
+ * Questions a prospect would actually ask, drawn from the services and the
+ * process the assistant can answer from its own knowledge base. Choosing one
+ * pre-fills the WhatsApp message, so nobody has to compose it.
+ */
+const SUGGESTED_QUESTIONS = [
+  'What can you automate for a small business?',
+  'Can you integrate with Odoo?',
+  'I still do my invoices by hand — can you fix that?',
+  'Can you build a WhatsApp assistant for my customers?',
+  'How much does it cost?',
+  'How long does a project take?',
+];
+
+const GREETING = 'Hi ROLINJ.IO! ';
+
 export default function DemoPage() {
   const [demo, setDemo] = useState<DemoData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [question, setQuestion] = useState(SUGGESTED_QUESTIONS[0])
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -108,11 +126,20 @@ export default function DemoPage() {
   }, [])
 
   const waNumber = demo?.business.whatsappPhone
+  const message = `${GREETING}${question}`
   const waHref = waNumber
-    ? `https://wa.me/${waNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent(
-        "Hi, I'm interested in automating parts of my business. What do you offer?"
-      )}`
+    ? `https://wa.me/${waNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent(message)}`
     : null
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(message)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard access can be refused; the WhatsApp link still works.
+    }
+  }
 
   return (
     <MarketingLayout>
@@ -319,6 +346,52 @@ export default function DemoPage() {
                     ? `${demo.business.whatsappName} answers its own WhatsApp enquiries with this assistant. Send it a message and see for yourself — it is the same knowledge base, running on a real number, right now.`
                     : 'Start a 14-day trial, pair your business WhatsApp number and upload what you know. No credit card required.'}
                 </p>
+
+                {waHref && (
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-surface-400">
+                      Pick a question to start with
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      {SUGGESTED_QUESTIONS.map((item) => {
+                        const selected = item === question
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setQuestion(item)}
+                            aria-pressed={selected}
+                            className={`rounded-full border px-3 py-1.5 text-left text-xs font-medium transition-colors ${
+                              selected
+                                ? 'border-green-400 bg-green-500/15 text-green-200'
+                                : 'border-surface-700 text-surface-300 hover:border-surface-500 hover:text-white'
+                            }`}
+                          >
+                            {item}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4 flex items-start gap-3 rounded-xl border border-surface-700 bg-surface-950 p-3">
+                      <p className="flex-1 text-sm leading-relaxed text-surface-200">{message}</p>
+                      <button
+                        type="button"
+                        onClick={copyMessage}
+                        className="shrink-0 rounded-lg border border-surface-700 px-2.5 py-1.5 text-xs font-medium text-surface-300 transition-colors hover:border-surface-500 hover:text-white"
+                        aria-label="Copy the message"
+                      >
+                        {copied ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-surface-500">
+                      {copied
+                        ? 'Copied. Paste it into any WhatsApp chat.'
+                        : 'It opens WhatsApp with this message ready to send.'}
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-5 flex flex-col gap-3">
                   {waHref && (
                     <a
