@@ -111,7 +111,7 @@
         "operation": "executeQuery",
         "query": "UPDATE appointments\n   SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reminders}',\n         COALESCE(metadata->'reminders', '{}'::jsonb) ||\n           jsonb_build_object($2::text, jsonb_build_object('status', 'sent', 'sent_at', NOW())), true),\n       reminder_sent = TRUE,\n       updated_at = NOW()\n WHERE id = NULLIF($1, '')::uuid\n RETURNING id;",
         "options": {
-          "queryReplacement": "={{ [String(($('Format Reminder Message').item.json.id) ?? ''), String(($('Format Reminder Message').item.json.reminder_type) ?? '')] }}"
+          "queryReplacement": "={{ [String(($('Format Reminder Message').item.json.id) || ''), String(($('Format Reminder Message').item.json.reminder_type) || '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -134,7 +134,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO audit_logs (entity_type, entity_id, action, performed_by, performed_by_type, description, new_values, metadata) VALUES ('appointment', NULLIF($1, '')::uuid, 'reminder_sent', 'system', 'automation', $2, jsonb_build_object('reminder_type', $3), jsonb_build_object('appointment_title', $4, 'contact_id', NULLIF($5, '')::uuid, 'timestamp', NOW())) RETURNING id;",
         "options": {
-          "queryReplacement": "={{ [String(($('Format Reminder Message').item.json.id) ?? ''), String(('Automated ' + $('Format Reminder Message').item.json.reminder_type + ' reminder sent for appointment: ' + $('Format Reminder Message').item.json.title) ?? ''), String(($('Format Reminder Message').item.json.reminder_type) ?? ''), String(($('Format Reminder Message').item.json.title) ?? ''), String(($('Format Reminder Message').item.json.contact_id) ?? '')] }}"
+          "queryReplacement": "={{ [String(($('Format Reminder Message').item.json.id) || ''), String(('Automated ' + ($('Format Reminder Message').item.json.reminder_type || 'appointment') + ' reminder sent for appointment: ' + ($('Format Reminder Message').item.json.title || '')) || ''), String(($('Format Reminder Message').item.json.reminder_type) || ''), String(($('Format Reminder Message').item.json.title) || ''), String(($('Format Reminder Message').item.json.contact_id) || '')] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",

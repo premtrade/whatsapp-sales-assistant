@@ -100,11 +100,16 @@ UPDATE appointments
 
 // The appointment id has to come from the appointment row. By this point in
 // the flow $json is WAHA's HTTP response, which has no id at all.
+//
+// || rather than ?? on purpose: a missing id has to become an empty string so
+// the query matches no rows, rather than the string "undefined", which would
+// be cast to uuid and abort the whole run. That is what made the old node
+// error on every tick and repeat the reminder forever.
 node('Mark Reminder Sent').parameters.options.queryReplacement =
-  "={{ [String(($('Format Reminder Message').item.json.id) ?? ''), String(($('Format Reminder Message').item.json.reminder_type) ?? '')] }}";
+  "={{ [String(($('Format Reminder Message').item.json.id) || ''), String(($('Format Reminder Message').item.json.reminder_type) || '')] }}";
 
 node('Audit Log').parameters.options.queryReplacement =
-  "={{ [String(($('Format Reminder Message').item.json.id) ?? ''), String(('Automated ' + $('Format Reminder Message').item.json.reminder_type + ' reminder sent for appointment: ' + $('Format Reminder Message').item.json.title) ?? ''), String(($('Format Reminder Message').item.json.reminder_type) ?? ''), String(($('Format Reminder Message').item.json.title) ?? ''), String(($('Format Reminder Message').item.json.contact_id) ?? '')] }}";
+  "={{ [String(($('Format Reminder Message').item.json.id) || ''), String(('Automated ' + ($('Format Reminder Message').item.json.reminder_type || 'appointment') + ' reminder sent for appointment: ' + ($('Format Reminder Message').item.json.title || '')) || ''), String(($('Format Reminder Message').item.json.reminder_type) || ''), String(($('Format Reminder Message').item.json.title) || ''), String(($('Format Reminder Message').item.json.contact_id) || '')] }}";
 
 writeFileSync(path, JSON.stringify(wf, null, 2) + '\n', 'utf8');
 console.log('patched 09 - Appointment Reminders');
