@@ -71,7 +71,7 @@ export async function resolveBillingContact(businessId: string): Promise<Billing
   };
 }
 
-function toChatId(phone: string): string {
+export function toChatId(phone: string): string {
   const trimmed = phone.trim();
   if (trimmed.includes('@')) return trimmed;
   const digits = trimmed.replace(/\D/g, '');

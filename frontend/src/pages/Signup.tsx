@@ -263,11 +263,11 @@ export default function SignupPage() {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-surface-900 mb-2">Get Started</h1>
-          <p className="text-surface-500">Create your WhatsApp sales assistant in 20 minutes.</p>
+          <p className="text-surface-500">Create your WhatsApp sales assistant in a few steps.</p>
           <p className="text-sm text-surface-500 mt-3">
             Not sure how to get started?{' '}
             <a
-              href="/blog#setup-whatsapp"
+              href="/blog/setup-whatsapp"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary-600 hover:underline"

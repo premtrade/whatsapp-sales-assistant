@@ -1,6 +1,8 @@
 import { emailService } from './email.service';
 import { query } from '../utils/database';
 import logger from '../utils/logger';
+import { resolveBillingContact, toChatId } from './billing/notification.service';
+import { sendWahaText } from './waha.service';
 
 type TrialReminderCandidate = {
   id: string;
@@ -10,6 +12,65 @@ type TrialReminderCandidate = {
   email: string | null;
   name: string;
 };
+
+/**
+ * Delivers a trial reminder.
+ *
+ * Email is the channel the customer gave us at signup, so it goes first. But
+ * the platform cannot always send email: the mail provider may have no key,
+ * or the outbound relay may be blocked, and a trial reminder that silently
+ * fails is a prospect who never hears from us.
+ *
+ * WhatsApp is the fallback, for the same reason the payment request prefers
+ * it: the owner is holding the phone, the platform already holds a WhatsApp
+ * connection for their tenant, and a message on WhatsApp costs a fraction of
+ * an email.
+ */
+export async function deliverTrialReminder(
+  candidate: TrialReminderCandidate
+): Promise<'email' | 'whatsapp' | 'none'> {
+  if (candidate.email) {
+    try {
+      await emailService.sendTrialReminder(
+        candidate.email,
+        candidate.name,
+        candidate.business_id,
+        candidate.days_remaining
+      );
+      return 'email';
+    } catch (error) {
+      logger.warn('Trial reminder email failed, trying WhatsApp', {
+        businessId: candidate.business_id,
+        reminder: candidate.reminder_key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const contact = await resolveBillingContact(candidate.business_id);
+  if (contact.phone && contact.session) {
+    try {
+      await sendWahaText({
+        session: contact.session,
+        chatId: toChatId(contact.phone),
+        text:
+          `Hi ${contact.name},\n\n` +
+          `Your WAFLO trial ends in about ${candidate.days_remaining} days. ` +
+          `Open the Billing page in your dashboard to review your plan and keep your WhatsApp workflows running.\n\n` +
+          `— WAFLO`,
+      });
+      return 'whatsapp';
+    } catch (error) {
+      logger.warn('Trial reminder WhatsApp delivery failed', {
+        businessId: candidate.business_id,
+        reminder: candidate.reminder_key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return 'none';
+}
 
 /**
  * Sends each trial reminder once. A failed delivery releases its claim so the next hourly run can retry.
@@ -82,8 +143,10 @@ export async function sendDueTrialReminders(): Promise<number> {
   let sentCount = 0;
   for (const candidate of candidates.rows) {
     if (!candidate.email) {
-      logger.warn('Trial reminder skipped because no admin email is configured', { businessId: candidate.business_id, reminder: candidate.reminder_key });
-      continue;
+      logger.warn('Trial reminder has no admin email; it will be sent over WhatsApp if the tenant has a number on file', {
+        businessId: candidate.business_id,
+        reminder: candidate.reminder_key,
+      });
     }
 
     const claim = await query<{ id: string }>(`
@@ -104,23 +167,34 @@ export async function sendDueTrialReminders(): Promise<number> {
     `, [candidate.id, candidate.reminder_key]);
     if (!claim.rowCount) continue;
 
-    try {
-      await emailService.sendTrialReminder(candidate.email, candidate.name, candidate.business_id, candidate.days_remaining);
-      await query(`
-        UPDATE subscriptions
-        SET metadata = jsonb_set(metadata, '{trial_reminders}',
-          COALESCE(metadata->'trial_reminders', '{}'::jsonb) ||
-            jsonb_build_object($2, jsonb_build_object('status', 'sent', 'sent_at', NOW())), true)
-        WHERE id = $1
-      `, [candidate.id, candidate.reminder_key]);
-      sentCount += 1;
-    } catch (error) {
+    const channel = await deliverTrialReminder(candidate);
+    if (channel === 'none') {
+      // Release the claim so the next hourly run tries again, and say why:
+      // a trial that expires silently is a prospect who never heard from us.
       await query(`UPDATE subscriptions
         SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{trial_reminders}',
           COALESCE(metadata->'trial_reminders', '{}'::jsonb) - $2, true)
         WHERE id = $1`, [candidate.id, candidate.reminder_key]);
-      logger.error('Trial reminder delivery failed', { businessId: candidate.business_id, reminder: candidate.reminder_key, error });
+      logger.error('Trial reminder could not be delivered by any channel', {
+        businessId: candidate.business_id,
+        reminder: candidate.reminder_key,
+      });
+      continue;
     }
+
+    await query(`
+      UPDATE subscriptions
+      SET metadata = jsonb_set(metadata, '{trial_reminders}',
+        COALESCE(metadata->'trial_reminders', '{}'::jsonb) ||
+          jsonb_build_object($2, jsonb_build_object('status', 'sent', 'sent_at', NOW(), 'channel', $3)), true)
+      WHERE id = $1
+    `, [candidate.id, candidate.reminder_key, channel]);
+    logger.info('Trial reminder sent', {
+      businessId: candidate.business_id,
+      reminder: candidate.reminder_key,
+      channel,
+    });
+    sentCount += 1;
   }
 
   return sentCount;
