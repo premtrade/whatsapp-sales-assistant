@@ -190,7 +190,10 @@ const smtpProvider: EmailProvider = {
     if (!smtp.host || !smtp.user || !smtp.pass) {
       throw new Error('SMTP is not configured: SMTP_HOST, SMTP_USER and SMTP_PASS are required');
     }
-    const nodemailer = await import('nodemailer');
+    const mod: any = await import('nodemailer');
+    // nodemailer is CommonJS, so the callable namespace can arrive either on
+    // the default export or spread onto the module itself.
+    const nodemailer = mod.default ?? mod;
     const transport = nodemailer.createTransport({
       host: smtp.host,
       port: smtp.port,
