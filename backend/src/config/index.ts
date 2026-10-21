@@ -71,6 +71,17 @@ export interface Config {
     whatsappNumber: string;
     whatsappName: string;
   };
+
+  // The platform's own WhatsApp line, used to tell the operator that a lead
+  // has arrived and to answer a visitor who left a WhatsApp number.
+  //
+  // It defaults to the number the site already advertises and to the default
+  // WAHA session, so a deployment that is already running the platform tenant
+  // on its own number does not need anything else configured.
+  platform: {
+    whatsappNumber: string;
+    whatsappSession: string;
+  };
 }
 
 function getEnv(name: string, defaultValue?: string): string {
@@ -190,6 +201,11 @@ export const config: Config = {
   demoAgent: {
     whatsappNumber: getEnv('DEMO_AGENT_WHATSAPP_NUMBER', ''),
     whatsappName: getEnv('DEMO_AGENT_WHATSAPP_NAME', 'ROLINJ.IO'),
+  },
+
+  platform: {
+    whatsappNumber: getEnv('PLATFORM_WHATSAPP_NUMBER', getEnv('DEMO_AGENT_WHATSAPP_NUMBER', '')),
+    whatsappSession: getEnv('PLATFORM_WHATSAPP_SESSION', getEnv('WAHA_SESSION', 'default')),
   },
 };
 
