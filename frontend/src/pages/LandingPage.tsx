@@ -883,8 +883,8 @@ export default function LandingPage() {
           >
             <h3 className="text-lg font-semibold text-surface-900">Talk to our team</h3>
             <p className="mt-1 text-sm text-surface-600">
-              Share a few details and your enquiry will be recorded for the WAFLO team. We reply by email, usually
-              the same working day.
+              Share a few details and your enquiry will be recorded for the WAFLO team. We reply by email or
+              WhatsApp, usually the same working day.
             </p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm font-medium text-surface-700">
